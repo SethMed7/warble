@@ -28,7 +28,8 @@ leaves your computer. voz is the blend of two earlier tools —
 Hold **⌃ + Fn** and talk; a small jade dot pulses bottom-center while the mic is hot —
 pause to think as long as you like, it records the whole hold and transcribes once on
 release (a pause is never a stop). The cleaned text lands in the focused app. It learns
-your spellings as you go (`myela` → `Myela`) via a local dictionary you control.
+your spellings as you go (`myela` → `Myela`) via a local dictionary you control — and the
+same dictionary teaches **read aloud** how to pronounce those words.
 
 ### Read aloud (text → voice)
 Press **⌃⇧V** to start watching, then highlight anything — each selection is queued in
@@ -37,8 +38,9 @@ right-click → **Services → Read Aloud with voz** for a one-shot read.
 
 ## Permissions — you grant only what you turn on
 
-voz asks for a permission the first time you use the capability that needs it, and never
-before. Each mode lights up exactly these:
+Each mode has an on/off switch in the menu. voz asks for a permission the first time you use
+the capability that needs it, and never before — and a mode you switch off never registers
+its hotkey or asks for anything at all. When on, each mode lights up exactly these:
 
 | You use… | Microphone | Speech Recognition | Accessibility |
 | --- | :--: | :--: | :--: |
@@ -68,6 +70,11 @@ Apple APIs), so only the app *shell* is macOS-specific.
   `core/say.ts`), or the built-in macOS voice with zero setup.
 - **Dictate:** NVIDIA **Parakeet** (`sherpa-onnx`) → **whisper.cpp** → Apple's on-device
   recognizer, in that order of preference. Cleanup is deterministic (`core/clean.ts`), no LLM.
+
+Both premium engines are optional and fully on-device. Enable them with
+`sh scripts/setup-kokoro.sh` (Kokoro voices) and `sh scripts/setup-helper.sh` (Parakeet + the
+canonical cleaner) — everything installs under `~/.voz`, and an existing `~/.leelo` / `~/.dictado`
+install is migrated in place (no model re-download).
 
 ## Privacy
 
@@ -110,15 +117,13 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/voz --speak "hello"         # read-aloud pipeline
 .build/debug/voz --clean "um so the the report"   # dictation cleanup
 .build/debug/voz --engine                # which transcription engine would run
-.build/debug/voz --apply "ship the miele engine"  # apply your dictionary
+.build/debug/voz --apply "ship the miele engine"  # apply your dictionary (dictation)
+.build/debug/voz --pronounce "read Myela aloud"   # apply your pronunciations (read-aloud)
 .build/debug/voz --selftest              # learn-from-edits logic
 ```
 
 ## Roadmap
 
-- **Capability toggles** in the menu (turn a mode fully off → its permission is never asked).
-- **One shared dictionary** so the spellings dictation learns also teach read-aloud how to
-  pronounce them.
 - **Dictate → read-back** proofreading loop (speak it, hear it back to catch errors).
 - Non-macOS shells over the same `core/`.
 

@@ -39,10 +39,11 @@ final class Overlay {
     private var activeWord: NSRange?
     private var placeholderShown = false
 
-    // leelo's warm, light identity: iris on cream.
+    // voz read-aloud: warm light surface. iris = brand/chrome; jade = live (watching, playing).
     private let ink = NSColor(srgbRed: 0.165, green: 0.141, blue: 0.118, alpha: 1)
     private let dim = NSColor(srgbRed: 0.663, green: 0.608, blue: 0.537, alpha: 1)
     private let iris = NSColor(srgbRed: 0x6E / 255.0, green: 0x56 / 255.0, blue: 0xE8 / 255.0, alpha: 1)
+    private let jade = NSColor(srgbRed: 0x22 / 255.0, green: 0xC7 / 255.0, blue: 0xA9 / 255.0, alpha: 1)
     private let sand = NSColor(srgbRed: 0.906, green: 0.847, blue: 0.769, alpha: 1)
     private let bg = NSColor(srgbRed: 0.984, green: 0.957, blue: 0.918, alpha: 0.98)
     private let bodyFont = NSFont.systemFont(ofSize: 15)
@@ -188,7 +189,15 @@ final class Overlay {
     }
 
     private func setPlayGlyph(_ g: String) { playButton?.title = g; miniPlay?.title = g }
-    private func setSpeaking(_ on: Bool) { speaking = on; syncWaveform() }
+    private func setSpeaking(_ on: Bool) {
+        speaking = on
+        syncWaveform()
+        // The play/pause control turns jade only while audio is actually playing (honest "it's live"),
+        // back to iris when paused/idle/done. The pillButton background is layer-backed.
+        let live = (on ? jade : iris).cgColor
+        miniPlay?.layer?.backgroundColor = live
+        playButton?.layer?.backgroundColor = live
+    }
     private func syncWaveform() { waveform?.setActive(speaking && mode == .mini) }
 
     func finish() {
@@ -294,10 +303,10 @@ final class Overlay {
     }
 
     private func buildMini() {
-        miniBadge = label("●", size: 12, weight: .bold, color: iris)
+        miniBadge = label("●", size: 12, weight: .bold, color: jade) // jade = a live capture is watching
         miniBadge.toolTip = "watching for highlights"
         waveform = WaveformView(bars: 7)
-        waveform.barColor = iris
+        waveform.barColor = jade // bars only animate while actually playing — jade = live audio
         waveform.translatesAutoresizingMaskIntoConstraints = false
         waveform.setContentHuggingPriority(.defaultLow, for: .horizontal)
         miniPlay = pillButton("▶", action: #selector(togglePlay), color: iris)
@@ -356,7 +365,7 @@ final class Overlay {
         let stopButton = pillButton("■", action: #selector(stopAll), color: sand, fg: ink)
         watchButton = pillButton("✕", action: #selector(stopWatching), color: sand, fg: ink)
         watchButton.toolTip = "Stop watching (keep reading what's queued)"
-        watchBadge = label("● watching", size: 11, weight: .bold, color: iris)
+        watchBadge = label("● watching", size: 11, weight: .bold, color: jade) // jade = live capture
         let collapseBtn = pillButton("⤡", action: #selector(collapse), color: sand, fg: ink)
         collapseBtn.toolTip = "Minimize"
 

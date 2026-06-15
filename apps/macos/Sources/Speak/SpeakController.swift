@@ -308,7 +308,7 @@ public final class SpeakController: NSObject {
     /// Register ⌃⇧V (the watch toggle). Idempotent; toggled with read-aloud on/off.
     private func registerHotKey() {
         guard hotKeyRef == nil else { return }
-        let hotKeyID = EventHotKeyID(signature: OSType(0x4C45_4C4F), id: 1) // "LELO"
+        let hotKeyID = EventHotKeyID(signature: OSType(0x766F_7A20), id: 1) // "voz "
         RegisterEventHotKey(UInt32(kVK_ANSI_V),
                             UInt32(controlKey | shiftKey),
                             hotKeyID,
@@ -332,7 +332,7 @@ public final class SpeakController: NSObject {
     // otherwise. (It does consume Escape while watching, which is the intent.)
     private func registerEscapeHotKey() {
         guard escHotKeyRef == nil else { return }
-        let id = EventHotKeyID(signature: OSType(0x4C45_4C4F), id: 2)
+        let id = EventHotKeyID(signature: OSType(0x766F_7A20), id: 2)
         RegisterEventHotKey(UInt32(kVK_Escape), 0, id, GetApplicationEventTarget(), 0, &escHotKeyRef)
     }
 

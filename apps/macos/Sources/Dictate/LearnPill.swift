@@ -12,7 +12,7 @@ final class LearnPill: NSObject {
     private var onRemove: (() -> Void)?
 
     private let ink = NSColor(srgbRed: 0.93, green: 0.94, blue: 0.96, alpha: 1)
-    private let duskBlue = NSColor(srgbRed: 0x56 / 255.0, green: 0x81 / 255.0, blue: 0xB5 / 255.0, alpha: 1)
+    private let iris = NSColor(srgbRed: 0x6E / 255.0, green: 0x56 / 255.0, blue: 0xE8 / 255.0, alpha: 1) // voz brand accent (was dictado dusk-blue)
     private let muted = NSColor(srgbRed: 0.62, green: 0.66, blue: 0.72, alpha: 1)
     private let bg = NSColor(srgbRed: 0x1c / 255.0, green: 0x1c / 255.0, blue: 0x1e / 255.0, alpha: 0.98)
     private let circle = NSColor(srgbRed: 0.27, green: 0.28, blue: 0.30, alpha: 1)
@@ -28,7 +28,7 @@ final class LearnPill: NSObject {
         center.alignment = .center
 
         let reject = circleButton(symbol: "xmark", fg: ink, bgColor: circle, diameter: dot, action: #selector(rejectTapped))
-        let accept = circleButton(symbol: "checkmark", fg: .white, bgColor: duskBlue, diameter: dot, action: #selector(acceptTapped))
+        let accept = circleButton(symbol: "checkmark", fg: .white, bgColor: iris, diameter: dot, action: #selector(acceptTapped))
 
         let stack = NSStackView(views: [reject, center, accept])
         stack.orientation = .horizontal
@@ -52,7 +52,7 @@ final class LearnPill: NSObject {
         self.onRemove = onRemove
 
         let height: CGFloat = 44
-        let badge = circleButton(symbol: "checkmark", fg: .white, bgColor: duskBlue, diameter: 26, action: #selector(noop))
+        let badge = circleButton(symbol: "checkmark", fg: .white, bgColor: iris, diameter: 26, action: #selector(noop))
         badge.isEnabled = false
         let center = label("Saved “\(word)”", size: 13, weight: .medium, color: ink)
         let remove = textButton("Remove", action: #selector(removeTapped))
@@ -126,7 +126,7 @@ final class LearnPill: NSObject {
         b.target = self
         b.action = action
         b.attributedTitle = NSAttributedString(string: title, attributes: [
-            .foregroundColor: duskBlue,
+            .foregroundColor: iris,
             .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
         ])
         b.setContentHuggingPriority(.required, for: .horizontal)

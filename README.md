@@ -18,9 +18,8 @@
   voice and follows along word by word.
 
 One menu-bar item, one mental model: *voice in, voice out.* Nothing you say or read ever
-leaves your computer. voz is the blend of two earlier tools —
-[leelo](https://github.com/SethMed7/leelo) (read aloud) and
-[dictado](https://github.com/SethMed7/dictado) (dictate) — folded into a single product.
+leaves your computer. voz is the blend of two earlier tools — **leelo** (read aloud) and
+**dictado** (dictate) — folded into a single product.
 
 ## The two modes
 
@@ -132,7 +131,5 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 MIT — see [LICENSE](LICENSE).
 
 <div align="center">
-<sub>🎙🔊 <b>voz</b> · voice in, voice out · 100% on-device · a blend of
-<a href="https://github.com/SethMed7/leelo">leelo</a> +
-<a href="https://github.com/SethMed7/dictado">dictado</a></sub>
+<sub>🎙🔊 <b>voz</b> · voice in, voice out · 100% on-device · a blend of <b>leelo</b> + <b>dictado</b></sub>
 </div>

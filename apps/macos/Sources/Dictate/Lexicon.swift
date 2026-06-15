@@ -11,8 +11,9 @@ import Foundation
 final class Lexicon {
     static let shared = Lexicon()
 
-    private(set) var corrections: [String: String] = [:] // lowercased-from -> verbatim-to
-    private let comment = "Map a misspelling (lowercase) to the spelling you want — e.g. \"myayla\": \"Myela\". voz applies these to every dictation, and adds to them when you correct a word."
+    private(set) var corrections: [String: String] = [:]    // lowercased-from -> verbatim-to (dictation)
+    private(set) var pronunciations: [String: String] = [:] // lowercased-word -> "say it like" respelling (read-aloud)
+    private let comment = "corrections: map a misspelling (lowercase) to the spelling you want — e.g. \"myayla\": \"Myela\"; voz applies these to every dictation. pronunciations: map a word (lowercase) to how read-aloud should say it — e.g. \"myela\": \"my-ell-uh\"."
 
     init() { load() }
 
@@ -36,11 +37,15 @@ final class Lexicon {
     }
 
     func load() {
-        corrections = [:]
+        corrections = [:]; pronunciations = [:]
         guard let data = try? Data(contentsOf: fileURL),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let c = obj["corrections"] as? [String: String] else { return }
-        for (k, v) in c where !k.isEmpty && !v.isEmpty { corrections[k.lowercased()] = v }
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        if let c = obj["corrections"] as? [String: String] {
+            for (k, v) in c where !k.isEmpty && !v.isEmpty { corrections[k.lowercased()] = v }
+        }
+        if let p = obj["pronunciations"] as? [String: String] {
+            for (k, v) in p where !k.isEmpty && !v.isEmpty { pronunciations[k.lowercased()] = v }
+        }
     }
 
     /// Apply known corrections to a transcript — whole words only, case-insensitive.
@@ -68,6 +73,22 @@ final class Lexicon {
     /// Remove a correction by its "from" key.
     func forget(_ from: String) {
         guard corrections.removeValue(forKey: from.lowercased()) != nil else { return }
+        save()
+    }
+
+    /// Set how read-aloud should say `word` — a respelling like "my-ell-uh". An empty `say` clears it.
+    /// Stored in the same file the read-aloud Pronouncer reads, so dictation and reading share it.
+    func setPronunciation(word: String, say: String) {
+        let key = word.lowercased().trimmingCharacters(in: .whitespaces)
+        let value = say.trimmingCharacters(in: .whitespaces)
+        guard !key.isEmpty else { return }
+        if value.isEmpty { pronunciations.removeValue(forKey: key) } else { pronunciations[key] = value }
+        save()
+    }
+
+    /// Remove a pronunciation by its word key.
+    func forgetPronunciation(_ word: String) {
+        guard pronunciations.removeValue(forKey: word.lowercased()) != nil else { return }
         save()
     }
 
@@ -99,7 +120,7 @@ final class Lexicon {
     }
 
     private func save() {
-        let obj: [String: Any] = ["_comment": comment, "corrections": corrections]
+        let obj: [String: Any] = ["_comment": comment, "corrections": corrections, "pronunciations": pronunciations]
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: fileURL)

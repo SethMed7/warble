@@ -73,7 +73,7 @@ final class Speaker {
     /// Append a highlighted selection (capture mode). Starts playback if idle; otherwise begins
     /// rendering it in the background so it's ready to play the moment the current one ends.
     func enqueue(_ text: String) {
-        let norm = normalizeSpeech(text)
+        let norm = Pronouncer.shared.apply(normalizeSpeech(text)) // say learned words the way you mean
         guard !norm.isEmpty else { return }
         if !mergeIntoLast(norm) { // a cut-off word finished → joined onto the last selection instead
             segments.append(norm)
@@ -108,7 +108,7 @@ final class Speaker {
         stopEngines()
         active = false
         playIndex = 0
-        segments = [normalizeSpeech(text)]
+        segments = [Pronouncer.shared.apply(normalizeSpeech(text))]
         Overlay.shared.clearTranscript()
         Overlay.shared.addSegment(segments[0])
         playFrom()

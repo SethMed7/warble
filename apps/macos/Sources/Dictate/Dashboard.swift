@@ -11,9 +11,12 @@ final class Dashboard: NSObject, NSWindowDelegate {
     private var pathLabel: NSTextField!
     private var fromField: NSTextField!
     private var toField: NSTextField!
+    private var pronWordField: NSTextField!
+    private var pronSayField: NSTextField!
     private var learnCheck: NSButton!
     private var engineLabel: NSTextField!
     private var sortedKeys: [String] = []
+    private var sortedPronKeys: [String] = []
 
     private var learnEnabled: (() -> Bool)?
     private var toggleLearn: (() -> Void)?
@@ -34,7 +37,7 @@ final class Dashboard: NSObject, NSWindowDelegate {
     // MARK: build
 
     private func build() {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 560),
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 620),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
                          backing: .buffered, defer: false)
         w.title = "voz — Dictionary"
@@ -52,7 +55,7 @@ final class Dashboard: NSObject, NSWindowDelegate {
         root.translatesAutoresizingMaskIntoConstraints = false
 
         root.addArrangedSubview(text("Dictionary", 16, .bold, ink))
-        root.addArrangedSubview(text("Local corrections applied to every dictation.", 12, .regular, muted))
+        root.addArrangedSubview(text("Spelling fixes for dictation, and how read-aloud says a word — local, on your Mac.", 12, .regular, muted))
 
         pathLabel = text("", 11, .regular, muted)
         pathLabel.lineBreakMode = .byTruncatingMiddle
@@ -69,7 +72,11 @@ final class Dashboard: NSObject, NSWindowDelegate {
 
         fromField = inputField("misspelling")
         toField = inputField("correct spelling")
-        let addRow = hrow([fromField, text("→", 13, .regular, muted), toField, button("Add", #selector(addTapped))])
+        let addRow = hrow([text("Fix", 12, .regular, muted), fromField, text("→", 13, .regular, muted), toField, button("Add", #selector(addTapped))])
+
+        pronWordField = inputField("word")
+        pronSayField = inputField("say it like")
+        let pronRow = hrow([text("Say", 12, .regular, muted), pronWordField, text("→", 13, .regular, muted), pronSayField, button("Add", #selector(addPronTapped))])
 
         listStack = NSStackView()
         listStack.orientation = .vertical
@@ -90,7 +97,7 @@ final class Dashboard: NSObject, NSWindowDelegate {
             listStack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
         ])
 
-        for row in [locRow, setRow, addRow, scroll] { root.addArrangedSubview(row) }
+        for row in [locRow, setRow, addRow, pronRow, scroll] { root.addArrangedSubview(row) }
 
         let container = NSView()
         container.wantsLayer = true
@@ -105,8 +112,9 @@ final class Dashboard: NSObject, NSWindowDelegate {
             locRow.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
             setRow.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
             addRow.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
+            pronRow.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
             scroll.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
-            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 280),
+            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 260),
         ])
         w.contentView = container
         window = w
@@ -120,16 +128,34 @@ final class Dashboard: NSObject, NSWindowDelegate {
         learnCheck?.state = (learnEnabled?() ?? true) ? .on : .off
 
         listStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        // Corrections (dictation): from -> to, with a Remove each.
+        listStack.addArrangedSubview(sectionHeader("Corrections — applied to dictation"))
         let entries = Lexicon.shared.corrections.sorted { $0.key < $1.key }
         sortedKeys = entries.map { $0.key }
         if entries.isEmpty {
-            listStack.addArrangedSubview(text("No words yet — add one above, or voz will offer to learn them as you correct.", 12, .regular, muted))
-            return
+            listStack.addArrangedSubview(text("No corrections yet — add one above, or voz will offer to learn them as you correct.", 12, .regular, muted))
+        } else {
+            for (i, e) in entries.enumerated() {
+                let r = hrow([text("\(e.key)  →  \(e.value)", 13, .regular, ink), flexSpacer(), removeButton(tag: i, #selector(removeTapped))])
+                r.widthAnchor.constraint(equalTo: listStack.widthAnchor).isActive = true
+                listStack.addArrangedSubview(r)
+            }
         }
-        for (i, e) in entries.enumerated() {
-            let r = hrow([text("\(e.key)  →  \(e.value)", 13, .regular, ink), flexSpacer(), removeButton(tag: i)])
-            r.widthAnchor.constraint(equalTo: listStack.widthAnchor).isActive = true
-            listStack.addArrangedSubview(r)
+
+        // Pronunciations (read-aloud): word -> say it like, with a Remove each.
+        listStack.addArrangedSubview(spacer(10))
+        listStack.addArrangedSubview(sectionHeader("Pronunciations — how read-aloud says a word"))
+        let prons = Lexicon.shared.pronunciations.sorted { $0.key < $1.key }
+        sortedPronKeys = prons.map { $0.key }
+        if prons.isEmpty {
+            listStack.addArrangedSubview(text("No pronunciations yet — add one above to fix how a name or term is read aloud.", 12, .regular, muted))
+        } else {
+            for (i, e) in prons.enumerated() {
+                let r = hrow([text("\(e.key)  →  “\(e.value)”", 13, .regular, ink), flexSpacer(), removeButton(tag: i, #selector(removePronTapped))])
+                r.widthAnchor.constraint(equalTo: listStack.widthAnchor).isActive = true
+                listStack.addArrangedSubview(r)
+            }
         }
     }
 
@@ -147,6 +173,21 @@ final class Dashboard: NSObject, NSWindowDelegate {
     @objc private func removeTapped(_ sender: NSButton) {
         guard sender.tag >= 0, sender.tag < sortedKeys.count else { return }
         Lexicon.shared.forget(sortedKeys[sender.tag])
+        refresh()
+    }
+
+    @objc private func addPronTapped() {
+        let word = pronWordField.stringValue.trimmingCharacters(in: .whitespaces)
+        let say = pronSayField.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !word.isEmpty, !say.isEmpty else { return }
+        Lexicon.shared.setPronunciation(word: word, say: say)
+        pronWordField.stringValue = ""; pronSayField.stringValue = ""
+        refresh()
+    }
+
+    @objc private func removePronTapped(_ sender: NSButton) {
+        guard sender.tag >= 0, sender.tag < sortedPronKeys.count else { return }
+        Lexicon.shared.forgetPronunciation(sortedPronKeys[sender.tag])
         refresh()
     }
 
@@ -189,10 +230,20 @@ final class Dashboard: NSObject, NSWindowDelegate {
         return b
     }
 
-    private func removeButton(tag: Int) -> NSButton {
-        let b = button("Remove", #selector(removeTapped))
+    private func removeButton(tag: Int, _ action: Selector) -> NSButton {
+        let b = button("Remove", action)
         b.tag = tag
         return b
+    }
+
+    private func sectionHeader(_ s: String) -> NSTextField {
+        text(s, 11, .semibold, muted)
+    }
+
+    private func spacer(_ height: CGFloat) -> NSView {
+        let v = NSView()
+        v.heightAnchor.constraint(equalToConstant: height).isActive = true
+        return v
     }
 
     private func flexSpacer() -> NSView {

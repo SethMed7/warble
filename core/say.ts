@@ -15,9 +15,36 @@ const { KokoroTTS } = await import("kokoro-js");
 const text = (await new Response(Bun.stdin.stream()).text()).trim();
 if (!text) process.exit(0);
 
+// Time-to-first-audio is gated by the FIRST chunk's inference, which scales with its length — so a
+// long opening sentence means seconds of silence before any sound. Split the opening into a SMALL
+// first chunk (≤ ~90 chars, cut at the first natural clause boundary, hard-capped so a long
+// unpunctuated run can't form a giant first chunk) and stream it immediately; the rest is batched
+// into normal ~360-char chunks for prosody. The brief seam after the opener is hidden by playback
+// already being underway.
+function splitFirstClause(s: string): [string, string] {
+  const MIN = 24, MAX = 90;
+  if (s.length <= MAX) return [s, ""];
+  let cut = -1;
+  const re = /[,;:.!?—]\s/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s)) !== null) {
+    const end = m.index + 1; // keep the boundary punctuation with the head
+    if (end > MAX) break;
+    if (end >= MIN) cut = end;
+  }
+  if (cut === -1) {
+    const sp = s.lastIndexOf(" ", MAX);
+    cut = sp >= MIN ? sp : MAX; // fall back to a word boundary
+  }
+  return [s.slice(0, cut).trim(), s.slice(cut).trim()];
+}
+
 function chunkText(input: string, max = 360): string[] {
-  const sentences = input.replace(/\s+/g, " ").match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) ?? [input];
-  const chunks: string[] = [];
+  const norm = input.replace(/\s+/g, " ").trim();
+  if (!norm) return [];
+  const [head, rest] = splitFirstClause(norm);
+  const chunks: string[] = head ? [head] : [];
+  const sentences = rest.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) ?? (rest ? [rest] : []);
   let cur = "";
   for (const s of sentences) {
     if (cur && cur.length + s.length > max) {

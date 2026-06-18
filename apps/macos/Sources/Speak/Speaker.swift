@@ -18,10 +18,35 @@ protocol SpeechEngine: AnyObject {
     func stop()
 }
 
-/// Collapse runs of whitespace to single spaces so the text we display, speak,
+/// Strip Markdown so its symbols aren't read aloud literally ("star star heavy", "hash hash",
+/// "dash dash dash"). Minimal + deterministic — it only removes emphasis / heading / rule / bullet /
+/// code markers and link URLs and keeps the words, so it adds no latency and can't change what you
+/// wrote. Runs before normalizeSpeech, so the cleaned text is what we both display and speak.
+func markdownToSpeech(_ input: String) -> String {
+    var s = input
+    func sub(_ pattern: String, _ repl: String) {
+        s = s.replacingOccurrences(of: pattern, with: repl, options: .regularExpression)
+    }
+    s = s.replacingOccurrences(of: "`", with: "")            // code ticks → gone, keep the words
+    sub("!?\\[([^\\]]*)\\]\\([^)]*\\)", "$1")                 // [text](url) / ![alt](url) → text
+    sub("(?m)^[ \\t]{0,3}#{1,6}[ \\t]+", "")                 // # headings → drop the hashes
+    sub("(?m)^[ \\t]*>[ \\t]?", "")                           // > blockquote markers
+    sub("(?m)^[ \\t]*([-*_])[ \\t]*(\\1[ \\t]*){2,}$", ". ")  // --- *** ___ rules → a pause
+    sub("(?m)^[ \\t]*[-*+][ \\t]+", "")                      // - * + bullets → drop the marker
+    sub("\\*\\*([^*]+)\\*\\*", "$1")                          // **bold**
+    sub("__([^_]+)__", "$1")                                  // __bold__
+    sub("~~([^~]+)~~", "$1")                                  // ~~strike~~
+    sub("\\*([^*\\n]+)\\*", "$1")                             // *italic*
+    sub("(?<![A-Za-z0-9])_([^_\\n]+)_(?![A-Za-z0-9])", "$1")  // _italic_ (but not snake_case)
+    s = s.replacingOccurrences(of: "|", with: " ")           // table pipes
+    return s
+}
+
+/// Markdown-strip, then collapse runs of whitespace to single spaces so the text we display, speak,
 /// and highlight all line up in the same character coordinates.
 func normalizeSpeech(_ s: String) -> String {
-    s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    markdownToSpeech(s)
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
@@ -166,6 +191,8 @@ final class Speaker {
     }
 
     private func playLive(_ text: String, index: Int) {
+        current?.stop()  // never orphan a live engine (e.g. voice switched mid-read): terminate its
+                         // subprocess, invalidate its timer, and delete its temp audio before replacing it
         let useKokoro = voiceId != "system" && KokoroEngine.isAvailable()
         let engine: SpeechEngine = useKokoro ? KokoroEngine() : SystemEngine()
         current = engine
@@ -291,6 +318,9 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
     private var player: AVAudioPlayer?
     private var rendererDone = false
     private var stopped = false
+    private var pendingText = ""      // the selection text, kept so a warm-server failure can retry cold
+    private var warmAttempt = false   // this spawn is streaming from the warm server (vs. cold per-spawn)
+    private var triedCold = false     // already fell back to the cold path once — don't loop
     private var onState: ((SpeakerState) -> Void)?
     private var onWord: ((NSRange) -> Void)?
 
@@ -327,17 +357,37 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         self.onWord = onWord
         self.segment = text as NSString
         self.searchOffset = 0
+        self.pendingText = text
+        self.triedCold = false
         onState(.preparing)
+        spawn(warm: WarmTTS.shared.ready) // warm server if it's resident; else the per-spawn cold path
+    }
 
+    /// Spawn the renderer. WARM = curl streaming the warm server's /render, whose response body is the
+    /// same "<path>\t<chunk>" lines say.ts prints — so the reader/karaoke code below is unchanged. COLD
+    /// = `bun run say.ts` (loads the model per spawn). A warm spawn that yields nothing falls back to
+    /// cold ONCE, so a down/sick server never drops the read.
+    private func spawn(warm: Bool) {
+        warmAttempt = warm
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: Self.bunPath()!)
-        p.arguments = ["run", "say.ts"]
-        p.currentDirectoryURL = Self.helperDir
-        var env = ProcessInfo.processInfo.environment
-        env["VOZ_VOICE"] = Speaker.shared.voiceId
-        env["LEELO_VOICE"] = Speaker.shared.voiceId // keep a legacy ~/.leelo say.ts working too
-        p.environment = env
         let stdin = Pipe(), stdout = Pipe(), stderr = Pipe()
+        let payload: Data
+        if warm {
+            p.executableURL = URL(fileURLWithPath: WarmTTS.curlPath())
+            p.arguments = ["-sN", "--max-time", "300", "-X", "POST", "\(WarmTTS.shared.baseURL)/render",
+                           "-H", "Content-Type: application/json", "--data-binary", "@-"]
+            let body = ["text": pendingText, "voice": Speaker.shared.voiceId]
+            payload = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
+        } else {
+            p.executableURL = URL(fileURLWithPath: Self.bunPath()!)
+            p.arguments = ["run", "say.ts"]
+            p.currentDirectoryURL = Self.helperDir
+            var env = ProcessInfo.processInfo.environment
+            env["VOZ_VOICE"] = Speaker.shared.voiceId
+            env["LEELO_VOICE"] = Speaker.shared.voiceId // keep a legacy ~/.leelo say.ts working too
+            p.environment = env
+            payload = Data(pendingText.utf8)
+        }
         p.standardInput = stdin
         p.standardOutput = stdout
         p.standardError = stderr
@@ -364,6 +414,15 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         p.terminationHandler = { [weak self] proc in
             DispatchQueue.main.async {
                 guard let self, !self.stopped else { return }
+                // Warm server down/sick (exited non-zero having produced nothing) → fall back to the
+                // cold per-spawn path ONCE so the selection still gets read.
+                if self.warmAttempt, !self.triedCold, proc.terminationStatus != 0,
+                   self.queue.isEmpty, self.player == nil {
+                    self.triedCold = true
+                    WarmTTS.shared.markStale()
+                    self.spawn(warm: false)
+                    return
+                }
                 self.rendererDone = true
                 if proc.terminationStatus != 0 && self.queue.isEmpty && self.player == nil {
                     let err = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
@@ -377,10 +436,11 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         do {
             try p.run()
             process = p
-            stdin.fileHandleForWriting.write(Data(text.utf8))
+            stdin.fileHandleForWriting.write(payload)
             stdin.fileHandleForWriting.closeFile()
         } catch {
-            onState(.failed(error.localizedDescription))
+            if warm, !triedCold { triedCold = true; WarmTTS.shared.markStale(); spawn(warm: false); return }
+            onState?(.failed(error.localizedDescription))
         }
     }
 

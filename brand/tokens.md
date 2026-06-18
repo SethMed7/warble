@@ -26,9 +26,9 @@ it descends from: *léelo* (read it), *dictado* (dictation), *narrado* (narrated
 | **electric** | `#2E74FF` | The voice — core electric blue: the wordmark chrome, controls, the live waveform, the read-along marker, the spinner + loading bar. The single in-app accent |
 | **electric-bright** | `#3CC6FF` | Gradient crest — the cyan tip of the sound-wave |
 | **voice gradient** | `#1E5BFF → #3CC6FF` | The mark's signature: the V rising into the wave. Identity surfaces only — logo, icon, hero, marketing |
-| **ink** | `#161520` | Black surface (the dictation pill, dark UI) |
+| **ink** | `#161520` | Black surface — both in-app panels (the dictation pill **and** the read-along panel) and all dark UI |
 | **black** | `#07080C` | Backdrop — the deepest black behind the mark |
-| **paper** | `#F5F2EC` | Light surface (the read-along panel) |
+| **paper** | `#F5F2EC` | Light surface — marketing / docs only; the in-app panels are dark |
 | **mist** | `#8B8794` | Muted text, secondary labels |
 | **line-dark** | `#2A2833` | Hairline borders on dark surfaces |
 | **line-light** | `#E5E0D6` | Hairline borders on light surfaces |
@@ -43,6 +43,10 @@ it descends from: *léelo* (read it), *dictado* (dictation), *narrado* (narrated
 - "Is it listening?" stays unambiguous through **motion**, not a second hue: the waveform only
   reacts to your voice while the mic is hot, and the spinner only spins while processing — the
   single most important honesty in a voice tool.
+- **Both in-app panels are dark** (`ink #161520`): the read-along panel and the dictation pill are
+  the same black card with the one electric-blue accent, so the two capabilities read as one app.
+  The **menu-bar icon is the V sound-wave mark** (`apps/macos/Sources/voz/VozIcon.swift`, traced
+  from `v-mark.svg`), drawn as a template so it tints to the light/dark menu bar.
 
 ## Typography
 

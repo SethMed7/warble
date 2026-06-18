@@ -46,12 +46,26 @@ pause to think as long as you like, it records the whole hold and transcribes on
 release (a pause is never a stop). Prefer no hands? **Double-tap ⌃** to start dictating and
 double-tap again to stop. The cleaned text lands in the focused app. It learns
 your spellings as you go (`myela` → `Myela`) via a local dictionary you control — and the
-same dictionary teaches **read aloud** how to pronounce those words.
+same dictionary teaches **read aloud** how to pronounce those words. If a paste ever lands in the
+wrong place, the last several dictations are kept (in memory) under **menu → Copy Last Dictation**
+(or **Recent Dictations**), so a mis-targeted paste never means re-saying it.
 
 ### Read aloud (text → voice)
-Press **⌃V** to start watching, then highlight anything — each selection is queued in
-order and read along word by word in a minimized player that never steals focus. Or
-right-click → **Services → Read Aloud with voz** for a one-shot read.
+Press **⌃V** to start watching, then highlight anything — drag-select, double/triple-click, or
+**Shift-click to extend** — and each selection is queued in order and read aloud while a **dark
+read-along panel** follows along word by word, the current word lit in electric blue. **⌃V always
+(re)arms a fresh watch** (never a dead second press); **Esc stops** and closes. The panel wears voz's
+identity — a black surface with a single electric-blue accent, the same card as the dictation pill —
+and its **waveform only ripples while audio is actually playing** (motion, not a second color, is
+what tells you it's live). Collapse to a compact player — waveform · play/pause · expand — with **⤡**;
+it never steals focus. Or right-click → **Services → Read Aloud with voz** for a one-shot read.
+
+### Look & feel
+One identity across both modes: a **black surface with a single electric-blue accent** (`#2E74FF`),
+SF Pro type, and **motion as the only "live" signal** — the waveform reacts only while the mic is hot
+or audio is playing, never a second hue. The read-along panel and the dictation pill share the same
+dark card, the menu-bar icon is the **V** sound-wave mark, and the loading/preparing states stay in
+the same palette — so the two halves feel like one app. Full tokens in [`brand/tokens.md`](brand/tokens.md).
 
 ## Permissions — you grant only what you turn on
 
@@ -84,7 +98,13 @@ voz uses the best engine present and falls through if one isn't installed. All r
 Apple APIs), so only the app *shell* is macOS-specific.
 
 - **Read aloud:** [Kokoro-82M](https://github.com/hexgrad/kokoro) neural voices (via
-  `core/say.ts`), or the built-in macOS voice with zero setup.
+  `core/say.ts`), or the built-in macOS voice with zero setup. Optionally run Kokoro as a **warm
+  local server** (`setup-kokoro-server.sh`, `core/say-server.ts`) that keeps the 92 MB model loaded
+  so each read starts with consistent low latency instead of re-loading the model per selection —
+  same model, same voices, 100% on-device (binds `127.0.0.1` only). It also streams a **short first
+  chunk first**, so time-to-first-audio stays low (~0.5–1 s) and never balloons on a long opening
+  sentence. If the server isn't installed or is unhealthy, voz falls back to the per-spawn renderer,
+  then the system voice — the read never drops.
 - **Dictate:** NVIDIA **Parakeet** (`sherpa-onnx`) → **whisper.cpp** → Apple's on-device
   recognizer, in that order of preference. Optionally run Parakeet as a **warm local server**
   (`setup-asr.sh`) that keeps the model loaded so each clip transcribes in ~0.08 s instead of
@@ -100,7 +120,8 @@ Apple APIs), so only the app *shell* is macOS-specific.
   deterministic result, and it falls back the same way if the model is missing or stalls.
 
 These premium layers are all optional and fully on-device. Enable them with
-`sh scripts/setup-kokoro.sh` (Kokoro voices), `sh scripts/setup-helper.sh` (Parakeet + the
+`sh scripts/setup-kokoro.sh` (Kokoro voices), `sh scripts/setup-kokoro-server.sh` (the warm
+read-aloud server — consistent low-latency reads), `sh scripts/setup-helper.sh` (Parakeet + the
 canonical cleaner), `sh scripts/setup-asr.sh` (the warm Parakeet server — near-instant
 transcription), and `sh scripts/setup-cleaner.sh` (the LLM polish — which just confirms your
 existing Ollama, or sets one up). The on-device homes install under `~/.voz`, and an existing
@@ -110,8 +131,10 @@ under **menu → Dictate → "Polish with AI"**; pin a model with `VOZ_OLLAMA_MO
 ## Privacy
 
 No cloud, no API keys, no accounts, no telemetry. Audio is transcribed and deleted in one
-pass — **no recording is ever saved**. The only network access is a one-time, explicit model
-download when you opt into a premium engine. The portable `core/` contains no networking code.
+pass — **no recording is ever saved**. The last few *transcripts* (text only) are held **in memory**
+as a recovery aid for a mis-targeted paste — never written to disk, and cleared the moment voz quits.
+The only network access is a one-time, explicit model download when you opt into a premium engine.
+The portable `core/` contains no networking code.
 
 ## Repository layout
 

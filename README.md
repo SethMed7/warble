@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="apps/macos/media/banner.png" alt="voz" width="640">
-
-**the voice layer for your Mac — speak to type, select to hear. 100% on-device.**
+<img src="apps/macos/media/logo.png" alt="voz — the voice layer for your Mac" width="720">
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-2E74FF)](LICENSE)
 [![Platform](https://img.shields.io/badge/macOS-13%2B-161520)](#install)
@@ -10,16 +8,35 @@
 
 </div>
 
-**voz** (Spanish for *voice*) is a tiny menu-bar app with two halves of one idea:
+**voz** (Spanish for *voice*) is the voice layer for your Mac — a tiny menu-bar app, two halves of
+one idea: **speak to type, select to hear.** It runs **100% on your Mac**: no cloud, no accounts, no
+API keys, and **no recording is ever saved.**
 
-- **Dictate** — hold **⌃ + ⌥** (or **double-tap ⌃** for hands-free), speak, release. What you said is transcribed on your Mac,
-  cleaned (fillers and self-corrections dropped), and typed where your cursor is.
-- **Read aloud** — select text anywhere and press **⌃V**. voz reads it in a warm neural
-  voice and follows along word by word.
+- 🎙 **Dictate** — hold **⌃ + ⌥** (or **double-tap ⌃** for hands-free), speak, release. voz
+  transcribes on-device, cleans it up — drops "um"/"like"/false starts, adds punctuation, formats
+  numbers and dates — and types it where your cursor is, in any app.
+- 🔊 **Read aloud** — select text anywhere and press **⌃V**. voz reads it in a warm neural voice,
+  following along word by word.
 
-One menu-bar item, one mental model: *voice in, voice out.* Nothing you say or read ever
-leaves your computer. voz is the blend of two earlier tools — **leelo** (read aloud) and
-**dictado** (dictate) — folded into a single product.
+## See it work
+
+<div align="center">
+<img src="apps/macos/media/showcase.png" alt="how voz works: speak → clean → type, on-device" width="860">
+</div>
+
+You talk the way you actually talk — fillers, self-corrections, even *"that's D-H-A-V-A-L"* to spell
+a name — and voz hands you clean, formatted text where your cursor is. It **learns the words you
+correct** (and the ones you spell out), so names and jargon stick. Transcription runs from a warm
+on-device engine, so it lands in well under a second — and nothing ever leaves your Mac.
+
+## Highlights
+
+- **100% on-device** — no cloud, no API keys, no accounts; audio is transcribed and deleted in one pass, never saved.
+- **Genuinely clean output** — an optional on-device LLM removes fillers and false starts, adds punctuation, and formats numbers, currency, and dates (Wispr-class — still no cloud).
+- **Near-instant** — a warm NVIDIA Parakeet engine transcribes in ~0.08 s instead of reloading the model every clip.
+- **Learns your words** — correct a name a couple of times, or just spell it out loud (*"Dhaval, that's D-H-A-V-A-L"*), and it sticks in your dictionary, everywhere — even in terminals.
+- **Hands-free or hold** — double-tap **⌃** to toggle, or hold **⌃ + ⌥**; **Esc** cancels mid-dictation.
+- **Reads back, too** — select any text + **⌃V** for warm, on-device neural read-aloud that follows along word by word.
 
 ## The two modes
 
@@ -136,15 +153,6 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/voz --pronounce "read Myela aloud"   # apply your pronunciations (read-aloud)
 .build/debug/voz --selftest              # learn-from-edits logic
 ```
-
-## Brand
-
-Black and **electric blue** (`#2E74FF`) — simple, bold, on-device. The waveform *is* the mark; it
-only moves when the mic is hot. Full palette + usage in [`brand/tokens.md`](brand/tokens.md).
-
-<div align="center">
-<img src="apps/macos/media/brand.png" alt="voz brand — icon, wordmark, and palette" width="820">
-</div>
 
 ## Roadmap
 

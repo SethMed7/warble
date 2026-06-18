@@ -5,6 +5,8 @@ dictado's dusk-blue-on-black). voz is the voice layer for your Mac, so the syste
 around two colors: **electric blue on black.** Blue is the voice — shiny, electric, a tech
 signal; black is the surface it lives on.
 
+<img src="../apps/macos/media/brand.png" alt="voz brand board — icon, wordmark, palette" width="760">
+
 ## Wordmark
 
 `voz` — always lowercase. Spanish for *voice*; one word for both directions (you speak to

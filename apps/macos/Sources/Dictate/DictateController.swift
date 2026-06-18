@@ -21,6 +21,13 @@ public final class DictateController: NSObject {
     private var handsFree = false // true while a double-tap-⌃ (no-hold) session is recording
     private var recordingWatchdog: DispatchWorkItem? // force-finishes a stuck session if a key-up is dropped
 
+    // In-memory safety net: the last few cleaned dictations, so a paste that lands in the wrong app or
+    // field isn't lost forever (you'd otherwise have to re-say it). Never written to disk — consistent
+    // with "no recording is ever saved" — and cleared when voz quits. Retrieve from the menu via
+    // "Copy Last Dictation" / "Recent Dictations".
+    private var recentTranscripts: [String] = []
+    private let maxRecent = 10
+
     /// Whether double-tap ⌃ starts a hands-free dictation. On by default; toggle in the menu.
     private var handsFreeEnabled: Bool {
         get { UserDefaults.standard.object(forKey: "handsFreeEnabled") as? Bool ?? true }
@@ -87,6 +94,28 @@ public final class DictateController: NSObject {
         let engine = NSMenuItem(title: "Engine: \(Transcribers.activeEngineName())", action: nil, keyEquivalent: "")
         engine.isEnabled = false
         items.append(engine)
+
+        // Recovery: if a dictation pasted somewhere wrong, grab it here instead of re-saying it.
+        if let last = recentTranscripts.first {
+            let copyLast = NSMenuItem(title: "Copy Last Dictation", action: #selector(copyLastTranscript), keyEquivalent: "")
+            copyLast.target = self
+            copyLast.toolTip = oneLine(last)
+            items.append(copyLast)
+            if recentTranscripts.count > 1 {
+                let recent = NSMenuItem(title: "Recent Dictations", action: nil, keyEquivalent: "")
+                let sub = NSMenu()
+                for (i, t) in recentTranscripts.enumerated() {
+                    let it = NSMenuItem(title: preview(t), action: #selector(copyRecent(_:)), keyEquivalent: "")
+                    it.target = self
+                    it.tag = i
+                    it.toolTip = oneLine(t)
+                    sub.addItem(it)
+                }
+                recent.submenu = sub
+                items.append(recent)
+            }
+        }
+
         if OllamaCleaner.isInstalled() || LLMCleaner.isAvailable() {
             let ai = NSMenuItem(title: "Polish with AI (on-device)", action: #selector(toggleLLM), keyEquivalent: "")
             ai.target = self
@@ -147,6 +176,37 @@ public final class DictateController: NSObject {
         Lexicon.shared.load()
         Dashboard.shared.open(learnEnabled: { [weak self] in self?.learnEnabled ?? true },
                               toggleLearn: { [weak self] in self?.toggleLearn() }) // flips + keeps the menu in sync
+    }
+
+    // MARK: recent dictations — a safety net for a mis-targeted paste
+
+    private func remember(_ text: String) {
+        recentTranscripts.removeAll { $0 == text }     // most-recent-first, de-duplicated
+        recentTranscripts.insert(text, at: 0)
+        if recentTranscripts.count > maxRecent { recentTranscripts.removeLast() }
+        onMenuRebuild?() // keep "Copy Last Dictation" / the submenu current
+    }
+
+    @objc private func copyLastTranscript() {
+        guard let t = recentTranscripts.first else { return }
+        copyToClipboard(t)
+    }
+    @objc private func copyRecent(_ sender: NSMenuItem) {
+        guard recentTranscripts.indices.contains(sender.tag) else { return }
+        copyToClipboard(recentTranscripts[sender.tag])
+    }
+    private func copyToClipboard(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+        Overlay.shared.flash(message: "copied — ⌘V to paste")
+    }
+    private func preview(_ s: String) -> String {
+        let one = oneLine(s)
+        return one.count > 48 ? String(one.prefix(47)) + "…" : one
+    }
+    private func oneLine(_ s: String) -> String {
+        s.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
     }
 
     // Hold ⌃+⌥: press starts, release stops.
@@ -275,6 +335,7 @@ public final class DictateController: NSObject {
             Overlay.shared.flash(message: "nothing heard")
             return
         }
+        remember(cleaned) // keep it retrievable in case the paste lands somewhere wrong
         if Paster.paste(cleaned) {
             Overlay.shared.showTyped()
             startLearning(pasted: cleaned)

@@ -29,7 +29,7 @@ final class MicWaveformView: NSView {
 
     /// Feed a normalized mic level (0…1). Must be called on the main thread.
     func setLevel(_ l: CGFloat) {
-        target = min(1, max(0, l))
+        target = min(1, max(0, l * 1.6)) // a touch more sensitive — quieter speech moves the bars more
         if timer == nil && !flat { start() } // re-arm if the view is reused after a stop
     }
 

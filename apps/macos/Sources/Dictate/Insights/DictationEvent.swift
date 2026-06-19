@@ -27,4 +27,5 @@ struct DictationContext {
     let engine: String
     let appBundleId: String?
     let appName: String?
+    let secure: Bool   // a secure (password) field was focused while recording — keep metrics only
 }

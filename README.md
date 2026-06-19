@@ -10,7 +10,7 @@
 
 **voz** (Spanish for *voice*) is the voice layer for your Mac — a tiny menu-bar app, two halves of
 one idea: **speak to type, select to hear.** It runs **100% on your Mac**: no cloud, no accounts, no
-API keys, and **no recording is ever saved.**
+API keys, and **everything stays on your Mac** (your history + recordings are local-only, and you control them).
 
 - 🎙 **Dictate** — hold **Fn** (or **double-tap Fn** for hands-free), speak, release. voz
   transcribes on-device, cleans it up — drops fillers ("um", "uh") and false starts, adds punctuation, formats
@@ -31,7 +31,7 @@ on-device engine, so it lands in well under a second — and nothing ever leaves
 
 ## Highlights
 
-- **100% on-device** — no cloud, no API keys, no accounts; audio is transcribed and deleted in one pass, never saved.
+- **100% on-device** — no cloud, no API keys, no accounts; your dictations and recordings are kept **local-only** in `~/.voz` (turn either off, or clear/export, in Insights ▸ Data & Privacy), never uploaded.
 - **Genuinely clean output** — an optional on-device LLM removes fillers and false starts, adds punctuation, and formats numbers, currency, and dates (Wispr-class — still no cloud).
 - **Near-instant** — a warm NVIDIA Parakeet engine transcribes in ~0.08 s instead of reloading the model every clip.
 - **Learns your words** — correct a name a couple of times, or just spell it out loud (*"Dhaval, that's D H A V A L"*), and it sticks in your dictionary, everywhere — even in terminals.
@@ -131,11 +131,14 @@ under **menu → Dictate → "Polish with AI"**; pin a model with `VOZ_OLLAMA_MO
 
 ## Privacy
 
-No cloud, no API keys, no accounts, no telemetry. Audio is transcribed and deleted in one
-pass — **no recording is ever saved**. The last few *transcripts* (text only) are held **in memory**
-as a recovery aid for a mis-targeted paste — never written to disk, and cleared the moment voz quits.
-The only network access is a one-time, explicit model download when you opt into a premium engine.
-The portable `core/` contains no networking code.
+No cloud, no API keys, no accounts, no telemetry — **everything stays on your Mac.** voz keeps a
+**local** history of your dictations (and, when **Save recordings** is on, the audio) under `~/.voz`
+(owner-only), so the Insights dashboard can show your stats, let you replay a clip, and learn your
+words. You're in control in **Insights ▸ Data & Privacy**: turn **Keep history** off for stats-only
+(no transcript text stored), turn **Save recordings** off to delete audio after transcription as it
+always did, keep **Skip password fields** on so a spoken password is never written, and **Clear** or
+**Export** anytime. Nothing is ever uploaded; the only network access is a one-time, explicit model
+download when you opt into a premium engine, and the portable `core/` contains no networking code.
 
 ## Repository layout
 

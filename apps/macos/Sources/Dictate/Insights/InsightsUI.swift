@@ -3,26 +3,32 @@ import AppKit
 
 /// The Insights dashboard shell: a Flow-style dark sidebar (Home / Insights / Dictionary / History)
 /// over a detail pane. Phase 1 wires Home to real stats; the others are honest placeholders.
-struct InsightsRootView: View {
-    @ObservedObject var store: InsightStore
-    @State private var section: Section = .home
-
-    enum Section: String, CaseIterable, Identifiable, Hashable {
-        case home = "Home", insights = "Insights", dictionary = "Dictionary", history = "History"
-        var id: String { rawValue }
-        var icon: String {
-            switch self {
-            case .home: return "square.grid.2x2"
-            case .insights: return "chart.bar"
-            case .dictionary: return "character.book.closed"
-            case .history: return "clock.arrow.circlepath"
-            }
+enum InsightsSection: String, CaseIterable, Identifiable, Hashable {
+    case home = "Home", insights = "Insights", dictionary = "Dictionary", history = "History", data = "Data & Privacy"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .home: return "square.grid.2x2"
+        case .insights: return "chart.bar"
+        case .dictionary: return "character.book.closed"
+        case .history: return "clock.arrow.circlepath"
+        case .data: return "lock.shield"
         }
     }
+}
+
+/// Lets the menu deep-link to a section (e.g. "Dictionary…" opens the window on Dictionary).
+final class InsightsNav: ObservableObject {
+    @Published var section: InsightsSection = .home
+}
+
+struct InsightsRootView: View {
+    @ObservedObject var store: InsightStore
+    @ObservedObject var nav: InsightsNav
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $section) {
+            List(selection: $nav.section) {
                 HStack(spacing: 8) {
                     Image(systemName: "waveform").foregroundStyle(VozTheme.electric)
                     Text("voz").font(.headline).foregroundStyle(VozTheme.textHi)
@@ -30,22 +36,21 @@ struct InsightsRootView: View {
                 }
                 .padding(.vertical, 8)
 
-                ForEach(Section.allCases) { s in
+                ForEach(InsightsSection.allCases) { s in
                     Label(s.rawValue, systemImage: s.icon).tag(s)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 260)
         } detail: {
             Group {
-                switch section {
+                switch nav.section {
                 case .home: HomeView(store: store)
                 case .insights: ComingSoon(icon: "chart.bar",
                                            title: "Insights",
                                            subtitle: "Words per day, WPM over time, and where you dictate most.")
-                case .dictionary: ComingSoon(icon: "character.book.closed",
-                                             title: "Dictionary",
-                                             subtitle: "Your learned spellings & pronunciations, redesigned here. For now: menu → Dictionary…")
+                case .dictionary: DictionaryView()
                 case .history: HistoryView(store: store)
+                case .data: DataPrivacyView(store: store)
                 }
             }
             .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)

@@ -21,6 +21,11 @@ public final class InsightStore: ObservableObject {
         get { UserDefaults.standard.object(forKey: "insightsSaveAudio") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "insightsSaveAudio") }
     }
+    /// Never store text/audio when a secure (password) field is focused. Default on.
+    var excludeSecureFields: Bool {
+        get { UserDefaults.standard.object(forKey: "insightsExcludeSecure") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "insightsExcludeSecure") }
+    }
 
     let dir: URL          // ~/.voz
     private let fileURL: URL    // ~/.voz/history.json
@@ -50,7 +55,8 @@ public final class InsightStore: ObservableObject {
         let text = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let id = UUID().uuidString
-        if saveAudio, let src = audioSource {
+        let blocked = ctx.secure && excludeSecureFields   // password field focused → keep metrics only
+        if saveAudio, !blocked, let src = audioSource {
             let dest = audioDir.appendingPathComponent("\(id).wav")
             try? FileManager.default.copyItem(at: src, to: dest)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
@@ -59,7 +65,7 @@ public final class InsightStore: ObservableObject {
             id: id,
             ts: Date().timeIntervalSince1970,
             day: Self.dayFormatter.string(from: Date()),
-            text: historyEnabled ? text : "",
+            text: (historyEnabled && !blocked) ? text : "",
             words: Self.wordCount(text),
             durationMs: ctx.durationMs,
             appBundleId: ctx.appBundleId,
@@ -116,6 +122,31 @@ public final class InsightStore: ObservableObject {
         if let u = audioURL(for: e) { try? FileManager.default.removeItem(at: u) }
         events.removeAll { $0.id == e.id }
         rewrite()
+    }
+
+    /// Wipe every transcript and recording (the Data & Privacy "Clear all").
+    func clearAll() {
+        events.removeAll()
+        try? FileManager.default.removeItem(at: fileURL)
+        try? FileManager.default.removeItem(at: audioDir)
+        try? FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+    }
+
+    /// All events as a pretty JSON array, for Export.
+    func exportJSON() -> Data {
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return (try? enc.encode(events)) ?? Data("[]".utf8)
+    }
+
+    /// "N recordings · X MB" for the Data panel.
+    var audioSummary: String {
+        let files = (try? FileManager.default.contentsOfDirectory(at: audioDir,
+                     includingPropertiesForKeys: [.fileSizeKey])) ?? []
+        let wavs = files.filter { $0.pathExtension == "wav" }
+        let bytes = wavs.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
+        return "\(wavs.count) recordings · \(String(format: "%.1f", Double(bytes) / 1_048_576.0)) MB"
     }
 
     // MARK: derived stats

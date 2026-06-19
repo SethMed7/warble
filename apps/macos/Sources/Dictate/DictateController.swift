@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Shared
 
 public final class DictateController: NSObject {
@@ -30,6 +31,12 @@ public final class DictateController: NSObject {
 
     /// The app being dictated INTO, captured at recording start (before focus can change) for per-app stats.
     private var dictationApp: (bundleId: String?, name: String?)?
+    /// Whether a secure (password) field was focused at recording start — so Insights can keep metrics only.
+    private var dictationSecure = false
+    private static let passwordManagerBundleIDs: Set<String> = [
+        "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword",
+        "com.bitwarden.desktop", "org.keepassxc.keepassxc", "com.lastpass.LastPass", "com.apple.keychainaccess",
+    ]
 
     /// Whether double-tap ⌃ starts a hands-free dictation. On by default; toggle in the menu.
     private var handsFreeEnabled: Bool {
@@ -137,7 +144,7 @@ public final class DictateController: NSObject {
         learn.target = self
         learn.state = learnEnabled ? .on : .off
         items.append(learn)
-        let dash = NSMenuItem(title: "Dictionary…", action: #selector(openDashboard), keyEquivalent: "d")
+        let dash = NSMenuItem(title: "Dictionary…", action: #selector(openDictionary), keyEquivalent: "d")
         dash.target = self
         items.append(dash)
         return items
@@ -179,13 +186,8 @@ public final class DictateController: NSObject {
         onMenuRebuild?() // refresh the checkmark in the shared menu
     }
 
-    @objc private func openDashboard() {
-        Lexicon.shared.load()
-        Dashboard.shared.open(learnEnabled: { [weak self] in self?.learnEnabled ?? true },
-                              toggleLearn: { [weak self] in self?.toggleLearn() }) // flips + keeps the menu in sync
-    }
-
-    @objc private func openInsights() { InsightsWindow.shared.open() }
+    @objc private func openInsights() { InsightsWindow.shared.open(section: .home) }
+    @objc private func openDictionary() { InsightsWindow.shared.open(section: .dictionary) }
 
     // MARK: recent dictations — a safety net for a mis-targeted paste
 
@@ -241,6 +243,8 @@ public final class DictateController: NSObject {
         // Capture the app being dictated into NOW, before anything can change focus — the per-app signal.
         let app = NSWorkspace.shared.frontmostApplication
         dictationApp = (app?.bundleIdentifier, app?.localizedName)
+        dictationSecure = IsSecureEventInputEnabled()
+            || ((app?.bundleIdentifier).map(Self.passwordManagerBundleIDs.contains) ?? false)
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt
         registerEsc() // Esc cancels while recording
         state = .listening
@@ -319,7 +323,8 @@ public final class DictateController: NSObject {
         let ctx = DictationContext(durationMs: Int(clip.duration * 1000),
                                    engine: Transcribers.activeEngineName(),
                                    appBundleId: dictationApp?.bundleId,
-                                   appName: dictationApp?.name)
+                                   appName: dictationApp?.name,
+                                   secure: dictationSecure)
         let wav = clip.url
         Transcribers.run(wav, clipDuration: clip.duration) { [weak self] text in
             guard let self else { try? FileManager.default.removeItem(at: wav); return }

@@ -6,11 +6,12 @@ import SwiftUI
 final class InsightsWindow {
     static let shared = InsightsWindow()
     private var window: NSWindow?
+    private let nav = InsightsNav()
 
-    func open() {
+    func open(section: InsightsSection = .home) {
         if window == nil {
-            let host = NSHostingView(rootView: InsightsRootView(store: InsightStore.shared))
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 920, height: 640),
+            let host = NSHostingView(rootView: InsightsRootView(store: InsightStore.shared, nav: nav))
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 660),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
             w.title = "voz Insights"
@@ -22,6 +23,7 @@ final class InsightsWindow {
             w.center()
             window = w
         }
+        nav.section = section
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }

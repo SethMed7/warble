@@ -18,6 +18,19 @@ API keys, and **everything stays on your Mac** (your history + recordings are lo
 - 🔊 **Read aloud** — select text anywhere and press **⌃V**. voz reads it in a warm neural voice,
   following along word by word.
 
+## Download
+
+### [⬇︎ Download voz for macOS](https://github.com/SethMed7/voz/releases/latest)
+
+A **notarized `.dmg`** — open it, drag **voz** into Applications, launch. **macOS 13+.** No account,
+no API key. It works **immediately** on Apple's built-in on-device engines; you only grant Microphone /
+Accessibility the first time you use each mode.
+
+Want the *premium* on-device engines (sharper dictation, warmer voices, LLM polish)? Open
+**menu → "Set up better engines…"** — a transparent setup that checks your Mac and **asks before
+installing anything**. Nothing is required; nothing happens without your yes. Prefer to build it
+yourself? See [Install from source](#install-from-source).
+
 ## See it work
 
 <div align="center">
@@ -68,6 +81,23 @@ or audio is playing, never a second hue. The read-along panel and the dictation 
 dark card, the menu-bar icon is the **V** sound-wave mark, and the loading/preparing states stay in
 the same palette — so the two halves feel like one app. Full tokens in [`brand/tokens.md`](brand/tokens.md).
 
+## Insights — your voice, tracked locally
+
+Open **menu → Insights…** for a dark dashboard (same identity) that turns your dictation and
+read-aloud into stats — **100% on your Mac**, nothing uploaded.
+
+<div align="center">
+<img src="apps/macos/media/insights.png" alt="voz Insights — Home stats, History with replay, Dictionary, and trend charts" width="860">
+</div>
+
+- **Home** — words dictated, your WPM, a day streak, words read aloud, and a recent feed.
+- **Insights** — words-per-day, a speaking-pace (WPM) trend, and a per-app breakdown ("where you dictate").
+- **History** — a searchable, per-app feed of every dictation; open one to **replay the recording**,
+  fix the text, or **teach the dictionary** a word so future dictations get it right — train it as you go.
+- **Dictionary** — your spelling corrections and read-aloud pronunciations, the learn-threshold, and where the file lives.
+- **Data & Privacy** — toggles for keeping history, saving recordings, and skipping password fields,
+  plus **Export** and **Clear**. Everything is local and owner-only; a spoken password is never stored.
+
 ## Permissions — you grant only what you turn on
 
 Each mode has an on/off switch in the menu. voz asks for a permission the first time you use
@@ -82,7 +112,9 @@ its hotkey or asks for anything at all. When on, each mode lights up exactly the
 
 If you only ever read aloud, voz never touches your microphone.
 
-## Install
+## Install from source
+
+Most people should just [download the `.dmg`](#download). To build it yourself:
 
 ```sh
 # build + install to /Applications, then launch
@@ -90,7 +122,12 @@ cd apps/macos && sh scripts/install.sh
 ```
 
 The first time you use each mode, macOS prompts for the permission above. With a stable
-signing identity those grants carry across updates.
+signing identity those grants carry across updates. Optional premium engines install via
+**menu → "Set up better engines…"** or `sh scripts/bootstrap.sh` (capability-checked, asks first).
+
+**Maintainer — cut a release:** `sh scripts/release.sh` builds a Developer-ID-signed, **notarized**
+`.dmg` in `dist/` (needs a Developer ID cert + a `voz-notary` notarytool profile in your Keychain;
+no secrets ever live in the repo), then `gh release create v<ver> dist/voz-<ver>.dmg`.
 
 ## Engines — on-device and pluggable
 
@@ -152,7 +189,7 @@ voz/
 │   └─ macos/        the macOS menu-bar shell (SwiftPM)
 │       └─ Sources/
 │           ├─ Speak/    read-aloud capability (its own module)
-│           ├─ Dictate/  dictation capability (its own module)
+│           ├─ Dictate/  dictation + the local Insights dashboard (its own module)
 │           └─ voz/      the coordinator: hosts both behind one status item
 ├─ brand/           the voz identity (tokens, usage)
 └─ README.md
@@ -183,6 +220,7 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 
 ## Roadmap
 
+- **Insights AI** — optional on-device weekly summaries & suggested dictionary words (the local stats dashboard ships now).
 - **Dictate → read-back** proofreading loop (speak it, hear it back to catch errors).
 - Non-macOS shells over the same `core/`.
 

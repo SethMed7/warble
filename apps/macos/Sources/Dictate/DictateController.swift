@@ -153,7 +153,7 @@ public final class DictateController: NSObject {
     // MARK: session
 
     /// Turn the whole capability on or off. Off → unregister the hotkey and tear down any
-    /// in-flight session, so ⌃⌥ is inert and no mic/Accessibility prompt can be reached.
+    /// in-flight session, so the Fn hotkey is inert and no mic/Accessibility prompt can be reached.
     @objc private func toggleEnabled() {
         dictateEnabled.toggle()
         if dictateEnabled {
@@ -242,7 +242,9 @@ public final class DictateController: NSObject {
     private func beginRecording() {
         // Capture the app being dictated into NOW, before anything can change focus — the per-app signal.
         let app = NSWorkspace.shared.frontmostApplication
-        dictationApp = (app?.bundleIdentifier, app?.localizedName)
+        // If voz's own window (Insights/Dictionary) is frontmost, don't attribute the dictation to voz.
+        let isSelf = app?.bundleIdentifier == Bundle.main.bundleIdentifier
+        dictationApp = isSelf ? (nil, nil) : (app?.bundleIdentifier, app?.localizedName)
         dictationSecure = IsSecureEventInputEnabled()
             || ((app?.bundleIdentifier).map(Self.passwordManagerBundleIDs.contains) ?? false)
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt

@@ -321,6 +321,7 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
     private var pendingText = ""      // the selection text, kept so a warm-server failure can retry cold
     private var warmAttempt = false   // this spawn is streaming from the warm server (vs. cold per-spawn)
     private var triedCold = false     // already fell back to the cold path once — don't loop
+    private var renderTruncated = false // the renderer died mid-stream — the untold tail is lost
     private var onState: ((SpeakerState) -> Void)?
     private var onWord: ((NSRange) -> Void)?
 
@@ -374,8 +375,8 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         let payload: Data
         if warm {
             p.executableURL = URL(fileURLWithPath: WarmTTS.curlPath())
-            p.arguments = ["-sN", "--max-time", "300", "-X", "POST", "\(WarmTTS.shared.baseURL)/render",
-                           "-H", "Content-Type: application/json", "--data-binary", "@-"]
+            p.arguments = ["-fsN", "--max-time", "300", "-X", "POST", "\(WarmTTS.shared.baseURL)/render",
+                           "-H", "Content-Type: application/json", "--data-binary", "@-"] // -f → HTTP errors are non-zero
             let body = ["text": pendingText, "voice": Speaker.shared.voiceId]
             payload = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
         } else {
@@ -414,21 +415,29 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         p.terminationHandler = { [weak self] proc in
             DispatchQueue.main.async {
                 guard let self, !self.stopped else { return }
-                // Warm server down/sick (exited non-zero having produced nothing) → fall back to the
-                // cold per-spawn path ONCE so the selection still gets read.
-                if self.warmAttempt, !self.triedCold, proc.terminationStatus != 0,
-                   self.queue.isEmpty, self.player == nil {
+                let failed = proc.terminationStatus != 0
+                // A warm spawn that FAILED (curl exit ≠ 0 — connection refused, timeout, or an HTTP
+                // error, which -f now surfaces as non-zero) having produced nothing → server down/sick.
+                // Fall back to the cold path ONCE and mark it stale so the next read re-probes.
+                // Gating on `failed` is essential: a healthy single-chunk read exits 0, and without it
+                // this terminate block can beat the last chunk's enqueue and spawn a needless,
+                // overlapping cold re-render (a double-read).
+                if self.warmAttempt, !self.triedCold, failed, self.queue.isEmpty, self.player == nil {
                     self.triedCold = true
                     WarmTTS.shared.markStale()
                     self.spawn(warm: false)
                     return
                 }
+                if failed {                                  // died after some audio → the tail is lost
+                    self.renderTruncated = true
+                    if self.warmAttempt { WarmTTS.shared.markStale() }
+                }
                 self.rendererDone = true
-                if proc.terminationStatus != 0 && self.queue.isEmpty && self.player == nil {
+                if failed && self.queue.isEmpty && self.player == nil {
                     let err = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
                     self.onState?(.failed(String(err.suffix(200))))
                 } else if self.player == nil && self.queue.isEmpty {
-                    self.onState?(.done)
+                    self.onState?(self.renderTruncated ? .failed("read cut off") : .done)
                 }
             }
         }
@@ -456,7 +465,7 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         wordTimer = nil
         guard !queue.isEmpty else {
             player = nil
-            if rendererDone { onState?(.done) }
+            if rendererDone { onState?(renderTruncated ? .failed("read cut off") : .done) }
             return
         }
         let (url, text) = queue.removeFirst()

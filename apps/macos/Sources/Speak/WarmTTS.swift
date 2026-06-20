@@ -18,6 +18,7 @@ final class WarmTTS {
     /// Cached health, updated by prewarm() off the main thread; read cheaply on main by KokoroEngine.
     private(set) var ready = false
     private var lastHealthyAt = Date.distantPast  // skip the probe on rapid re-arms when recently healthy
+    private var shuttingDown = false              // set at quit so a racing prewarm can't re-spawn an orphan
 
     var baseURL: String { "http://127.0.0.1:\(port)" }
 
@@ -88,7 +89,7 @@ final class WarmTTS {
         if ready, Date().timeIntervalSince(lastHealthyAt) < 30 { return } // trust the cache — no curl probe
         if isHealthy() { ready = true; lastHealthyAt = Date(); return } // a prior session's server is up — reuse it
         lock.lock()
-        if server == nil || server?.isRunning != true, !isHealthy(),
+        if !shuttingDown, server == nil || server?.isRunning != true, !isHealthy(),
            let bun = Self.bunPath(), let script = Self.scriptPath() {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: bun)
@@ -111,6 +112,7 @@ final class WarmTTS {
 
     func shutdown() {
         lock.lock(); defer { lock.unlock() }
+        shuttingDown = true   // so a prewarm racing past this can't re-spawn an orphan server
         if let s = server, s.isRunning { s.terminate() }
         server = nil
         ready = false

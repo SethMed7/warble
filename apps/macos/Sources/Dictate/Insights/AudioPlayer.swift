@@ -42,6 +42,7 @@ final class AudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        self.player = nil   // drop the finished player so the next play() recreates it from the start
         isPlaying = false; progress = 0
         timer?.invalidate(); timer = nil
     }

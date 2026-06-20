@@ -36,7 +36,7 @@ struct HistoryView: View {
     @ViewBuilder private var content: some View {
         if store.events.isEmpty {
             ComingSoon(icon: "clock.arrow.circlepath", title: "No dictations yet",
-                       subtitle: "Hold ⌃⌥ and speak — each dictation shows up here with its recording.")
+                       subtitle: "Hold Fn and speak — each dictation shows up here with its recording.")
         } else {
             List {
                 ForEach(rows) { e in
@@ -147,7 +147,7 @@ struct DictationDetailView: View {
                 HStack {
                     Spacer()
                     Button("Save text") { store.updateText(event.id, to: editedText); note = "Saved." }
-                        .disabled(editedText == event.text)
+                        .disabled(editedText == current.text)
                 }
 
                 section("Teach the dictionary")
@@ -192,11 +192,15 @@ struct DictationDetailView: View {
         Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(VozTheme.mist).textCase(.uppercase)
     }
 
+    /// The live event from the store, so the header + Save button reflect an edit immediately
+    /// (the captured `event` value is frozen at navigation time).
+    private var current: DictationEvent { store.events.first { $0.id == event.id } ?? event }
+
     private var metaLine: String {
-        if event.kind == "read" {
-            return "\(RelTime.string(event.date)) · read aloud · \(event.words) words · \(event.engine)"
+        if current.kind == "read" {
+            return "\(RelTime.string(current.date)) · read aloud · \(current.words) words · \(current.engine)"
         }
-        return "\(RelTime.string(event.date)) · \(event.words) words · \(event.wpm) wpm · \(event.engine)"
+        return "\(RelTime.string(current.date)) · \(current.words) words · \(current.wpm) wpm · \(current.engine)"
     }
 }
 

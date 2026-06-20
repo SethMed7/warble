@@ -203,9 +203,15 @@ public final class InsightStore: ObservableObject {
             .sorted { $0.words > $1.words }
     }
 
-    /// Distinct apps seen, for the History filter.
+    /// Distinct apps across ALL events (dictate + read), for the History filter — the feed shows both,
+    /// so the filter must too (perApp is dictate-only for the "where you dictate" widget).
     var appFilters: [(key: String, name: String)] {
-        perApp.map { ($0.id, $0.name) }
+        var seen: [String: String] = [:]
+        for e in events {
+            let key = e.appBundleId ?? e.appName ?? "Unknown"
+            if seen[key] == nil { seen[key] = e.appName ?? key }
+        }
+        return seen.map { ($0.key, $0.value) }.sorted { $0.1 < $1.1 }
     }
 
     // MARK: chart series (last 30 days)

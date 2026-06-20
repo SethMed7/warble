@@ -199,7 +199,7 @@ private struct EmptyHome: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "mic").font(.system(size: 28)).foregroundStyle(VozTheme.electric)
-            Text("Hold ⌃⌥ and start dictating — your words, streak, and WPM build up here.")
+            Text("Hold Fn and start dictating — your words, streak, and WPM build up here.")
                 .font(.system(size: 13))
                 .foregroundStyle(VozTheme.mist)
                 .multilineTextAlignment(.center)

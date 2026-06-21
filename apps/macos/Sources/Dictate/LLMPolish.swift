@@ -1,7 +1,7 @@
 import Foundation
 
-/// Shared pieces for the optional on-device "polish" cleaners (Ollama or
-/// llama.cpp): the instruction, output hygiene, and the safety guard that keeps
+/// Shared pieces for the optional on-device "polish" cleaners (the warm MLX server
+/// or llama.cpp): the instruction, output hygiene, and the safety guard that keeps
 /// an LLM from *changing* your words instead of just punctuating/trimming them.
 enum LLMPolish {
     static let systemPrompt = """

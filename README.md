@@ -148,23 +148,46 @@ Apple APIs), so only the app *shell* is macOS-specific.
   (`setup-asr.sh`) that keeps the model loaded so each clip transcribes in ~0.08 s instead of
   ~1.5 s — same model, same quality, 100% on-device (binds `127.0.0.1` only). Cleanup defaults to a fast deterministic pass
   (`core/clean.ts`, no LLM), with an optional **on-device LLM polish** that adds real punctuation
-  and removes contextual fillers ("like", "right", "you know"). The polish **reuses a local LLM
-  runtime you already run** — it prefers an existing **[Ollama](https://ollama.com)** (the same
-  one tools like Breve use, so nothing is installed twice; a *thinking* model such as gemma is
-  auto-run with thinking off, so it answers in ~1s), and falls back to a self-contained
-  [llama.cpp](https://github.com/ggml-org/llama.cpp) + small open-weight model
-  (Qwen2.5-1.5B-Instruct, Apache-2.0) on machines with no Ollama. It is **guarded**: anything that
-  changes your words rather than just punctuating/trimming them is discarded in favor of the
-  deterministic result, and it falls back the same way if the model is missing or stalls.
+  and removes contextual fillers ("like", "right", "you know"). **No Ollama, no separate app:** voz
+  provisions its **own** engine — a **pinned** small open-weight model (Qwen2.5-1.5B-Instruct,
+  Apache-2.0) run via **[MLX](https://github.com/ml-explore/mlx)** (Apple's Metal framework) and kept
+  warm in a tiny loopback server (`core/llm-server.py`), the same warm-server pattern as Parakeet.
+  The weights download only with your consent at setup, and the server is spawned **offline**
+  (`HF_HUB_OFFLINE=1`) so transcript text can never leave the machine. Intel Macs (no MLX) fall back
+  to a self-contained [llama.cpp](https://github.com/ggml-org/llama.cpp) + the same model. It is
+  **guarded**: anything that changes your words rather than just punctuating/trimming them is
+  discarded in favor of the deterministic result, and it falls back the same way if the model is
+  missing or stalls.
 
 These premium layers are all optional and fully on-device. Enable them with
 `sh scripts/setup-kokoro.sh` (Kokoro voices), `sh scripts/setup-kokoro-server.sh` (the warm
 read-aloud server — consistent low-latency reads), `sh scripts/setup-helper.sh` (Parakeet + the
 canonical cleaner), `sh scripts/setup-asr.sh` (the warm Parakeet server — near-instant
-transcription), and `sh scripts/setup-cleaner.sh` (the LLM polish — which just confirms your
-existing Ollama, or sets one up). The on-device homes install under `~/.voz`, and an existing
+transcription), and `sh scripts/setup-cleaner.sh` (the LLM polish — a venv with `mlx-lm` plus the
+consented model download). The on-device homes install under `~/.voz`, and an existing
 `~/.leelo` / `~/.dictado` install is migrated in place (no model re-download). Toggle the polish
-under **menu → Dictate → "Polish with AI"**; pin a model with `VOZ_OLLAMA_MODEL=<name>`.
+under **menu → Dictate → "Polish with AI"**; pin a different model with `VOZ_LLM_MODEL=<mlx repo>`.
+
+## Permissions
+
+voz asks macOS for a permission **only the first time you use the feature that needs it** — never
+up front, and never anything it doesn't use. Grant or revoke any of them in **System Settings ▸
+Privacy & Security**.
+
+- **Microphone** — to hear you while you *hold* the dictation hotkey. The audio is transcribed
+  on-device and never saved.
+- **Accessibility** — to paste the finished text into whatever app you're typing in, and
+  (optionally) to notice spelling fixes you make so it can learn your words.
+- **Speech Recognition** — only for Apple's built-in on-device recognizer fallback; the audio and
+  recognition stay on your Mac.
+
+Everything the setup installs is **optional, downloaded only with your explicit "y", and lives in
+your home folder** — never inside the app, nothing system-wide, no admin/sudo: `~/.bun` (bun
+runtime), `~/.voz/` (helper scripts, your dictionary + history, the warm servers, `kokoro/`,
+`asr-venv/`, `llm-venv/`), `~/.cache/sherpa` (Parakeet engine + model, ~600 MB), and
+`~/.cache/huggingface` (the MLX cleanup model, ~0.9 GB). Every engine runs locally and binds
+`127.0.0.1` only. `sh apps/macos/scripts/bootstrap.sh` prints this same summary before it installs
+anything.
 
 ## Privacy
 
@@ -184,6 +207,8 @@ voz/
 ├─ core/            portable, 100% on-device, cross-platform (no Apple APIs)
 │   ├─ say.ts         Kokoro neural TTS (streaming)
 │   ├─ clean.ts       deterministic transcript cleanup
+│   ├─ asr-server.py  warm Parakeet ASR server (loopback)
+│   ├─ llm-server.py  warm MLX LLM cleanup server (loopback)
 │   └─ clean.test.ts  acceptance suite
 ├─ apps/
 │   └─ macos/        the macOS menu-bar shell (SwiftPM)

@@ -39,6 +39,35 @@ if [ "$DISK_FREE_GB" -lt 3 ]; then
   echo
 fi
 
+# ── Transparency: macOS permissions voz will ask for, and why ──────────────────
+# Shown BEFORE anything installs. voz requests each one only when you first use the
+# feature that needs it — never up front, and never anything it doesn't use.
+bold "Permissions voz asks macOS for (only when first used)"
+echo "  • Microphone — to hear you while you HOLD the dictation hotkey. Audio is transcribed"
+echo "    on-device and never saved."
+echo "  • Accessibility — to paste the finished text into whatever app you're typing in, and"
+echo "    (optional) to notice spelling fixes you make so it can learn your words."
+echo "  • Speech Recognition — only for Apple's built-in on-device recognizer fallback; the"
+echo "    audio and recognition stay on your Mac."
+echo "  Grant/revoke any of these any time in System Settings → Privacy & Security."
+echo
+
+# ── Transparency: what can be installed, and exactly where ─────────────────────
+bold "What this can install, and where"
+echo "  Everything below is OPTIONAL, downloaded only after you type 'y', and lives in your"
+echo "  home folder — never inside the app, nothing system-wide, no admin/sudo:"
+echo "    ~/.bun                  bun JS runtime (~40 MB)            — runs the cleanup + helpers"
+echo "    ~/.voz/                 helper scripts, your dictionary + history, the warm servers"
+echo "    ~/.voz/kokoro           Kokoro neural read-aloud voices (~90 MB)"
+echo "    ~/.voz/asr-venv         Python venv for the warm Parakeet dictation server"
+echo "    ~/.voz/llm-venv         Python venv (mlx-lm) for the warm LLM cleanup server"
+echo "    ~/.cache/sherpa         Parakeet engine + model (~600 MB)"
+echo "    ~/.cache/huggingface    the MLX cleanup model (Qwen2.5-1.5B, ~0.9 GB)"
+echo "  Every engine runs locally and binds 127.0.0.1 only — no cloud, no API keys, no telemetry."
+echo "  To remove later: delete the model caches in ~/.cache, and ~/.voz (note: your dictionary"
+echo "  and dictation history live in ~/.voz too)."
+echo
+
 # ── bun (shared JS runtime for cleanup + Kokoro/Parakeet helpers) ──────────────
 if has bun || [ -x "$HOME/.bun/bin/bun" ]; then
   dim "✓ bun already installed."
@@ -72,12 +101,15 @@ fi
 echo
 
 # ── On-device LLM polish ───────────────────────────────────────────────────────
-echo "$(bold 'LLM polish') — punctuation + filler removal via a local model."
-echo "Reuses Ollama if you already run it; otherwise sets up a small open-weight model."
-if [ "$RAM_GB" -ge 8 ]; then
+echo "$(bold 'LLM polish') — punctuation + filler removal via a small on-device model."
+echo "voz installs its own model (Qwen2.5-1.5B via MLX, ~0.9 GB, Apache-2.0) — no Ollama needed."
+if [ "$RAM_GB" -lt 8 ]; then
+  echo "↳ Skipping LLM polish: recommends 8 GB+ RAM."
+elif [ "$APPLE_SILICON" = yes ]; then
   if ask "Set up LLM polish?"; then sh setup-cleaner.sh; fi
 else
-  echo "↳ Skipping LLM polish: recommends 8 GB+ RAM."
+  echo "↳ Intel Mac: MLX needs Apple Silicon, so voz uses a self-contained llama.cpp model instead."
+  if ask "Set up LLM polish?"; then sh setup-cleaner.sh; fi
 fi
 echo
 

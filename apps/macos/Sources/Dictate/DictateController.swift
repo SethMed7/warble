@@ -79,8 +79,8 @@ public final class DictateController: NSObject {
         if dictateEnabled { HotKey.shared.register() } // off → no monitor, no permission prompt
     }
 
-    /// Tear down background helpers (the warm ASR server) when the app quits.
-    public func shutdown() { WarmASR.shared.shutdown() }
+    /// Tear down background helpers (the warm ASR + LLM servers) when the app quits.
+    public func shutdown() { WarmASR.shared.shutdown(); WarmLLM.shared.shutdown() }
 
     /// Menu-bar glyph reflects state so the mic is never ambiguously "on": idle = mic,
     /// recording/processing = mic.fill. (A common complaint in this app class is not knowing
@@ -130,7 +130,7 @@ public final class DictateController: NSObject {
             }
         }
 
-        if OllamaCleaner.isInstalled() || LLMCleaner.isAvailable() {
+        if MLXCleaner.isAvailable() || LLMCleaner.isAvailable() {
             let ai = NSMenuItem(title: "Polish with AI (on-device)", action: #selector(toggleLLM), keyEquivalent: "")
             ai.target = self
             ai.state = Cleaners.llmEnabled ? .on : .off
@@ -255,7 +255,7 @@ public final class DictateController: NSObject {
         // the warm Parakeet ASR server and the LLM polish model.
         DispatchQueue.global(qos: .utility).async {
             WarmASR.shared.ensureRunning()
-            if Cleaners.llmEnabled, OllamaCleaner.isInstalled() { OllamaCleaner.warm() }
+            if Cleaners.llmEnabled, MLXCleaner.isAvailable() { WarmLLM.shared.ensureRunning() }
         }
         recorder.onLevel = { Overlay.shared.updateLevel($0) }
         recorder.start(onError: { [weak self] message in

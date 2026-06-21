@@ -1,7 +1,7 @@
 import Foundation
 
-/// Cleanup engines are pluggable so a local-LLM cleaner (e.g. Ollama) can
-/// slot in later — any future engine must stay on-device; see README.
+/// Cleanup engines are pluggable so a local-LLM cleaner (e.g. the warm MLX server)
+/// can slot in — any engine must stay on-device; see README.
 protocol Cleaner {
     func clean(_ raw: String) -> String
 }
@@ -95,10 +95,10 @@ enum Cleaners {
     }
 
     /// Best available cleaner. With the AI layer on, the on-device LLM polishes the
-    /// text (always wrapping the deterministic cleaner as its fallback): a local
-    /// Ollama you already run is preferred (warm, shared with your other tools),
-    /// else a self-contained llama.cpp model. Otherwise: helper installed ->
-    /// canonical TS cleaner, else the Swift port.
+    /// text (always wrapping the deterministic cleaner as its fallback): voz's own
+    /// warm MLX server (Apple Silicon) is preferred, else a self-contained llama.cpp
+    /// model (Intel/legacy). Otherwise: helper installed -> canonical TS cleaner,
+    /// else the Swift port.
     ///
     /// NOTE: probes the network/disk, so call OFF the main thread.
     static func best() -> Cleaner { select(useLLM: llmEnabled) }
@@ -110,8 +110,8 @@ enum Cleaners {
     private static func select(useLLM: Bool) -> Cleaner {
         let base: Cleaner = BunCleaner.isAvailable() ? BunCleaner() : BasicSwiftCleaner()
         guard useLLM else { return base }
-        if OllamaCleaner.isInstalled() { return OllamaCleaner(fallback: base) }  // warm, shared (e.g. Breve)
-        if LLMCleaner.isAvailable() { return LLMCleaner(fallback: base) }        // self-contained llama.cpp
+        if MLXCleaner.isAvailable() { return MLXCleaner(fallback: base) }  // voz's own warm MLX server (Apple Silicon)
+        if LLMCleaner.isAvailable() { return LLMCleaner(fallback: base) }  // self-contained llama.cpp (Intel/legacy)
         return base
     }
 }

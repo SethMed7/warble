@@ -7,8 +7,8 @@ import Foundation
 ///
 /// Same shape as the transcription engines: detect a binary + model on disk,
 /// shell out with a bounded timeout, and fall back (via the shared guard) on any
-/// failure. The model loads per spawn (~1–2s for 1.5B on Metal); prefer Ollama
-/// (warm, no reload) when present — `Cleaners.best()` does.
+/// failure. The model loads per spawn (~1–2s for 1.5B on Metal); prefer the warm
+/// MLX server (no reload) when present — `Cleaners.best()` does on Apple Silicon.
 final class LLMCleaner: Cleaner {
     private let fallback: Cleaner
 

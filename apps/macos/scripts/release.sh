@@ -50,7 +50,7 @@ ln -s /Applications "$STAGE/Applications"
 
 RW="build/voz-rw.dmg"; rm -f "$RW" "$DMG"
 hdiutil create -volname "voz" -srcfolder "$STAGE" -fs HFS+ -format UDRW -ov "$RW" >/dev/null
-MOUNT="$(hdiutil attach "$RW" -nobrowse -noautoopen | grep -o '/Volumes/voz[^[:cntrl:]]*' | head -n1)"
+MOUNT="$(hdiutil attach "$RW" -nobrowse -noautoopen | grep -o '/Volumes/voz[^[:cntrl:]]*' | awk 'NR==1{print; exit}')"
 if [ -n "$MOUNT" ] && [ -f "$STAGE/.background/bg.png" ]; then
   osascript <<'OSA' 2>/dev/null || echo "  ↳ Finder styling skipped — grant Automation → Finder once, then re-run for the branded layout."
 tell application "Finder"

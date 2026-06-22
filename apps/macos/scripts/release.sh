@@ -49,6 +49,9 @@ if [ ! -x "$DMGVENV/bin/dmgbuild" ]; then
   "$DMGVENV/bin/pip" install -q --upgrade pip >/dev/null 2>&1 || true
   "$DMGVENV/bin/pip" install -q dmgbuild
 fi
+# Detach any stale "voz" volumes first — otherwise dmgbuild's temp volume mounts as "voz 1" and bakes
+# a broken background-image alias into the .DS_Store, so the background silently won't render on open.
+for v in /Volumes/voz*; do [ -e "$v" ] && hdiutil detach -force "$v" >/dev/null 2>&1 || true; done
 VOZ_APP="$PWD/$APP" VOZ_BG="$PWD/media/dmg-bg.png" \
   "$DMGVENV/bin/dmgbuild" -s scripts/dmgbuild-settings.py "voz" "$DMG"
 

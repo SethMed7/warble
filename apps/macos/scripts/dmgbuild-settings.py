@@ -15,11 +15,12 @@ format = "UDZO"
 
 # Window + icon layout (must match the arrow/positions drawn in make-dmg-bg.swift; origin top-left).
 background = os.environ["VOZ_BG"]
-window_rect = ((220, 120), (600, 440))
+window_rect = ((220, 120), (600, 420))
 default_view = "icon-view"
 icon_size = 116
 text_size = 13
+# y=196 (matches rowY in make-dmg-bg.swift) sits the icon+label group at the optical vertical center.
 icon_locations = {
-    appname: (150, 220),
-    "Applications": (450, 220),
+    appname: (150, 196),
+    "Applications": (450, 196),
 }

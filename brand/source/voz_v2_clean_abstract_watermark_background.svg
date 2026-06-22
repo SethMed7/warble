@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+<title id="title">VOZ V2 Clean Abstract Premium Watermark Background</title>
+<desc id="desc">Clean premium abstract VOZ-inspired watermark background using only diagonal light beams, sound-wave rib accents, a restrained dot field, and minimal corner marks. No logo or wordmark is shown.</desc>
+
+<style id="COLOR_CONTROLS"><![CDATA[
+  /*
+    EDITING MAP
+    - Background: gradients #bgGradient, #bgGlowPrimary, #bgGlowSecondary
+    - Dot grid: .dot-grid
+    - Diagonal beam: .beam-shadow, .beam-main, .beam-edge, .beam-highlight
+    - Sound waves: .wave-bar-primary, .wave-bar-secondary
+    - Corner marks: .corner-line
+
+    This version intentionally contains NO VOZ logo and NO wordmark.
+    The design language is carried by the diagonal light ribbon and the rising audio/rib marks.
+  */
+  .bg-rect { fill: url(#bgGradient); }
+  .bg-vignette { fill: url(#vignetteGradient); }
+  .bg-glow-primary { fill: url(#bgGlowPrimary); }
+  .bg-glow-secondary { fill: url(#bgGlowSecondary); }
+  .dot-grid { fill: url(#dotPattern); opacity: 0.105; }
+  .beam-shadow { fill: #000815; opacity: 0.34; }
+  .beam-main { fill: url(#beamGradient); opacity: 0.22; }
+  .beam-edge { fill: url(#beamEdgeGradient); opacity: 0.28; }
+  .beam-highlight { fill: url(#beamHighlightGradient); opacity: 0.44; }
+  .beam-hairline { stroke: #25C6FF; stroke-width: 2; opacity: 0.35; fill: none; }
+  .wave-bar-primary { fill: url(#waveGradient); }
+  .wave-bar-secondary { fill: url(#waveGradientSoft); }
+  .corner-line { stroke: #18BFFF; stroke-width: 2; stroke-linecap: round; opacity: 0.33; fill: none; }
+  .corner-line-muted { stroke: #0D66A8; stroke-width: 1.5; stroke-linecap: round; opacity: 0.22; fill: none; }
+]]></style>
+
+
+<defs>
+  <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#020713"/>
+    <stop offset="48%" stop-color="#061224"/>
+    <stop offset="100%" stop-color="#00040B"/>
+  </linearGradient>
+
+  <radialGradient id="vignetteGradient" cx="50%" cy="45%" r="76%">
+    <stop offset="0%" stop-color="#031224" stop-opacity="0"/>
+    <stop offset="62%" stop-color="#010613" stop-opacity="0.12"/>
+    <stop offset="100%" stop-color="#000000" stop-opacity="0.62"/>
+  </radialGradient>
+
+  <radialGradient id="bgGlowPrimary" cx="32%" cy="76%" r="48%">
+    <stop offset="0%" stop-color="#056DFF" stop-opacity="0.28"/>
+    <stop offset="36%" stop-color="#0356CA" stop-opacity="0.11"/>
+    <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+  </radialGradient>
+
+  <radialGradient id="bgGlowSecondary" cx="76%" cy="21%" r="34%">
+    <stop offset="0%" stop-color="#13C9FF" stop-opacity="0.13"/>
+    <stop offset="48%" stop-color="#056DFF" stop-opacity="0.055"/>
+    <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+  </radialGradient>
+
+  <linearGradient id="beamGradient" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#0535A9" stop-opacity="0.24"/>
+    <stop offset="38%" stop-color="#085CFF" stop-opacity="0.66"/>
+    <stop offset="72%" stop-color="#0BB9FF" stop-opacity="0.38"/>
+    <stop offset="100%" stop-color="#0AE7FF" stop-opacity="0.12"/>
+  </linearGradient>
+
+  <linearGradient id="beamEdgeGradient" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#031642" stop-opacity="0.12"/>
+    <stop offset="54%" stop-color="#0867FF" stop-opacity="0.52"/>
+    <stop offset="100%" stop-color="#19CBFF" stop-opacity="0.18"/>
+  </linearGradient>
+
+  <linearGradient id="beamHighlightGradient" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#004CFF" stop-opacity="0.08"/>
+    <stop offset="46%" stop-color="#0A8DFF" stop-opacity="0.80"/>
+    <stop offset="100%" stop-color="#21D8FF" stop-opacity="0.28"/>
+  </linearGradient>
+
+  <linearGradient id="waveGradient" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#003DCA"/>
+    <stop offset="54%" stop-color="#087CFF"/>
+    <stop offset="100%" stop-color="#18D2FF"/>
+  </linearGradient>
+
+  <linearGradient id="waveGradientSoft" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0%" stop-color="#00256F"/>
+    <stop offset="62%" stop-color="#0762DA"/>
+    <stop offset="100%" stop-color="#0BA9CF"/>
+  </linearGradient>
+
+  <pattern id="dotPattern" width="48" height="48" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1.05" fill="#0D9DFF" opacity="0.55"/>
+  </pattern>
+
+  <filter id="beamSoftGlow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="18" result="blur"/>
+    <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.02  0 0 0 0 0.42  0 0 0 0 1.00  0 0 0 0.54 0" result="blueBlur"/>
+    <feMerge>
+      <feMergeNode in="blueBlur"/>
+      <feMergeNode in="SourceGraphic"/>
+    </feMerge>
+  </filter>
+
+  <clipPath id="canvasClip"><rect x="0" y="0" width="1920" height="1080"/></clipPath>
+</defs>
+
+
+<g id="LAYER_00_BACKGROUND_BASE">
+  <rect class="bg-rect" width="1920" height="1080"/>
+  <rect class="bg-glow-primary" width="1920" height="1080"/>
+  <rect class="bg-glow-secondary" width="1920" height="1080"/>
+  <rect class="bg-vignette" width="1920" height="1080"/>
+</g>
+
+<g id="LAYER_02_DIAGONAL_BEAM_SYSTEM" clip-path="url(#canvasClip)">
+  <polygon id="beam_shadow_wide" class="beam-shadow" points="-202.1,1137.6 1567.9,-32.4 1452.1,-207.6 -317.9,962.4"/>
+  <g id="beam_blue_ribbon" filter="url(#beamSoftGlow)">
+    <polygon id="beam_core" class="beam-main" points="-169.7,1000.9 1470.3,-74.1 1429.7,-135.9 -210.3,939.1"/>
+    <polygon id="beam_upper_edge" class="beam-edge" points="-115.1,897.5 1539.9,-180.5 1530.1,-195.5 -124.9,882.5"/>
+    <polygon id="beam_lower_edge" class="beam-edge" points="-245.1,1067.5 1374.9,2.5 1365.1,-12.5 -254.9,1052.5" opacity="0.72"/>
+    <polygon id="beam_center_highlight" class="beam-highlight" points="-202.3,988.2 1457.7,-97.8 1452.3,-106.2 -207.7,979.8"/>
+    <path id="beam_hairline" class="beam-hairline" d="M -165 948 L 1455 -113"/>
+  </g>
+</g>
+
+<g id="LAYER_03_SOUND_WAVE_ACCENTS" clip-path="url(#canvasClip)">
+  <g id="sound_wave_top_right_primary" class="layer-sound-waves" opacity="0.72">
+  <rect class="wave-bar-secondary" x="1402.0" y="281.0" width="14" height="104" rx="7.0" transform="rotate(23 1409.0 333.0)" opacity="0.34"/>
+  <rect class="wave-bar-secondary" x="1438.0" y="253.0" width="14" height="132" rx="7.0" transform="rotate(23 1445.0 319.0)" opacity="0.44"/>
+  <rect class="wave-bar-secondary" x="1474.0" y="225.0" width="14" height="160" rx="7.0" transform="rotate(23 1481.0 305.0)" opacity="0.54"/>
+  <rect class="wave-bar-primary" x="1510.0" y="197.0" width="14" height="188" rx="7.0" transform="rotate(23 1517.0 291.0)" opacity="0.64"/>
+  <rect class="wave-bar-primary" x="1546.0" y="169.0" width="14" height="216" rx="7.0" transform="rotate(23 1553.0 277.0)" opacity="0.72"/>
+</g>
+</g>
+
+</svg>

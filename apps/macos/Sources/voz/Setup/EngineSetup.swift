@@ -45,18 +45,59 @@ enum InstallState: Equatable {
     case failed(String)
 }
 
+/// A snapshot of the host Mac, scanned once — chip, memory, free disk, OS — so the Setup window can
+/// show what you're working with and gate engines your machine can't run (all checks are local).
+struct MacInfo {
+    let appleSilicon: Bool
+    let chip: String
+    let ramGB: Int
+    let freeDiskGB: Int
+    let macOS: String
+
+    static func scan() -> MacInfo {
+        var arm = Int32(0); var sz = MemoryLayout<Int32>.size
+        let isArm = sysctlbyname("hw.optional.arm64", &arm, &sz, nil, 0) == 0 && arm == 1
+        var chip = isArm ? "Apple Silicon" : "Intel"
+        var brandLen = 0
+        sysctlbyname("machdep.cpu.brand_string", nil, &brandLen, nil, 0)
+        if brandLen > 1 {
+            var buf = [CChar](repeating: 0, count: brandLen)
+            if sysctlbyname("machdep.cpu.brand_string", &buf, &brandLen, nil, 0) == 0 { chip = String(cString: buf) }
+        }
+        let ram = Int(ProcessInfo.processInfo.physicalMemory / 1_073_741_824)
+        var freeGB = 0
+        if let attrs = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
+           let free = (attrs[.systemFreeSize] as? NSNumber)?.int64Value {
+            freeGB = Int(free / 1_073_741_824)
+        }
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return MacInfo(appleSilicon: isArm, chip: chip, ramGB: ram, freeDiskGB: freeGB,
+                       macOS: "macOS \(v.majorVersion).\(v.minorVersion)")
+    }
+}
+
 /// Drives installs and tracks state. ObservableObject so the SwiftUI window updates live.
 final class EngineSetup: ObservableObject {
     static let shared = EngineSetup()
 
     @Published private(set) var state: [Engine: InstallState] = [:]
-    /// True on Intel — the model engines need Apple Silicon (MLX / Metal), so the UI explains and disables.
-    let appleSilicon: Bool = {
-        var sysctl_arm = Int32(0); var size = MemoryLayout<Int32>.size
-        // `hw.optional.arm64` is 1 on Apple Silicon.
-        if sysctlbyname("hw.optional.arm64", &sysctl_arm, &size, nil, 0) == 0 { return sysctl_arm == 1 }
-        return false
-    }()
+
+    /// A one-time scan of this Mac's capabilities — shown in the Setup window and used to gate engines.
+    let mac = MacInfo.scan()
+    var appleSilicon: Bool { mac.appleSilicon }
+
+    /// Whether an engine can run on this Mac, with a short reason when it can't (shown on the card).
+    func supports(_ e: Engine) -> (ok: Bool, reason: String?) {
+        switch e {
+        case .dictation, .cleanup: // Parakeet / MLX — Metal + headroom
+            if !mac.appleSilicon { return (false, "Needs Apple Silicon") }
+            if mac.ramGB < 8 { return (false, "Needs 8 GB+ RAM (have \(mac.ramGB))") }
+            return (true, nil)
+        case .voices: // Kokoro via bun — light
+            if mac.ramGB < 4 { return (false, "Needs 4 GB+ RAM") }
+            return (true, nil)
+        }
+    }
 
     private let q = DispatchQueue(label: "voz.engine.setup", qos: .userInitiated)
     private var home: String { FileManager.default.homeDirectoryForCurrentUser.path }

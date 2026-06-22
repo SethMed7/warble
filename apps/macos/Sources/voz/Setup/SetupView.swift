@@ -19,15 +19,16 @@ struct SetupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            macCard
             ScrollView {
                 VStack(spacing: 12) {
                     ForEach(Engine.allCases) { EngineCard(engine: $0, setup: setup) }
                 }
-                .padding(20)
+                .padding(.horizontal, 20).padding(.vertical, 16)
             }
             footer
         }
-        .frame(minWidth: 540, minHeight: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(T.black)
     }
 
@@ -39,17 +40,36 @@ struct SetupView: View {
             Text("All on-device — nothing leaves your Mac. Each one is optional; install only what you want.")
                 .font(.system(size: 13))
                 .foregroundColor(T.mist)
-            if !setup.appleSilicon {
-                Text("This Mac is Intel — the model engines need Apple Silicon, so they're unavailable here.")
-                    .font(.system(size: 12))
-                    .foregroundColor(T.electric)
-                    .padding(.top, 2)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
         .padding(.top, 24)
-        .padding(.bottom, 4)
+        .padding(.bottom, 10)
+    }
+
+    /// A quick local scan of this Mac — so you can see what you're working with and why an engine may
+    /// be unavailable. Nothing leaves the machine.
+    private var macCard: some View {
+        let m = setup.mac
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("YOUR MAC").font(.system(size: 10, weight: .semibold)).tracking(0.6).foregroundColor(T.mist)
+            HStack(spacing: 18) {
+                spec("cpu", m.chip)
+                spec("memorychip", "\(m.ramGB) GB")
+                spec("internaldrive", "\(m.freeDiskGB) GB free")
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .background(RoundedRectangle(cornerRadius: 10).fill(T.ink))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(T.line, lineWidth: 1))
+        .padding(.horizontal, 20)
+    }
+    private func spec(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).font(.system(size: 12, weight: .medium)).foregroundColor(T.electric)
+            Text(text).font(.system(size: 12, weight: .medium)).foregroundColor(T.textHi).lineLimit(1)
+        }
     }
 
     private var footer: some View {
@@ -82,7 +102,8 @@ private struct EngineCard: View {
     let engine: Engine
     @ObservedObject var setup: EngineSetup
     private var state: InstallState { setup.state[engine] ?? .notInstalled }
-    private var disabled: Bool { !setup.appleSilicon } // model engines need Apple Silicon
+    private var support: (ok: Bool, reason: String?) { setup.supports(engine) }
+    private var disabled: Bool { !support.ok }
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -98,6 +119,9 @@ private struct EngineCard: View {
                         .background(RoundedRectangle(cornerRadius: 5).fill(T.line.opacity(0.5)))
                 }
                 Text(engine.subtitle).font(.system(size: 12)).foregroundColor(T.mist)
+                if let reason = support.reason {
+                    Text(reason).font(.system(size: 11, weight: .medium)).foregroundColor(.orange).padding(.top, 1)
+                }
                 progressRow
             }
             Spacer(minLength: 8)
@@ -127,16 +151,20 @@ private struct EngineCard: View {
     }
 
     @ViewBuilder private var trailing: some View {
-        switch state {
-        case .installed:
-            Label("Installed", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 13, weight: .medium)).foregroundColor(T.good).labelStyle(.titleAndIcon)
-        case .installing:
-            ProgressView().controlSize(.small).tint(T.electric)
-        case .failed:
-            Button("Retry") { setup.install(engine) }.buttonStyle(InstallButton()).disabled(disabled)
-        case .notInstalled:
-            Button("Install") { setup.install(engine) }.buttonStyle(InstallButton()).disabled(disabled)
+        if !support.ok {
+            Text("Unavailable").font(.system(size: 12, weight: .medium)).foregroundColor(T.mist)
+        } else {
+            switch state {
+            case .installed:
+                Label("Installed", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 13, weight: .medium)).foregroundColor(T.good).labelStyle(.titleAndIcon)
+            case .installing:
+                ProgressView().controlSize(.small).tint(T.electric)
+            case .failed:
+                Button("Retry") { setup.install(engine) }.buttonStyle(InstallButton())
+            case .notInstalled:
+                Button("Install") { setup.install(engine) }.buttonStyle(InstallButton())
+            }
         }
     }
 }

@@ -14,7 +14,8 @@ final class WelcomeWindow {
     func open() {
         if window == nil {
             let host = NSHostingView(rootView: WelcomeView { [weak self] in self?.window?.close() })
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 460),
+            host.sizingOptions = [] // critical: don't let the hosting view resize the window to its content
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 540),
                              styleMask: [.titled, .closable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true

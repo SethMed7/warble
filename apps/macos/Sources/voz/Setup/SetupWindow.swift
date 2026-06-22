@@ -11,7 +11,8 @@ final class SetupWindow {
         EngineSetup.shared.refresh()
         if window == nil {
             let host = NSHostingView(rootView: SetupView(setup: EngineSetup.shared))
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 560),
+            host.sizingOptions = [] // critical: don't let the hosting view resize the window to its content
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 600),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
             w.title = "voz · Set up better engines"

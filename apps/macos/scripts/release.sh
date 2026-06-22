@@ -37,46 +37,20 @@ xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$APP"
 rm -f "$ZIP"
 
-# 4. Build a BRANDED, drag-to-install DMG: voz.app + an Applications shortcut, a dark background with
-#    an arrow, and fixed icon positions — like a commercial Mac app. Styling is applied via Finder; if
-#    that isn't permitted (the first run prompts to allow controlling Finder — grant it once), it
-#    gracefully falls back to a plain, still-notarizable DMG.
-DMG="dist/voz-$VER.dmg"
-[ -f media/dmg-bg.png ] || swift scripts/make-dmg-bg.swift media/dmg-bg.png || true
-STAGE="build/dmg"; rm -rf "$STAGE"; mkdir -p "$STAGE/.background"
-cp -R "$APP" "$STAGE/voz.app"
-ln -s /Applications "$STAGE/Applications"
-[ -f media/dmg-bg.png ] && cp media/dmg-bg.png "$STAGE/.background/bg.png"
-
-RW="build/voz-rw.dmg"; rm -f "$RW" "$DMG"
-hdiutil create -volname "voz" -srcfolder "$STAGE" -fs HFS+ -format UDRW -ov "$RW" >/dev/null
-MOUNT="$(hdiutil attach "$RW" -nobrowse -noautoopen | grep -o '/Volumes/voz[^[:cntrl:]]*' | awk 'NR==1{print; exit}')"
-if [ -n "$MOUNT" ] && [ -f "$STAGE/.background/bg.png" ]; then
-  osascript <<'OSA' 2>/dev/null || echo "  ↳ Finder styling skipped — grant Automation → Finder once, then re-run for the branded layout."
-tell application "Finder"
-  tell disk "voz"
-    open
-    set current view of container window to icon view
-    set toolbar visible of container window to false
-    set statusbar visible of container window to false
-    set the bounds of container window to {200, 120, 800, 540}
-    set opts to the icon view options of container window
-    set arrangement of opts to not arranged
-    set icon size of opts to 96
-    set background picture of opts to file ".background:bg.png"
-    set position of item "voz.app" of container window to {150, 205}
-    set position of item "Applications" of container window to {450, 205}
-    update without registering applications
-    delay 1
-    close
-  end tell
-end tell
-OSA
-  sync; sleep 1
+# 4. Build a BRANDED, drag-to-install DMG with dmgbuild — voz.app + an Applications shortcut, a dark
+#    background with an arrow, and fixed icon positions, like a commercial Mac app. dmgbuild writes the
+#    .DS_Store PROGRAMMATICALLY (no Finder, no Automation permission), so the styling applies headlessly
+#    every time. A throwaway venv keeps it out of your global Python.
+DMG="dist/voz-$VER.dmg"; rm -f "$DMG"
+[ -f media/dmg-bg.png ] || swift scripts/make-dmg-bg.swift media/dmg-bg.png
+DMGVENV="build/dmg-venv"
+if [ ! -x "$DMGVENV/bin/dmgbuild" ]; then
+  python3 -m venv "$DMGVENV"
+  "$DMGVENV/bin/pip" install -q --upgrade pip >/dev/null 2>&1 || true
+  "$DMGVENV/bin/pip" install -q dmgbuild
 fi
-[ -n "$MOUNT" ] && hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
-hdiutil convert "$RW" -format UDZO -ov -o "$DMG" >/dev/null
-rm -f "$RW"
+VOZ_APP="$PWD/$APP" VOZ_BG="$PWD/media/dmg-bg.png" \
+  "$DMGVENV/bin/dmgbuild" -s scripts/dmgbuild-settings.py "voz" "$DMG"
 
 # 5. Sign, notarize, and staple the DMG itself.
 codesign --force --timestamp -s "$DEVID" "$DMG"

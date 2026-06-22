@@ -33,14 +33,23 @@ if [ "$(uname -m)" = arm64 ]; then
     curl -fsSL https://raw.githubusercontent.com/SethMed7/voz/main/core/llm-server.py -o "$DIR/llm-server.py"
   fi
 
+  # Env-only mode (the native Setup UI): the runtime is ready; the app downloads the model itself
+  # in-process so it can show real % progress. Skip the model download + marker here.
+  if [ "${VOZ_SETUP_ENV_ONLY:-}" = 1 ]; then
+    echo "Runtime ready — the app will download the model."
+    exit 0
+  fi
+
   # Download the pinned model with consent (into the shared Hugging Face cache; ~0.9 GB). The marker
   # file at ~/.voz/llm-model is what flips voz's warm path on — the server runs offline, so it only
   # starts once weights are actually cached.
   if [ -f "$DIR/llm-model" ]; then
     echo "Cleanup model already downloaded ($MODEL_ID)."
   else
-    printf 'Download the Qwen2.5-1.5B-Instruct cleanup model (~0.9 GB, Apache-2.0)? [y/N] '
-    read -r ans 2>/dev/null || ans=""
+    if [ "${VOZ_ASSUME_YES:-}" = 1 ]; then ans=y; else
+      printf 'Download the Qwen2.5-1.5B-Instruct cleanup model (~0.9 GB, Apache-2.0)? [y/N] '
+      read -r ans 2>/dev/null || ans=""
+    fi
     case "$ans" in
       [Yy]*)
         echo "Downloading $MODEL_ID … (first run only)"

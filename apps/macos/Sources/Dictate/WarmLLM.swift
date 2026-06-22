@@ -51,6 +51,13 @@ final class WarmLLM {
         env["VOZ_LLM_PORT"] = port
         env["HF_HUB_OFFLINE"] = "1"            // never reach the network at dictation time
         env["TOKENIZERS_PARALLELISM"] = "false"
+        // The marker holds the model to load: a local dir (native Setup install → fully offline) or an
+        // HF repo id (shell install → from the HF cache). An explicit env var still wins.
+        if let raw = try? String(contentsOfFile: "\(Self.home())/.voz/llm-model", encoding: .utf8) {
+            let m = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !m.isEmpty { env["VOZ_LLM_MODEL"] = m }
+        }
+        if let m = ProcessInfo.processInfo.environment["VOZ_LLM_MODEL"], !m.isEmpty { env["VOZ_LLM_MODEL"] = m }
         p.environment = env
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice

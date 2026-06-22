@@ -36,6 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         speak.start()
         dictate.start()
         rebuildMenu()
+
+        // First launch: a native welcome so a new user isn't dropped into a bare menu bar.
+        if WelcomeWindow.shouldShow {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { WelcomeWindow.shared.open() }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -81,20 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
-    /// Run the transparent, consent-based bootstrap (capability check + optional on-device engines)
-    /// VISIBLY in Terminal, so the user sees and approves every step. Prefers the copy bundled in the
-    /// app (a downloaded .app) and falls back to the repo checkout. Uses a throwaway .command so no
-    /// Automation/Apple-Events permission is needed.
-    @objc private func runBootstrap() {
-        let fm = FileManager.default
-        let bundled = Bundle.main.resourceURL?.appendingPathComponent("scripts/bootstrap.sh").path
-        let repo = "\(fm.homeDirectoryForCurrentUser.path)/voz/apps/macos/scripts/bootstrap.sh"
-        let script = (bundled.flatMap { fm.fileExists(atPath: $0) ? $0 : nil }) ?? repo
-        guard fm.fileExists(atPath: script) else { return }
-        let cmd = fm.temporaryDirectory.appendingPathComponent("voz-setup.command")
-        try? "#!/bin/sh\nclear\nsh \"\(script)\"\necho; echo 'You can close this window.'\n"
-            .write(to: cmd, atomically: true, encoding: .utf8)
-        try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cmd.path)
-        NSWorkspace.shared.open(cmd) // opens in Terminal and runs it
-    }
+    /// Open the native, in-app setup screen — engine cards with Install buttons and live progress,
+    /// matching the rest of the app. No Terminal: each engine downloads its model in-process (real %)
+    /// and runs only its environment step headlessly. (Replaced the old Terminal `.command` flow.)
+    @objc private func runBootstrap() { SetupWindow.shared.open() }
 }

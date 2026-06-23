@@ -20,6 +20,7 @@ enum InsightsSection: String, CaseIterable, Identifiable, Hashable {
 /// Lets the menu deep-link to a section (e.g. "Dictionary…" opens the window on Dictionary).
 final class InsightsNav: ObservableObject {
     @Published var section: InsightsSection = .home
+    @Published var showTutorial = false
 }
 
 struct InsightsRootView: View {
@@ -55,6 +56,73 @@ struct InsightsRootView: View {
             .background(VozTheme.black)
         }
         .preferredColorScheme(.dark)
+        .overlay { if nav.showTutorial { TutorialOverlay(nav: nav) } }
+    }
+}
+
+/// A short, skippable walkthrough of the dashboard — shown once, right after engine setup finishes.
+/// Each step switches the detail pane to the section it describes, so you see it behind the card.
+struct TutorialOverlay: View {
+    @ObservedObject var nav: InsightsNav
+    @State private var step = 0
+
+    private struct Step { let title: String; let body: String; let section: InsightsSection; let icon: String }
+    private let steps: [Step] = [
+        .init(title: "This is your dashboard", body: "Everything voz records and learns lives here — and only here, on your Mac.", section: .home, icon: "square.grid.2x2"),
+        .init(title: "History", body: "Every dictation, searchable. Open one to replay the audio, fix the text, or teach voz a word.", section: .history, icon: "clock.arrow.circlepath"),
+        .init(title: "Dictionary", body: "Your learned spellings and read-aloud pronunciations — voz gets them right next time.", section: .dictionary, icon: "character.book.closed"),
+        .init(title: "Insights", body: "Trends over time: words per day, speaking pace, and where you dictate most.", section: .insights, icon: "chart.bar"),
+        .init(title: "Data & Privacy", body: "You're in control — keep history or not, save recordings or not, skip password fields. Nothing ever leaves your Mac.", section: .data, icon: "lock.shield"),
+    ]
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    Image(systemName: steps[step].icon).font(.system(size: 18, weight: .medium)).foregroundStyle(VozTheme.electric)
+                    Text(steps[step].title).font(.system(size: 18, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                    Spacer()
+                    Button("Skip") { finish() }.buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                }
+                Text(steps[step].body).font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    ForEach(0..<steps.count, id: \.self) { i in
+                        Circle().fill(i == step ? VozTheme.electric : VozTheme.line).frame(width: 6, height: 6)
+                    }
+                    Spacer()
+                    if step > 0 {
+                        Button("Back") { withAnimation { step -= 1; nav.section = steps[step].section } }
+                            .buttonStyle(.plain).font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                    }
+                    Button(step == steps.count - 1 ? "Done" : "Next") { advance() }.buttonStyle(TutorialButton())
+                }
+                .padding(.top, 4)
+            }
+            .padding(22).frame(width: 410)
+            .background(RoundedRectangle(cornerRadius: 16).fill(VozTheme.ink))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(VozTheme.line, lineWidth: 1))
+            .shadow(color: .black.opacity(0.5), radius: 28, y: 12)
+        }
+        .onAppear { nav.section = steps[0].section }
+    }
+
+    private func advance() {
+        if step < steps.count - 1 { withAnimation { step += 1; nav.section = steps[step].section } } else { finish() }
+    }
+    private func finish() {
+        UserDefaults.standard.set(true, forKey: "didShowTutorial")
+        withAnimation { nav.showTutorial = false }
+    }
+}
+
+private struct TutorialButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+            .padding(.horizontal, 16).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 8).fill(VozTheme.electric.opacity(configuration.isPressed ? 0.7 : 1)))
     }
 }
 

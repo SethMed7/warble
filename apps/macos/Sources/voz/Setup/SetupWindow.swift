@@ -10,7 +10,7 @@ final class SetupWindow {
     func open() {
         EngineSetup.shared.refresh()
         if window == nil {
-            let host = NSHostingView(rootView: SetupView(setup: EngineSetup.shared))
+            let host = NSHostingView(rootView: SetupView(setup: EngineSetup.shared, onDone: { [weak self] in self?.window?.close() }))
             host.sizingOptions = [] // critical: don't let the hosting view resize the window to its content
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 600),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable],

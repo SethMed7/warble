@@ -14,6 +14,7 @@ private enum T {
 
 struct SetupView: View {
     @ObservedObject var setup: EngineSetup
+    var onDone: () -> Void = {}
     @State private var showDetails = false
 
     var body: some View {
@@ -92,6 +93,15 @@ struct SetupView: View {
                     .foregroundColor(T.mist)
             }
             .tint(T.mist)
+            .padding(.horizontal, 20)
+            HStack(spacing: 10) {
+                Text("voz lives in your menu bar — reopen this anytime from there.")
+                    .font(.system(size: 11)).foregroundColor(T.mist)
+                Spacer()
+                Button("Done") { onDone() }
+                    .buttonStyle(InstallButton())
+                    .keyboardShortcut(.defaultAction)
+            }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
         }

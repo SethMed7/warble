@@ -1,5 +1,10 @@
 import AppKit
 
+extension Notification.Name {
+    /// Posted by `InsightStore.clearAll()` so derived local caches (the Insights AI snapshot) wipe in lockstep.
+    static let vozInsightsCleared = Notification.Name("voz.insightsCleared")
+}
+
 /// The local store behind voz Insights, all under ~/.voz:
 ///   history.json   — append-only JSON-Lines log of dictations (text + metrics)
 ///   audio/<id>.wav — the saved recording for each dictation (when audio-saving is on)
@@ -25,6 +30,20 @@ public final class InsightStore: ObservableObject {
     var excludeSecureFields: Bool {
         get { UserDefaults.standard.object(forKey: "insightsExcludeSecure") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "insightsExcludeSecure") }
+    }
+    /// The Insights AI master switch. Off (default) → the on-device summary/suggestions/nudges layer
+    /// never spawns or calls the model; the AI cards stay dark. Opt-in. The setter fires
+    /// `objectWillChange` because these flags are read ACROSS views (the AI cards + the dependent
+    /// Data & Privacy row) — without it, flipping a UserDefaults-backed computed prop wouldn't re-render.
+    var aiInsightsEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: "insightsAI") as? Bool ?? false }
+        set { objectWillChange.send(); UserDefaults.standard.set(newValue, forKey: "insightsAI") }
+    }
+    /// Once AI is on, regenerate automatically when the Insights tab opens and the cache is stale.
+    /// Off → on-demand only (the "Regenerate" button is the sole trigger). Default on.
+    var aiInsightsAutoRefresh: Bool {
+        get { UserDefaults.standard.object(forKey: "insightsAIAuto") as? Bool ?? true }
+        set { objectWillChange.send(); UserDefaults.standard.set(newValue, forKey: "insightsAIAuto") }
     }
 
     let dir: URL          // ~/.voz
@@ -124,13 +143,17 @@ public final class InsightStore: ObservableObject {
         rewrite()
     }
 
-    /// Wipe every transcript and recording (the Data & Privacy "Clear all").
+    /// Wipe every transcript and recording — AND the derived Insights AI cache (the Data & Privacy
+    /// "Clear all" promises everything goes). Deletes the AI file directly (true even if the AI view was
+    /// never opened) and posts `.vozInsightsCleared` so a live `AIInsightsStore` drops its in-memory copy.
     func clearAll() {
         events.removeAll()
         try? FileManager.default.removeItem(at: fileURL)
         try? FileManager.default.removeItem(at: audioDir)
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent("insights-ai.json"))
         try? FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true,
                                                  attributes: [.posixPermissions: 0o700])
+        NotificationCenter.default.post(name: .vozInsightsCleared, object: nil)
     }
 
     /// All events as a pretty JSON array, for Export.

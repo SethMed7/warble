@@ -30,6 +30,23 @@ struct DataPrivacyView: View {
                 }
                 .cardStyle()
 
+                // Insights AI: the optional, default-off generative layer. The master toggle gates the
+                // whole feature; the auto-refresh control below it is dimmed/disabled while it's off.
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                        .padding(.bottom, 12)
+                    toggleRow("Insights AI",
+                              "Optional on-device summaries, suggested words, and nudges. Default off; reads only your local stats.",
+                              get: { store.aiInsightsEnabled }, set: { store.aiInsightsEnabled = $0 })
+                    Divider().overlay(VozTheme.line).padding(.vertical, 12)
+                    toggleRow("Refresh automatically (weekly)",
+                              "On: auto-refresh when you open Insights. Off: only when you tap Regenerate.",
+                              get: { store.aiInsightsAutoRefresh }, set: { store.aiInsightsAutoRefresh = $0 })
+                        .disabled(!store.aiInsightsEnabled)
+                        .opacity(store.aiInsightsEnabled ? 1 : 0.45)
+                }
+                .cardStyle()
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Your data").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
                     Text("\(store.dictations.count) dictations · \(store.reads.count) reads · \(store.audioSummary)")

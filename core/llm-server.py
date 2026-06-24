@@ -8,8 +8,9 @@ setup are the only ones used). Installed + run by scripts/setup-cleaner.sh (a ve
 Apple Silicon only.
 
 Protocol (loopback, same machine):
-  GET  /health                                                      -> 200 {"ok": true}
-  POST /clean  {"system": "...", "text": "...", "max_tokens": 1024}  -> 200 {"text": "..."}
+  GET  /health                                                         -> 200 {"ok": true}
+  POST /clean     {"system": "...", "text": "...", "max_tokens": 1024}  -> 200 {"text": "..."}
+  POST /generate  {"system": "...", "text": "...", "max_tokens": 256}   -> 200 {"text": "..."}
 """
 import os, json, time, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -85,7 +86,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path != "/clean":
+        # /generate is a sibling of /clean — same generic system+text->text behavior (the Insights AI
+        # summary phrases aggregate numbers); both run the same generation function.
+        if self.path not in ("/clean", "/generate"):
             self._send(404, {"error": "not found"})
             return
         _last[0] = time.time()

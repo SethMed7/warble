@@ -36,6 +36,7 @@ struct RowFrameKey: PreferenceKey {
 struct InsightsRootView: View {
     @ObservedObject var store: InsightStore
     @ObservedObject var nav: InsightsNav
+    @StateObject private var ai = AIInsightsStore()
     @State private var rowFrames: [InsightsSection: CGRect] = [:]
 
     static let space = "insights.coach"
@@ -64,7 +65,7 @@ struct InsightsRootView: View {
                 Group {
                     switch nav.section {
                     case .home: HomeView(store: store)
-                    case .insights: InsightsView(store: store)
+                    case .insights: InsightsView(store: store, ai: ai)
                     case .dictionary: DictionaryView()
                     case .history: HistoryView(store: store)
                     case .data: DataPrivacyView(store: store)

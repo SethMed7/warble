@@ -74,12 +74,28 @@ final class WarmLLM {
     /// → caller falls back to the deterministic cleaner. Call OFF the main thread. `timeout` bounds the
     /// request; the first call also waits out the one-time model load.
     func clean(system: String, text: String, timeout: TimeInterval) -> String? {
-        guard Self.isInstalled() else { return nil }
-        ensureRunning()
-        guard waitHealthy(timeout: 15) else { return nil } // first call waits out the one-time model load
         // Polish output is ~the input length, so cap generation near it (≈chars/3 tokens + headroom)
         // instead of a flat 1024 — the model can't ramble, which is the dominant cost on long dictations.
         let maxTokens = max(96, min(1024, text.count / 3 + 64))
+        return post("/clean", system: system, text: text, maxTokens: maxTokens, timeout: timeout)
+    }
+
+    /// Generic generation via the warm server's `/generate` (no dictation accept() guard) — for the
+    /// Insights AI summary, which phrases *aggregate numbers* rather than reformatting a transcript.
+    /// Same warm model/venv as `clean`. nil if unavailable/failed → caller falls back to a deterministic
+    /// template. Call OFF the main thread. `timeout` bounds the request; the first call also waits out
+    /// the one-time model load.
+    func generate(system: String, text: String, timeout: TimeInterval) -> String? {
+        // A summary is a few sentences; cap generation tight so the small model can't ramble.
+        return post("/generate", system: system, text: text, maxTokens: 256, timeout: timeout)
+    }
+
+    /// The shared request plumbing for `clean`/`generate`: gate on install, warm the server, POST the
+    /// `{system,text,max_tokens}` body to `path`, and pull `text` back out. nil on any failure.
+    private func post(_ path: String, system: String, text: String, maxTokens: Int, timeout: TimeInterval) -> String? {
+        guard Self.isInstalled() else { return nil }
+        ensureRunning()
+        guard waitHealthy(timeout: 15) else { return nil } // first call waits out the one-time model load
         let body: [String: Any] = ["system": system, "text": text, "max_tokens": maxTokens]
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return nil }
         // Pass the body via a temp file (-d @file) — avoids arg-length/escaping limits.
@@ -87,7 +103,7 @@ final class WarmLLM {
             .appendingPathComponent("voz-llm-\(ProcessInfo.processInfo.globallyUniqueString).json")
         defer { try? FileManager.default.removeItem(at: tmp) }
         guard (try? data.write(to: tmp)) != nil else { return nil }
-        let args = ["-s", "--max-time", "\(Int(timeout))", "-X", "POST", "\(baseURL)/clean",
+        let args = ["-s", "--max-time", "\(Int(timeout))", "-X", "POST", "\(baseURL)\(path)",
                     "-H", "Content-Type: application/json", "-d", "@\(tmp.path)"]
         guard let r = Subprocess.run(curl(), args, timeout: timeout + 3), r.status == 0,
               let obj = try? JSONSerialization.jsonObject(with: r.stdout) as? [String: Any],

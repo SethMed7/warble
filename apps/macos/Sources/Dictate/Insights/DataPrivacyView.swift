@@ -47,6 +47,17 @@ struct DataPrivacyView: View {
                 }
                 .cardStyle()
 
+                // Updates: the "Check for Updates…" menu item is always available; this toggle controls
+                // only the quiet automatic (≈daily) background check, so the choice stays transparent.
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Updates").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                        .padding(.bottom, 12)
+                    toggleRow("Install updates automatically",
+                              "On: voz quietly checks about once a day and offers new versions. Off: manual only — use \u{201C}Check for Updates…\u{201D} in the menu. Either way, updates are signed and stay on your Mac.",
+                              get: { store.autoUpdateEnabled }, set: { store.autoUpdateEnabled = $0 })
+                }
+                .cardStyle()
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Your data").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
                     Text("\(store.dictations.count) dictations · \(store.reads.count) reads · \(store.audioSummary)")

@@ -42,46 +42,82 @@ struct InsightsRootView: View {
     static let space = "insights.coach"
 
     var body: some View {
-        ZStack {
-            NavigationSplitView {
-                List(selection: $nav.section) {
-                    HStack(spacing: 8) {
-                        Image(nsImage: VozMark.coloredMark(height: 22))
-                        Text("voz").font(.headline).foregroundStyle(VozTheme.textHi)
-                        Text("Insights").font(.headline).foregroundStyle(VozTheme.mist)
-                    }
-                    .padding(.vertical, 8)
-
-                    ForEach(InsightsSection.allCases) { s in
-                        Label(s.rawValue, systemImage: s.icon).tag(s)
-                            .background(GeometryReader { geo in
-                                Color.clear.preference(key: RowFrameKey.self,
-                                                       value: [s: geo.frame(in: .named(Self.space))])
-                            })
-                    }
-                }
-                .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 260)
-            } detail: {
-                Group {
-                    switch nav.section {
-                    case .home: HomeView(store: store)
-                    case .insights: InsightsView(store: store, ai: ai)
-                    case .dictionary: DictionaryView()
-                    case .history: HistoryView(store: store)
-                    case .data: DataPrivacyView(store: store)
-                    }
-                }
-                .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
-                .background(VozTheme.black)
+        // A FIXED two-pane layout instead of NavigationSplitView: the sidebar is always visible and
+        // never collapses, and nothing injects a toolbar sidebar-toggle — that auto toggle, whose
+        // position shifted with the (collapsed) state, was the icon that "jumped" around the titlebar,
+        // and its collapse is what made the sidebar unusable. Selection is plain `nav.section`.
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: 212)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .background(VozTheme.ink)
+                Divider().overlay(VozTheme.line)
+                detail
+                    .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
+                    .background(VozTheme.black)
             }
-            .preferredColorScheme(.dark)
 
             if nav.showTutorial {
                 TutorialOverlay(nav: nav, frames: rowFrames).transition(.opacity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(VozTheme.black)
+        .preferredColorScheme(.dark)
         .coordinateSpace(name: Self.space)
         .onPreferenceChange(RowFrameKey.self) { rowFrames = $0 }
+    }
+
+    /// The fixed sidebar: brand header + the section rows. Top padding clears the transparent titlebar
+    /// (where the window's traffic lights sit).
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Image(nsImage: VozMark.coloredMark(height: 22))
+                Text("voz").font(.headline).foregroundStyle(VozTheme.textHi)
+                Text("Insights").font(.headline).foregroundStyle(VozTheme.mist)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 30)
+            .padding(.bottom, 12)
+
+            ForEach(InsightsSection.allCases) { s in sidebarRow(s) }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// One selectable row. Publishes its frame (RowFrameKey) so the coachmark tour can spotlight it.
+    private func sidebarRow(_ s: InsightsSection) -> some View {
+        let selected = nav.section == s
+        return HStack(spacing: 10) {
+            Image(systemName: s.icon).frame(width: 20)
+            Text(s.rawValue)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 13, weight: selected ? .semibold : .regular))
+        .foregroundStyle(selected ? VozTheme.textHi : VozTheme.mist)
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(selected ? VozTheme.electric.opacity(0.18) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
+        .onTapGesture { nav.section = s }
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: RowFrameKey.self,
+                                   value: [s: geo.frame(in: .named(Self.space))])
+        })
+        .padding(.horizontal, 8)
+    }
+
+    /// The detail pane for the selected section.
+    @ViewBuilder private var detail: some View {
+        switch nav.section {
+        case .home: HomeView(store: store)
+        case .insights: InsightsView(store: store, ai: ai)
+        case .dictionary: DictionaryView()
+        case .history: HistoryView(store: store)
+        case .data: DataPrivacyView(store: store)
+        }
     }
 }
 

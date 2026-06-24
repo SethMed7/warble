@@ -3,6 +3,8 @@ import AppKit
 extension Notification.Name {
     /// Posted by `InsightStore.clearAll()` so derived local caches (the Insights AI snapshot) wipe in lockstep.
     static let vozInsightsCleared = Notification.Name("voz.insightsCleared")
+    /// Posted when `autoUpdateEnabled` changes so the app target's Sparkle updater applies it immediately.
+    public static let vozAutoUpdateChanged = Notification.Name("voz.autoUpdateChanged")
 }
 
 /// The local store behind voz Insights, all under ~/.voz:
@@ -44,6 +46,17 @@ public final class InsightStore: ObservableObject {
     var aiInsightsAutoRefresh: Bool {
         get { UserDefaults.standard.object(forKey: "insightsAIAuto") as? Bool ?? true }
         set { objectWillChange.send(); UserDefaults.standard.set(newValue, forKey: "insightsAIAuto") }
+    }
+    /// Whether voz checks for app updates automatically (the quiet ~daily background check). The
+    /// "Check for Updates…" menu item is always available regardless. Default on. The app target's
+    /// Sparkle updater syncs to this — the setter posts `.vozAutoUpdateChanged` so it applies at once.
+    public var autoUpdateEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: "vozAutoUpdate") as? Bool ?? true }
+        set {
+            objectWillChange.send()
+            UserDefaults.standard.set(newValue, forKey: "vozAutoUpdate")
+            NotificationCenter.default.post(name: .vozAutoUpdateChanged, object: nil)
+        }
     }
 
     let dir: URL          // ~/.voz

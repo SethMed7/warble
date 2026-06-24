@@ -46,6 +46,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictate.start()
         rebuildMenu()
 
+        // Mirror the in-app "Install updates automatically" toggle (Insights ▸ Data & Privacy ▸ Updates)
+        // onto Sparkle's scheduled checker now, and keep it in sync live. "Check for Updates…" in the
+        // menu works regardless of this toggle.
+        applyAutoUpdatePref()
+        NotificationCenter.default.addObserver(forName: .vozAutoUpdateChanged, object: nil, queue: .main) {
+            [weak self] _ in self?.applyAutoUpdatePref()
+        }
+
         // First launch: a native welcome so a new user isn't dropped into a bare menu bar.
         if WelcomeWindow.shouldShow {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { WelcomeWindow.shared.open() }
@@ -61,11 +69,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["VOZ_FORCE_SETUP"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { SetupWindow.shared.open() }
         }
+        // QA hook (off by default): VOZ_FORCE_INSIGHTS=1 opens the Insights window on Home — handy for
+        // eyeballing the dashboard/sidebar without dictating first.
+        if ProcessInfo.processInfo.environment["VOZ_FORCE_INSIGHTS"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { InsightsWindow.shared.openHome() }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         dictate.shutdown() // stop the warm ASR server we may have spawned
         speak.shutdown()   // stop any read + kill the Kokoro subprocess and delete its temp audio
+    }
+
+    /// Mirror the in-app "Install updates automatically" toggle onto Sparkle's scheduled checker.
+    private func applyAutoUpdatePref() {
+        updaterController.updater.automaticallyChecksForUpdates = InsightStore.shared.autoUpdateEnabled
     }
 
     /// Show the highest-priority capability's icon; when both are idle, show the brand mark.

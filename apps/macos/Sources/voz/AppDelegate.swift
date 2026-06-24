@@ -2,6 +2,7 @@ import AppKit
 import Speak
 import Dictate
 import Shared
+import Sparkle
 
 /// voz — the voice layer for your Mac. One menu-bar app, two capabilities:
 ///   • Dictate — hold Fn, speak, release; the cleaned text is typed where your cursor is.
@@ -14,6 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let speak = SpeakController()
     private let dictate = DictateController()
+
+    // In-app updates (Sparkle): the only external dependency. Drives both the "Check for Updates…"
+    // menu item and a quiet scheduled background check. `startingUpdater: true` begins the scheduled
+    // checks once the app is running; Sparkle verifies every update against the embedded EdDSA public
+    // key (SUPublicEDKey) before installing, and the feed (SUFeedURL) is read over HTTPS only.
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     // Each capability reports the icon it wants plus a priority; the higher-priority one owns the
     // shared status item (so a hot mic is never masked by read-aloud). Both idle → the brand mark.
@@ -90,6 +98,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let setup = NSMenuItem(title: "Set up better engines…", action: #selector(runBootstrap), keyEquivalent: "")
         setup.target = self
         menu.addItem(setup)
+        menu.addItem(.separator())
+
+        // Sparkle owns this action; it opens the standard update flow (and reports "you're up to date").
+        let updates = NSMenuItem(title: "Check for Updates…",
+                                 action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+                                 keyEquivalent: "")
+        updates.target = updaterController
+        menu.addItem(updates)
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quit voz", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")

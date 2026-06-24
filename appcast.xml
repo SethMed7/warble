@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- voz's Sparkle update feed. The app reads this over HTTPS (Info.plist SUFeedURL) and verifies every
+     download against the EdDSA public key (SUPublicEDKey). Add releases with scripts/update-appcast.sh,
+     then commit + push this file — that publishes the feed at raw.githubusercontent.com/.../main/appcast.xml. -->
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>voz</title>
+    <link>https://raw.githubusercontent.com/SethMed7/voz/main/appcast.xml</link>
+    <description>In-app updates for voz — the voice layer for your Mac.</description>
+    <language>en</language>
+    <!-- APPCAST-ITEMS: scripts/update-appcast.sh inserts <item> entries below this line, newest first. -->
+  </channel>
+</rss>

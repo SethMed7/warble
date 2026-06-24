@@ -4,6 +4,12 @@ import PackageDescription
 let package = Package(
     name: "voz",
     platforms: [.macOS(.v13)],
+    dependencies: [
+        // Sparkle: in-app "Check for Updates…" + a quiet scheduled check, with secure (EdDSA-signed)
+        // download/replace/relaunch. The ONLY external dependency — used only by the `voz` app target;
+        // the portable `core/` and the capability modules stay dependency-free.
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
+    ],
     targets: [
         // Two capabilities, each its own module (so their internal types never collide),
         // a tiny Shared module for things both need (e.g. the single Escape-hotkey owner),
@@ -13,7 +19,7 @@ let package = Package(
         .target(name: "Dictate", dependencies: ["Shared"], path: "Sources/Dictate"),
         .executableTarget(
             name: "voz",
-            dependencies: ["Speak", "Dictate"],
+            dependencies: ["Speak", "Dictate", .product(name: "Sparkle", package: "Sparkle")],
             path: "Sources/voz"
         ),
     ]

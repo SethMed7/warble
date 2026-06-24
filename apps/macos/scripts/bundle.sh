@@ -39,6 +39,18 @@ if [ -f media/icon.png ]; then
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/voz.icns"
 fi
 
+# Embed Sparkle.framework (in-app updates) and point the binary's rpath at Contents/Frameworks.
+# SwiftPM links Sparkle as @rpath/Sparkle.framework/Versions/B/Sparkle; the .app needs the framework
+# in the conventional Frameworks dir plus an rpath that resolves there. install_name_tool edits the
+# binary, so it MUST run before codesign (which seals everything, --deep, below).
+if [ -d .build/release/Sparkle.framework ]; then
+  mkdir -p "$APP/Contents/Frameworks"
+  cp -R .build/release/Sparkle.framework "$APP/Contents/Frameworks/"
+  if ! otool -l "$APP/Contents/MacOS/voz" | grep -q "@executable_path/../Frameworks"; then
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/voz"
+  fi
+fi
+
 # Sign with a STABLE identity so macOS keeps the Accessibility / Microphone grants
 # across updates. An ad-hoc signature is content-hashed and changes every build,
 # which silently invalidates the grants and re-prompts on every update.

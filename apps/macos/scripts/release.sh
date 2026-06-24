@@ -22,7 +22,17 @@ APP="build/voz.app"
 # 1. Assemble the .app (build + icon + strip), signed with the Developer ID cert.
 VOZ_SIGN_ID="$DEVID" sh scripts/bundle.sh
 
-# 2. Re-sign with the HARDENED RUNTIME + secure timestamp + entitlements (notarization requires all three).
+# 2. HARDENED-RUNTIME signing. Sign Sparkle's nested helpers + framework FIRST (inside-out), THEN the
+#    app — notarization requires every nested executable to be hardened + securely timestamped. Sparkle's
+#    helpers get NO app entitlements (they don't take them); only the app gets voz.entitlements.
+FW="$APP/Contents/Frameworks/Sparkle.framework"
+if [ -d "$FW" ]; then
+  for x in "$FW/Versions/B/XPCServices/Installer.xpc" "$FW/Versions/B/XPCServices/Downloader.xpc" \
+           "$FW/Versions/B/Autoupdate" "$FW/Versions/B/Updater.app"; do
+    [ -e "$x" ] && codesign --force --options runtime --timestamp -s "$DEVID" "$x"
+  done
+  codesign --force --options runtime --timestamp -s "$DEVID" "$FW"
+fi
 codesign --force --options runtime --timestamp --entitlements voz.entitlements -s "$DEVID" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 
@@ -64,4 +74,7 @@ xcrun stapler staple "$DMG"
 echo
 echo "✓ Notarized, ready to ship: $DMG"
 spctl -a -vv -t install "$DMG" 2>&1 || true
-echo "Upload with:  gh release create v$VER \"$DMG\" --title \"voz $VER\" --notes \"…\""
+echo "Ship it:"
+echo "  1. gh release create v$VER \"$DMG\" --title \"voz $VER\" --notes \"…\"   # host the DMG"
+echo "  2. sh scripts/update-appcast.sh $VER \"$DMG\"                         # sign + add the appcast <item>"
+echo "  3. commit + push appcast.xml                                          # publishes the update to everyone"

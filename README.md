@@ -49,6 +49,7 @@ on-device engine, so it lands in well under a second — and nothing ever leaves
 - **Learns your words** — correct a name a couple of times, or just spell it out loud (*"Dhaval, that's D H A V A L"*), and it sticks in your dictionary, everywhere — even in terminals.
 - **Hands-free or hold** — double-tap **Fn** to toggle, or hold **Fn**; **Esc** cancels mid-dictation.
 - **Reads back, too** — select any text + **⌃V** for warm, on-device neural read-aloud that follows along word by word.
+- **Stays current** — a built-in *Check for Updates* (plus a quiet daily check) installs new versions in place, each verified by signature. No App Store, no manual re-download, no visiting GitHub.
 
 ## The two modes
 
@@ -192,8 +193,10 @@ No cloud, no API keys, no accounts, no telemetry — **everything stays on your 
 words. You're in control in **Insights ▸ Data & Privacy**: turn **Keep history** off for stats-only
 (no transcript text stored), turn **Save recordings** off to delete audio after transcription as it
 always did, keep **Skip password fields** on so a spoken password is never written, and **Clear** or
-**Export** anytime. Nothing is ever uploaded; the only network access is a one-time, explicit model
-download when you opt into a premium engine, and the portable `core/` contains no networking code.
+**Export** anytime. Nothing is ever uploaded. voz reaches the network in only two ways, both benign and
+disclosed: a one-time, explicit model download when you opt into a premium engine, and a periodic **check
+for app updates** — a signed update feed (version info only, no accounts, no telemetry) that powers the
+in-app *Check for Updates*. The portable `core/` contains no networking code.
 
 ## Repository layout
 

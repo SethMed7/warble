@@ -44,5 +44,16 @@
 	</array>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>voz can fall back to Apple's on-device speech recognizer; recognition stays on your Mac.</string>
+	<!-- Sparkle in-app updates. SUFeedURL is read over HTTPS; SUPublicEDKey is the EdDSA public key every
+	     downloaded update is verified against (its private half lives only in the maintainer's Keychain).
+	     SUEnableAutomaticChecks + a 1-day interval give the quiet background check; the menu item is manual. -->
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/SethMed7/voz/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>ctuyDA3r2a+kq9gpkkNu9ciA2YEAZ8ImMxIJ9ndtMLc=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

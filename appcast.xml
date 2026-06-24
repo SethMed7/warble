@@ -11,5 +11,14 @@
     <description>In-app updates for voz — the voice layer for your Mac.</description>
     <language>en</language>
     <!-- APPCAST-ITEMS: scripts/update-appcast.sh inserts <item> entries below this line, newest first. -->
+    <item>
+      <title>voz 0.1.7</title>
+      <sparkle:version>0.1.7</sparkle:version>
+      <sparkle:shortVersionString>0.1.7</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <link>https://github.com/SethMed7/voz/releases/tag/v0.1.7</link>
+      <pubDate>Wed, 24 Jun 2026 20:26:19 +0000</pubDate>
+      <enclosure url="https://github.com/SethMed7/voz/releases/download/v0.1.7/voz-0.1.7.dmg" sparkle:version="0.1.7" sparkle:edSignature="z10O05oeJrpqo/UD+IocJelQ55VXhJQkBjHuLynkW2ar9t8+k53BRo2w7uVB8Vu90LrN0ym3kAMd4ybGU819Bg==" length="2412792" type="application/octet-stream" />
+    </item>
   </channel>
 </rss>

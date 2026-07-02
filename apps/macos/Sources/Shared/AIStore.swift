@@ -43,10 +43,27 @@ public enum AIStore {
     public static var sharedModels: String { "\(sharedRoot)/models" }
     public static var appRoot: String { "\(home)/.voz" }            // voz-only runtimes + data
     public static var legacySherpaCache: String { "\(home)/.cache/sherpa" } // pre-memex model home
+    public static var kokoroCacheDir: String { "\(sharedModels)/kokoro" } // transformers.js nests <org>/<model> inside
+    public static var legacyKokoroCache: String { "\(home)/.cache/huggingface-transformers" } // pre-memex Kokoro home
 
     /// The models dir a NEW download of `target` should write into.
     public static func modelsDir(for target: Target) -> String {
         target == .shared ? sharedModels : legacySherpaCache
+    }
+
+    /// The store the user chose for voice weights, persisted by Setup. Kokoro downloads lazily on
+    /// the first read — the say.ts/say-server.ts SPAWN env decides where weights land, not the
+    /// install script — so the choice must outlive Setup.
+    public static var voicesTarget: Target {
+        get { Target(rawValue: UserDefaults.standard.string(forKey: "vozVoicesTarget") ?? "") ?? .shared }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "vozVoicesTarget") }
+    }
+
+    /// VOZ_KOKORO_CACHE for a say.ts/say-server.ts spawn: the legacy voz-only cache when the user
+    /// chose "voz only" (also suppresses the scripts' one-time legacy→shared migration), nil to let
+    /// the scripts' shared-store default apply.
+    public static func kokoroCacheOverride() -> String? {
+        voicesTarget == .app ? legacyKokoroCache : nil
     }
 
     // MARK: resolution (shared → app/legacy)
@@ -71,6 +88,14 @@ public enum AIStore {
         if globHit("\(sharedModels)/*parakeet*/encoder.int8.onnx") { return .shared }
         if FileManager.default.fileExists(atPath: "\(appRoot)/sherpa/model/encoder.int8.onnx") { return .app }
         if globHit("\(legacySherpaCache)/*parakeet*/encoder.int8.onnx") { return .legacy }
+        return nil
+    }
+
+    /// Where a present Kokoro model was found, for Setup's source label (nil = not downloaded yet —
+    /// say.ts fetches the weights on the first read, and migrates a legacy cache into the shared store).
+    public static func kokoroOrigin() -> Origin? {
+        if globHit("\(kokoroCacheDir)/*/Kokoro*/onnx/*.onnx") { return .shared }
+        if globHit("\(legacyKokoroCache)/*/Kokoro*/onnx/*.onnx") { return .legacy }
         return nil
     }
 

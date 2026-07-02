@@ -15,6 +15,7 @@ Protocol (loopback, same machine):
 import os, json, time, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+import mlx.core as mx
 from mlx_lm import load, generate
 
 
@@ -70,6 +71,21 @@ def polish(system, text, max_tokens):
         return generate(model, tokenizer, prompt, max_tokens=max_tokens)
 
 
+def release_cache():
+    """Drop MLX's Metal buffer cache after each generation so idle RSS shrinks back toward the loaded
+    weights (the cache holds hundreds of MB and MLX never returns it on its own). The API name has
+    drifted across MLX versions; a failed clear must never fail the request."""
+    try:
+        mx.clear_cache()
+    except AttributeError:
+        try:
+            mx.metal.clear_cache()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, obj):
         body = json.dumps(obj).encode("utf-8")
@@ -100,6 +116,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"text": ""})
                 return
             out = polish(req.get("system") or "", text, int(req.get("max_tokens") or 1024))
+            release_cache()
             self._send(200, {"text": (out or "").strip()})
         except Exception as e:  # any failure -> the app falls back to the deterministic cleaner
             self._send(500, {"error": str(e)})

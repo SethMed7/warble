@@ -35,14 +35,16 @@ off, `text` is empty but every metric still lands (stats-only mode).
 ```
 ~/.voz/
   history.json      append-only JSON-Lines event log        (0600)
-  audio/<id>.wav    the saved recording for each dictation   (0600)
+  audio/<id>.m4a    the saved recording for each dictation   (0600; 16 kHz mono AAC —
+                    raw-WAV fallback if the encode fails; older installs' .wav still play)
   dictionary.json   the user dictionary (Lexicon)            (existing)
 ```
 
 ## Privacy — note the change
 Phase 2 adds **saving the recording** so you can replay a dictation and click in to correct it /
 train the dictionary. This is a deliberate departure: voz historically deleted all audio. Now, when
-**Save recording** is on (a toggle, default on for this user), the WAV is copied to `~/.voz/audio/`
+**Save recording** is on (a toggle, default on for this user), the recording is encoded to a compact
+16 kHz mono AAC in `~/.voz/audio/`
 **local-only** — never uploaded. When off, audio is deleted as before. Transcripts likewise persist
 local-only (`~/.voz`, `0600`) with a **stats-only toggle**, **secure-field / password-manager
 exclusion**, **Clear / Export**, and owner-only perms. **The README/brand "no recording is ever

@@ -11,15 +11,38 @@
  *        -> streams one line per chunk as it's ready: "<wav path>\t<chunk text>\n"
  * Renders are SERIALIZED (one model, FIFO) so a prefetch can never fight the live read for CPU.
  */
-import { mkdtempSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, renameSync, writeFileSync, readdirSync, statSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// --- kokoro weights cache (identical to say.ts: shared memex store — ~/.memex/ai/models, relocatable
+// via MEMEX_AI_HOME — with a VOZ_KOKORO_CACHE override and a one-time move of the pre-memex
+// ~/.cache/huggingface-transformers; a failed move falls back to the legacy dir so reads never break) ---
+function kokoroCacheDir(): string {
+  if (process.env.VOZ_KOKORO_CACHE) return process.env.VOZ_KOKORO_CACHE;
+  const root = process.env.MEMEX_AI_HOME ?? `${process.env.HOME}/.memex/ai`;
+  const shared = `${root}/models/kokoro`; // transformers.js nests its own <org>/<model> dirs inside
+  const legacy = `${process.env.HOME}/.cache/huggingface-transformers`;
+  if (!existsSync(shared) && existsSync(legacy)) {
+    try {
+      mkdirSync(`${root}/models`, { recursive: true });
+      renameSync(legacy, shared);
+    } catch {
+      // Lost the one-time move (a race with the sibling script) or the store isn't creatable —
+      // serve from whichever dir actually holds the weights so reads never break.
+      return existsSync(shared) ? shared : legacy;
+    }
+  }
+  return shared;
+}
+
 const { env: hfEnv } = await import("@huggingface/transformers");
-hfEnv.cacheDir = `${process.env.HOME}/.cache/huggingface-transformers`;
+hfEnv.cacheDir = kokoroCacheDir();
 const { KokoroTTS } = await import("kokoro-js");
 
-const PORT = Number(process.env.VOZ_TTS_PORT ?? 8766);
+// 8767: the warm LLM server's default is 8766 and both answer {"ok":true} on /health, so sharing a
+// default could latch a TTS probe onto the LLM server. The app always passes VOZ_TTS_PORT explicitly.
+const PORT = Number(process.env.VOZ_TTS_PORT ?? 8767);
 
 // --- chunking (identical to say.ts: a small first chunk → fast first audio, ~360 for the rest) ---
 function splitFirstClause(s: string): [string, string] {

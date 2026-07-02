@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 
 /// Manages voz's warm Kokoro TTS server (core/say-server.ts, installed beside say.ts by
 /// scripts/setup-kokoro-server.sh). It keeps the model loaded so each read skips the ~1-2s per-spawn
@@ -11,7 +12,11 @@ import Foundation
 final class WarmTTS {
     static let shared = WarmTTS()
 
-    let port = ProcessInfo.processInfo.environment["VOZ_TTS_PORT"] ?? "8766"
+    // Warm-server port map: 8765 ASR, 8766 LLM, 8767 TTS. TTS must NOT share the LLM's 8766 — with
+    // both installed one can't bind, and /health would false-positive against the LLM server (both
+    // answer {"ok": true}). The port is always passed to the server we spawn, so the pair stays
+    // consistent even if say-server.ts's own default drifts.
+    let port = ProcessInfo.processInfo.environment["VOZ_TTS_PORT"] ?? "8767"
     private var server: Process?
     private let lock = NSLock()
 
@@ -47,47 +52,31 @@ final class WarmTTS {
             && FileManager.default.fileExists(atPath: "\(helperDir())/node_modules/kokoro-js")
     }
 
+    /// Still curl-based: Speaker's /render request streams "<path>\t<chunk>" lines as they render,
+    /// and LoopbackHTTP is whole-body synchronous — unsuitable for a live chunk stream.
     static func curlPath() -> String {
         firstExecutable(["/usr/bin/curl", "/opt/homebrew/bin/curl"]) ?? "/usr/bin/curl"
     }
 
-    // Small self-contained process helpers — Subprocess lives in the Dictate module, and Speak
-    // shouldn't depend on it, so WarmTTS carries its own tiny copies.
+    // Subprocess lives in the Dictate module, and Speak shouldn't depend on it, so WarmTTS carries
+    // its own tiny copy.
     private static func firstExecutable(_ candidates: [String]) -> String? {
         candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
-    private static func run(_ exe: String, _ args: [String], timeout: TimeInterval) -> (status: Int32, stdout: Data)? {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: exe)
-        p.arguments = args
-        let out = Pipe(); p.standardOutput = out; p.standardError = Pipe()
-        do { try p.run() } catch { return nil }
-        var data = Data()
-        let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
-            data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); done.signal()
-        }
-        if done.wait(timeout: .now() + timeout) != .success {
-            if p.isRunning { p.terminate() }
-            _ = done.wait(timeout: .now() + 1)
-            return nil
-        }
-        return (p.terminationStatus, data)
-    }
 
-    func isHealthy() -> Bool {
-        guard let r = Self.run(Self.curlPath(), ["-s", "--max-time", "1", "\(baseURL)/health"], timeout: 2),
-              r.status == 0, let s = String(data: r.stdout, encoding: .utf8) else { return false }
-        return s.contains("\"ok\"")
-    }
+    func isHealthy() -> Bool { LoopbackHTTP.health(baseURL) == .ok }
 
     /// Start the server if installed and not already healthy (reusing any prior instance), then poll
     /// until it answers /health (the one-time model load is ~1-2s). Idempotent. Call OFF the main
     /// thread. Updates `ready` so the audio engine can pick the warm path on the main thread.
     func prewarm() {
         guard Self.isInstalled() else { ready = false; return }
-        if ready, Date().timeIntervalSince(lastHealthyAt) < 30 { return } // trust the cache — no curl probe
-        if isHealthy() { ready = true; lastHealthyAt = Date(); return } // a prior session's server is up — reuse it
+        if ready, Date().timeIntervalSince(lastHealthyAt) < 30 { return } // trust the cache — no probe
+        switch LoopbackHTTP.health(baseURL) {
+        case .ok: ready = true; lastHealthyAt = Date(); return // a prior session's server is up — reuse it
+        case .foreign: ready = false; return // squatted by another local service — a spawn couldn't bind
+        case .down: break
+        }
         lock.lock()
         if !shuttingDown, server == nil || server?.isRunning != true, !isHealthy(),
            let bun = Self.bunPath(), let script = Self.scriptPath() {
@@ -97,6 +86,9 @@ final class WarmTTS {
             p.currentDirectoryURL = URL(fileURLWithPath: Self.helperDir())
             var env = ProcessInfo.processInfo.environment
             env["VOZ_TTS_PORT"] = port
+            // Honor an explicit "voz only" store choice — without this the script's shared-store
+            // default would migrate the legacy cache into ~/.memex against the user's pick.
+            if let cache = AIStore.kokoroCacheOverride() { env["VOZ_KOKORO_CACHE"] = cache }
             p.environment = env
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
@@ -120,7 +112,13 @@ final class WarmTTS {
 
     private func waitHealthy(timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-        repeat { if isHealthy() { return true }; usleep(200_000) } while Date() < deadline
+        repeat {
+            switch LoopbackHTTP.health(baseURL) {
+            case .ok: return true
+            case .foreign: return false // squatted port — it will never become ours
+            case .down: usleep(200_000)
+            }
+        } while Date() < deadline
         return false
     }
 }

@@ -45,6 +45,43 @@ describe("fillers", () => {
   test("keeps 'you know' when it carries meaning", () => {
     expect(cleaned("you know the answer")).toBe("you know the answer");
   });
+
+  test("removes hum variants", () => {
+    expect(cleaned("uhm mmm hmmm mhmm okay then")).toBe("okay then");
+  });
+
+  test("keeps 'mm' — it reads as millimetres", () => {
+    expect(cleaned("a 3 mm gap")).toBe("a 3 mm gap");
+  });
+});
+
+describe("meaning preservation", () => {
+  test("idiomatic pair chains stay verbatim", () => {
+    expect(cleaned("it happened again and again and again"))
+      .toBe("it happened again and again and again");
+    expect(cleaned("we walked two by two by two")).toBe("we walked two by two by two");
+    expect(cleaned("we tried again and again and failed"))
+      .toBe("we tried again and again and failed");
+  });
+
+  test("spoken digit runs stay verbatim", () => {
+    expect(cleaned("zero four zero four two")).toBe("zero four zero four two");
+  });
+
+  test("two-word false starts are left for the LLM pass", () => {
+    expect(cleaned("I want I want to go")).toBe("I want I want to go");
+  });
+});
+
+describe("unicode", () => {
+  test("mixed-normalization duplicates collapse, output in NFC", () => {
+    // NFC "caf\u00e9" then NFD "cafe\u0301" — the same word in two encodings.
+    expect(cleaned("caf\u00e9 cafe\u0301 forever")).toBe("caf\u00e9 forever");
+  });
+
+  test("combining marks survive inside words", () => {
+    expect(cleaned("el ni\u00f1o esta bien")).toBe("el ni\u00f1o esta bien");
+  });
 });
 
 describe("corrections", () => {
@@ -81,6 +118,10 @@ describe("duplicates", () => {
 
   test("does not collapse across a sentence boundary", () => {
     expect(cleaned("stop. stop right there")).toBe("stop. stop right there");
+  });
+
+  test("'had had' still collapses via the single-word rule", () => {
+    expect(cleaned("he had had a rough week")).toBe("he had a rough week");
   });
 });
 

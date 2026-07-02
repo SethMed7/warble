@@ -27,4 +27,7 @@ else
 fi
 cd "$DIR" && bun install
 echo
-echo "Kokoro voice installed to ~/.voz/kokoro. The first read downloads the model (~80 MB, one time)."
+# The weights themselves land in the shared memex AI store on first read (say.ts resolves the path
+# and migrates a pre-memex ~/.cache/huggingface-transformers cache in place, one time, idempotently).
+echo "Kokoro voice installed to ~/.voz/kokoro. The first read downloads the model (~80 MB, one time)"
+echo "into the shared memex AI store (~/.memex/ai/models/kokoro) — reused by your other memex apps."

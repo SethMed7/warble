@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 
 /// Manages voz's warm MLX LLM polish server (core/llm-server.py in a venv, installed by
 /// scripts/setup-cleaner.sh). Keeps a small instruct model (Qwen2.5-1.5B-Instruct) loaded so each
@@ -34,12 +35,13 @@ final class WarmLLM {
     }
 
     private var baseURL: String { "http://127.0.0.1:\(port)" }
-    private func curl() -> String { Subprocess.firstExecutable(["/usr/bin/curl", "/opt/homebrew/bin/curl"]) ?? "/usr/bin/curl" }
 
     /// Start the server if installed and not already healthy (reusing any prior instance). Idempotent;
     /// the model loads in the child (~1-2s). Call OFF the main thread.
     func ensureRunning() {
-        guard Self.isInstalled(), !isHealthy() else { return }
+        // .foreign = the port is squatted by an unrelated local service: our spawn couldn't bind and
+        // /health will never say ok — skip the warm path instead of burning the wait on every polish.
+        guard Self.isInstalled(), LoopbackHTTP.health(baseURL) == .down else { return }
         lock.lock(); defer { lock.unlock() }
         if let s = server, s.isRunning { return }
         if isHealthy() { return } // a prior session's server is already up — reuse it
@@ -64,11 +66,7 @@ final class WarmLLM {
         server = (try? p.run()) != nil ? p : nil
     }
 
-    func isHealthy() -> Bool {
-        guard let r = Subprocess.run(curl(), ["-s", "--max-time", "1", "\(baseURL)/health"], timeout: 2),
-              r.status == 0, let s = String(data: r.stdout, encoding: .utf8) else { return false }
-        return s.contains("\"ok\"")
-    }
+    func isHealthy() -> Bool { LoopbackHTTP.health(baseURL) == .ok }
 
     /// Polish `text` with `system` as the instruction, via the warm server. nil if unavailable/failed
     /// → caller falls back to the deterministic cleaner. Call OFF the main thread. `timeout` bounds the
@@ -98,15 +96,8 @@ final class WarmLLM {
         guard waitHealthy(timeout: 15) else { return nil } // first call waits out the one-time model load
         let body: [String: Any] = ["system": system, "text": text, "max_tokens": maxTokens]
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return nil }
-        // Pass the body via a temp file (-d @file) — avoids arg-length/escaping limits.
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("voz-llm-\(ProcessInfo.processInfo.globallyUniqueString).json")
-        defer { try? FileManager.default.removeItem(at: tmp) }
-        guard (try? data.write(to: tmp)) != nil else { return nil }
-        let args = ["-s", "--max-time", "\(Int(timeout))", "-X", "POST", "\(baseURL)\(path)",
-                    "-H", "Content-Type: application/json", "-d", "@\(tmp.path)"]
-        guard let r = Subprocess.run(curl(), args, timeout: timeout + 3), r.status == 0,
-              let obj = try? JSONSerialization.jsonObject(with: r.stdout) as? [String: Any],
+        guard let d = LoopbackHTTP.postJSON("\(baseURL)\(path)", body: data, timeout: timeout),
+              let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let out = obj["text"] as? String else { return nil }
         return out
     }
@@ -119,7 +110,13 @@ final class WarmLLM {
 
     private func waitHealthy(timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-        repeat { if isHealthy() { return true }; usleep(200_000) } while Date() < deadline
+        repeat {
+            switch LoopbackHTTP.health(baseURL) {
+            case .ok: return true
+            case .foreign: return false // squatted port — it will never become ours
+            case .down: usleep(200_000)
+            }
+        } while Date() < deadline
         return false
     }
 }

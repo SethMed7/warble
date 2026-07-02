@@ -146,7 +146,9 @@ final class EngineSetup: ObservableObject {
         switch e {
         case .dictation: return AIStore.parakeetOrigin()?.label
         case .cleanup: return AIStore.cleanupOrigin()?.label
-        case .voices: return exists("\(home)/.voz/kokoro/node_modules/kokoro-js") ? "voz only" : nil
+        case .voices: // weights arrive on the first read, so a fresh install labels its voz-local runtime
+            guard exists("\(home)/.voz/kokoro/node_modules/kokoro-js") else { return nil }
+            return AIStore.kokoroOrigin()?.label ?? "voz only"
         }
     }
 
@@ -199,6 +201,7 @@ final class EngineSetup: ObservableObject {
     }
 
     private func installVoices() throws {
+        AIStore.voicesTarget = target // weights fetch on the first read — the spawn env honors this
         try ensureBun() // Kokoro is a bun package
         progress(.voices, nil, "Installing voices…") // bun pulls kokoro-js + the model
         try runScript("setup-kokoro.sh", status: "Installing voices…")

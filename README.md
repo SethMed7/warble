@@ -134,7 +134,10 @@ voz uses the best engine present and falls through if one isn't installed. All r
 Apple APIs), so only the app *shell* is macOS-specific.
 
 - **Read aloud:** [Kokoro-82M](https://github.com/hexgrad/kokoro) neural voices (via
-  `core/say.ts`), or the built-in macOS voice with zero setup. Optionally run Kokoro as a **warm
+  `core/say.ts`), or the built-in macOS voice with zero setup. The Kokoro weights live in the shared
+  memex store (`~/.memex/ai/models/kokoro`); a pre-memex `~/.cache/huggingface-transformers` cache
+  is moved there on the first read — unless you picked **"voz only"** in Setup, which keeps the
+  weights in that voz-local cache. Optionally run Kokoro as a **warm
   local server** (`setup-kokoro-server.sh`, `core/say-server.ts`) that keeps the 92 MB model loaded
   so each read starts with consistent low latency instead of re-loading the model per selection —
   same model, same voices, 100% on-device (binds `127.0.0.1` only). It also streams a **short first
@@ -168,7 +171,8 @@ under **menu → Dictate → "Polish with AI"**; pin a different model with `VOZ
 
 Everything the optional setup installs is **downloaded only with your explicit "y", and lives in
 your home folder** — never inside the app, nothing system-wide, no admin/sudo. **Model weights** go to
-a **shared store at `~/.memex/ai/models`** (Parakeet ~600 MB, the MLX cleanup model ~0.9 GB) — reusable
+a **shared store at `~/.memex/ai/models`** (Parakeet ~600 MB, the MLX cleanup model ~0.9 GB, the
+Kokoro voices ~90–330 MB) — reusable
 by your other on-device "memex" apps, and **reused on reinstall instead of re-downloaded** — or to
 `~/.voz`/`~/.cache` if you pick **"voz only"** in Setup. The small **runtimes** stay voz-local: `~/.bun`
 (bun runtime) and `~/.voz/` (helper scripts, your dictionary + history, the warm servers, `kokoro/`,

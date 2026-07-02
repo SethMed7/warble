@@ -1,12 +1,15 @@
 import Foundation
 
-/// Swift twin of scripts/clean.ts (the canonical cleaner). The app prefers the
-/// bun helper in ~/.dictado when installed; this port keeps dictado working
-/// with zero setup. Keep the pass order and rules identical in both files.
+/// Swift twin of core/clean.ts (the canonical, acceptance-tested cleaner). The app runs this port
+/// directly — the rules ship with the binary, so a stale deployed helper can never shadow them.
+/// Keep the pass order and rules identical in both files.
 enum BasicCleaner {
 
     static func cleaned(_ s: String) -> String {
-        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        // NFC first: Swift's == is canonical-equivalent, JS's === is code-unit — without a shared
+        // normal form, mixed NFC/NFD duplicates would collapse in one twin and not the other.
+        let trimmed = s.precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let startedUpper = trimmed.first?.isUppercase == true
         var tokens = trimmed.split(whereSeparator: { $0.isWhitespace }).map(String.init)
         tokens = applyScratchThat(tokens)
@@ -27,8 +30,11 @@ enum BasicCleaner {
 
     // MARK: - Vocabulary
 
+    /// Non-lexical hesitations only — anything that can carry meaning (huh, like,
+    /// well, right) belongs to the LLM pass. "mm" stays out: it reads as
+    /// millimetres ("a 3 mm gap").
     private static let fillers: Set<String> = [
-        "um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm", "mhm",
+        "um", "umm", "uhm", "uh", "uhh", "er", "erm", "ah", "hmm", "hmmm", "mmm", "mhm", "mhmm",
     ]
 
     private static let numberWords: Set<String> = [
@@ -156,7 +162,11 @@ enum BasicCleaner {
     }
 
     /// (d) Collapse immediate duplicate words ("like like" -> "like"); never
-    /// across a sentence boundary ("stop. Stop" stays).
+    /// across a sentence boundary ("stop. Stop" stays). Deliberately NO
+    /// two-word version: X-C-X idioms ("again and again", "day by day"), spoken
+    /// digit runs ("zero four zero four"), and coordinations ("tried again and
+    /// again and failed") make any pair collapse meaning-destroying — two-word
+    /// false starts belong to the guarded LLM pass.
     private static func collapseDuplicates(_ tokens: [String]) -> [String] {
         var out: [String] = []
         for token in tokens {

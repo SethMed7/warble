@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import Shared
 
 enum SpeakerState {
     case preparing
@@ -386,6 +387,9 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
             var env = ProcessInfo.processInfo.environment
             env["VOZ_VOICE"] = Speaker.shared.voiceId
             env["LEELO_VOICE"] = Speaker.shared.voiceId // keep a legacy ~/.leelo say.ts working too
+            // Honor an explicit "voz only" store choice — without this the script's shared-store
+            // default would migrate the legacy cache into ~/.memex against the user's pick.
+            if let cache = AIStore.kokoroCacheOverride() { env["VOZ_KOKORO_CACHE"] = cache }
             p.environment = env
             payload = Data(pendingText.utf8)
         }

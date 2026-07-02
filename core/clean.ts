@@ -7,7 +7,12 @@
  * and rules identical in both files.
  */
 
-const FILLERS = new Set(["um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm", "mhm"]);
+// Non-lexical hesitations only — anything that can carry meaning (huh, like,
+// well, right) belongs to the LLM pass. "mm" stays out: it reads as
+// millimetres ("a 3 mm gap").
+const FILLERS = new Set([
+  "um", "umm", "uhm", "uh", "uhh", "er", "erm", "ah", "hmm", "hmmm", "mmm", "mhm", "mhmm",
+]);
 
 const NUMBER_WORDS = new Set([
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
@@ -22,9 +27,11 @@ const MARKERS: string[][] = [
   ["actually"], ["rather"],
 ];
 
-/** Token without leading/trailing punctuation (keeps inner apostrophes). */
+/** Token without leading/trailing punctuation (keeps inner apostrophes).
+ * \p{M} keeps combining marks — the Swift twin's CharacterSet.alphanumerics
+ * includes them, and stripping one would delete a mark-bearing word's tail. */
 function core(token: string): string {
-  return token.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, "");
+  return token.replace(/^[^\p{L}\p{M}\p{N}']+|[^\p{L}\p{M}\p{N}']+$/gu, "");
 }
 
 type Shape = "numeral" | "numberWord" | "capitalized" | "plain";
@@ -116,7 +123,11 @@ function removeFillers(tokens: string[]): string[] {
 }
 
 // (d) Collapse immediate duplicate words ("like like" -> "like"); never across
-// a sentence boundary ("stop. Stop" stays).
+// a sentence boundary ("stop. Stop" stays). Deliberately NO two-word version:
+// X-C-X idioms ("again and again", "day by day"), spoken digit runs ("zero four
+// zero four"), and coordinations ("tried again and again and failed") make any
+// pair collapse meaning-destroying — two-word false starts belong to the
+// guarded LLM pass.
 function collapseDuplicates(tokens: string[]): string[] {
   const out: string[] = [];
   for (const token of tokens) {
@@ -133,7 +144,9 @@ function collapseDuplicates(tokens: string[]): string[] {
 }
 
 export function cleaned(raw: string): string {
-  const trimmed = raw.trim();
+  // NFC first: Swift's == is canonical-equivalent, JS's === is code-unit — without a shared
+  // normal form, mixed NFC/NFD duplicates would collapse in one twin and not the other.
+  const trimmed = raw.normalize("NFC").trim();
   const first = trimmed.charAt(0);
   const startedUpper = first !== "" && first !== first.toLowerCase();
   let tokens = trimmed.split(/\s+/).filter((t) => t.length > 0);

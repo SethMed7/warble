@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 
 /// Manages voz's warm Parakeet ASR server (core/asr-server.py in a venv, installed by
 /// scripts/setup-asr.sh). It keeps the model loaded so each clip transcribes in ~0.08s over
@@ -26,12 +27,13 @@ final class WarmASR {
     }
 
     private var baseURL: String { "http://127.0.0.1:\(port)" }
-    private func curl() -> String { Subprocess.firstExecutable(["/usr/bin/curl", "/opt/homebrew/bin/curl"]) ?? "/usr/bin/curl" }
 
     /// Start the server if installed and not already healthy (reusing any prior instance). Idempotent;
     /// the model loads in the child (~1.1s). Call OFF the main thread.
     func ensureRunning() {
-        guard Self.isInstalled(), !isHealthy() else { return }
+        // .foreign = the port is squatted by an unrelated local service: our spawn couldn't bind and
+        // /health will never say ok — skip the warm path instead of burning the wait on every clip.
+        guard Self.isInstalled(), LoopbackHTTP.health(baseURL) == .down else { return }
         lock.lock(); defer { lock.unlock() }
         if let s = server, s.isRunning { return }
         if isHealthy() { return } // a prior session's server is already up — reuse it
@@ -48,11 +50,7 @@ final class WarmASR {
         server = (try? p.run()) != nil ? p : nil
     }
 
-    func isHealthy() -> Bool {
-        guard let r = Subprocess.run(curl(), ["-s", "--max-time", "1", "\(baseURL)/health"], timeout: 2),
-              r.status == 0, let s = String(data: r.stdout, encoding: .utf8) else { return false }
-        return s.contains("\"ok\"")
-    }
+    func isHealthy() -> Bool { LoopbackHTTP.health(baseURL) == .ok }
 
     /// Transcribe a 16k-mono WAV via the warm server. nil if unavailable/failed → caller falls back
     /// to the cold chain. Call OFF the main thread. `timeout` scales with clip length, so a long
@@ -61,12 +59,9 @@ final class WarmASR {
         guard Self.isInstalled() else { return nil }
         ensureRunning()
         guard waitHealthy(timeout: 8) else { return nil } // first call waits out the one-time model load
-        let body = "{\"path\":\"\(wav16kPath)\"}"
-        let maxTime = max(15, Int(timeout))
-        guard let r = Subprocess.run(curl(), ["-s", "--max-time", "\(maxTime)", "-X", "POST",
-              "\(baseURL)/transcribe", "-H", "Content-Type: application/json", "-d", body], timeout: TimeInterval(maxTime) + 3),
-              r.status == 0,
-              let obj = try? JSONSerialization.jsonObject(with: r.stdout) as? [String: Any],
+        guard let body = try? JSONSerialization.data(withJSONObject: ["path": wav16kPath]) else { return nil }
+        guard let d = LoopbackHTTP.postJSON("\(baseURL)/transcribe", body: body, timeout: max(15, timeout)),
+              let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let text = obj["text"] as? String else { return nil }
         return text
     }
@@ -79,7 +74,13 @@ final class WarmASR {
 
     private func waitHealthy(timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-        repeat { if isHealthy() { return true }; usleep(200_000) } while Date() < deadline
+        repeat {
+            switch LoopbackHTTP.health(baseURL) {
+            case .ok: return true
+            case .foreign: return false // squatted port — it will never become ours
+            case .down: usleep(200_000)
+            }
+        } while Date() < deadline
         return false
     }
 }

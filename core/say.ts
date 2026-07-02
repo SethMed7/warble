@@ -4,12 +4,35 @@
  * each chunk is ready — the app starts playing after the first line.
  * Installed to ~/.voz/kokoro by scripts/setup-kokoro.sh; run with bun.
  */
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// Kokoro's weights follow the memex standard: big models live ONCE in the shared store
+// (~/.memex/ai/models, relocatable via MEMEX_AI_HOME) and are reused across apps; VOZ_KOKORO_CACHE
+// overrides for voz alone. A pre-memex cache at ~/.cache/huggingface-transformers is moved into the
+// store one time; if that move fails for ANY reason, the legacy dir keeps serving so reads never
+// break. Duplicated in say-server.ts — both are standalone scripts deployed to ~/.voz/kokoro.
+function kokoroCacheDir(): string {
+  if (process.env.VOZ_KOKORO_CACHE) return process.env.VOZ_KOKORO_CACHE;
+  const root = process.env.MEMEX_AI_HOME ?? `${process.env.HOME}/.memex/ai`;
+  const shared = `${root}/models/kokoro`; // transformers.js nests its own <org>/<model> dirs inside
+  const legacy = `${process.env.HOME}/.cache/huggingface-transformers`;
+  if (!existsSync(shared) && existsSync(legacy)) {
+    try {
+      mkdirSync(`${root}/models`, { recursive: true });
+      renameSync(legacy, shared);
+    } catch {
+      // Lost the one-time move (a race with the sibling script) or the store isn't creatable —
+      // serve from whichever dir actually holds the weights so reads never break.
+      return existsSync(shared) ? shared : legacy;
+    }
+  }
+  return shared;
+}
+
 const { env: hfEnv } = await import("@huggingface/transformers");
-hfEnv.cacheDir = `${process.env.HOME}/.cache/huggingface-transformers`;
+hfEnv.cacheDir = kokoroCacheDir();
 const { KokoroTTS } = await import("kokoro-js");
 
 const text = (await new Response(Bun.stdin.stream()).text()).trim();

@@ -16,7 +16,7 @@ protocol Transcriber {
 
 enum Transcribers {
     /// Run the best available engine, falling through to the next on any empty/failed
-    /// result over the SAME WAV (mirrors BunCleaner→BasicCleaner) — so a 30-second hold
+    /// result over the SAME WAV (mirrors the cleaner chain's fall-through) — so a 30-second hold
     /// is never silently lost. Priority: Parakeet (sherpa-onnx, NVIDIA, best accuracy +
     /// no silence-hallucination) → whisper.cpp → Apple on-device (the zero-setup floor).
     /// Every result passes the anti-hallucination filter.
@@ -51,11 +51,87 @@ enum Transcribers {
     }
 }
 
+// MARK: - in-process audio conversion (replaces the per-clip afconvert spawn)
+
+/// One AVAudioConverter pass, file to file — handles whatever rate/channel count the input
+/// device produced. Serves both the transcribers (16 kHz mono int16 WAV for sherpa/WarmASR)
+/// and the history store (16 kHz mono AAC, ~25x smaller than the raw float WAV). Returns
+/// false on any error so callers keep the exact fall-through they had when afconvert failed.
+enum AudioConvert {
+    static func to16kMonoWAV(input: URL, output: URL) -> Bool {
+        guard let pcm16 = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000,
+                                        channels: 1, interleaved: true) else { return false }
+        return transcode(input: input, output: output) {
+            try AVAudioFile(forWriting: output, settings: pcm16.settings,
+                            commonFormat: .pcmFormatInt16, interleaved: true)
+        }
+    }
+
+    static func to16kMonoAAC(input: URL, output: URL) -> Bool {
+        // 32 kbps AAC is transparent for 16 kHz mono speech; AVAudioFile does the encode
+        // from the PCM buffers the converter hands it.
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: 16_000,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderBitRateKey: 32_000,
+        ]
+        return transcode(input: input, output: output) {
+            try AVAudioFile(forWriting: output, settings: settings)
+        }
+    }
+
+    private struct ConvertFailed: Error {}
+
+    private static func transcode(input: URL, output: URL, makeOutput: () throws -> AVAudioFile) -> Bool {
+        do {
+            let inFile = try AVAudioFile(forReading: input)
+            let outFile = try makeOutput()
+            let src = inFile.processingFormat
+            let dst = outFile.processingFormat
+            guard let converter = AVAudioConverter(from: src, to: dst),
+                  let inBuf = AVAudioPCMBuffer(pcmFormat: src, frameCapacity: 8192),
+                  let outBuf = AVAudioPCMBuffer(pcmFormat: dst, frameCapacity:
+                      AVAudioFrameCount((8192 * dst.sampleRate / src.sampleRate).rounded(.up)) + 512)
+            else { throw ConvertFailed() }
+
+            var readError: Error?
+            // The returned buffer is only refilled inside this block, satisfying the converter's
+            // "don't touch it until the next pull" contract. endOfStream is terminal for the
+            // converter, so no drained flag is needed.
+            let pull: AVAudioConverterInputBlock = { _, status in
+                // AVAudioFile.read(into:) THROWS at EOF instead of returning an empty buffer
+                // (verified) — check the position, don't read past the end.
+                if inFile.framePosition >= inFile.length { status.pointee = .endOfStream; return nil }
+                do { try inFile.read(into: inBuf) } catch {
+                    readError = error; status.pointee = .endOfStream; return nil
+                }
+                if inBuf.frameLength == 0 { status.pointee = .endOfStream; return nil }
+                status.pointee = .haveData
+                return inBuf
+            }
+            while true {
+                outBuf.frameLength = 0
+                var err: NSError?
+                let status = converter.convert(to: outBuf, error: &err, withInputFrom: pull)
+                if let readError { throw readError }
+                if status == .error { throw err ?? ConvertFailed() }
+                if outBuf.frameLength > 0 { try outFile.write(from: outBuf) }
+                if status == .endOfStream { break }
+            }
+            return true
+        } catch {
+            try? FileManager.default.removeItem(at: output) // never leave a truncated file behind
+            return false
+        }
+    }
+}
+
 // MARK: - Warm Parakeet (sherpa-onnx kept loaded via WarmASR — ~0.08s/clip vs ~1.5s cold)
 
-/// Transcribes via voz's warm ASR server: afconvert to 16k mono, then hand the path to WarmASR
-/// (loopback HTTP). Same Parakeet model as SherpaTranscriber, just never reloaded. Returns "" on any
-/// failure so the chain falls through to the cold engines.
+/// Transcribes via voz's warm ASR server: convert to 16k mono in-process, then hand the path to
+/// WarmASR (loopback HTTP). Same Parakeet model as SherpaTranscriber, just never reloaded. Returns ""
+/// on any failure so the chain falls through to the cold engines.
 final class WarmSherpaTranscriber: Transcriber {
     static func isAvailable() -> Bool { WarmASR.isInstalled() }
 
@@ -63,9 +139,7 @@ final class WarmSherpaTranscriber: Transcriber {
         DispatchQueue.global(qos: .userInitiated).async {
             let wav16 = wav.deletingPathExtension().appendingPathExtension("warm16k.wav")
             defer { try? FileManager.default.removeItem(at: wav16) }
-            let conv = Subprocess.run("/usr/bin/afconvert",
-                [wav.path, wav16.path, "-d", "LEI16@16000", "-f", "WAVE", "-c", "1"], timeout: timeout)
-            guard conv?.status == 0, FileManager.default.fileExists(atPath: wav16.path) else {
+            guard AudioConvert.to16kMonoWAV(input: wav, output: wav16) else {
                 DispatchQueue.main.async { completion("") }; return
             }
             let text = WarmASR.shared.transcribe(wav16kPath: wav16.path, timeout: timeout) ?? ""
@@ -79,8 +153,8 @@ final class WarmSherpaTranscriber: Transcriber {
 /// Shells out to the `sherpa-onnx-offline` binary running NVIDIA Parakeet (CC-BY-4.0). Best
 /// accuracy in this class and — because Parakeet was trained on non-speech audio — it returns
 /// nothing on silence instead of inventing phantom text. sherpa needs 16-bit mono PCM, so we
-/// `afconvert` first (a system tool). ~1.2s/clip; the model loads per spawn (warm server is a
-/// future optimization). Detected on disk like whisper, so the base app stays a tiny build.
+/// convert in-process first (AudioConvert). ~1.2s/clip; the model loads per spawn (WarmASR is
+/// the warm path). Detected on disk like whisper, so the base app stays a tiny build.
 final class SherpaTranscriber: Transcriber {
     private static func matches(_ pattern: String) -> [String] {
         var g = glob_t()
@@ -129,12 +203,10 @@ final class SherpaTranscriber: Transcriber {
             DispatchQueue.main.async { completion("") }; return
         }
         DispatchQueue.global(qos: .userInitiated).async {
-            // sherpa needs single-channel 16-bit PCM — convert with the system afconvert.
+            // sherpa needs single-channel 16-bit PCM.
             let wav16 = wav.deletingPathExtension().appendingPathExtension("16k.wav")
             defer { try? FileManager.default.removeItem(at: wav16) }
-            let conv = Subprocess.run("/usr/bin/afconvert",
-                [wav.path, wav16.path, "-d", "LEI16@16000", "-f", "WAVE", "-c", "1"], timeout: timeout)
-            guard conv?.status == 0, FileManager.default.fileExists(atPath: wav16.path) else {
+            guard AudioConvert.to16kMonoWAV(input: wav, output: wav16) else {
                 DispatchQueue.main.async { completion("") }; return
             }
             // No --model-type: auto-detect handles Parakeet TDT (the `transducer` value rejects it).

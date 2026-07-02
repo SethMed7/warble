@@ -9,7 +9,8 @@ extension Notification.Name {
 
 /// The local store behind voz Insights, all under ~/.voz:
 ///   history.json   — append-only JSON-Lines log of dictations (text + metrics)
-///   audio/<id>.wav — the saved recording for each dictation (when audio-saving is on)
+///   audio/<id>.m4a — the saved recording for each dictation (when audio-saving is on);
+///                    16 kHz mono AAC. Pre-0.1.8 installs have raw <id>.wav — still read.
 ///   dictionary.json — the user dictionary (owned by Lexicon)
 /// Loaded into memory; mirrors the dependency-free on-disk pattern Lexicon already uses. Everything
 /// is local — never uploaded.
@@ -81,17 +82,25 @@ public final class InsightStore: ObservableObject {
 
     // MARK: record
 
-    /// Persist one dictation. `audioSource` is the temp WAV (still on disk); we copy it into the store
-    /// when audio-saving is on. The caller deletes the temp WAV afterward.
+    /// Persist one dictation. `audioSource` is the temp WAV (still on disk); we encode it into the
+    /// store when audio-saving is on. The caller deletes the temp WAV as soon as this returns, so the
+    /// encode must complete synchronously here.
     func record(_ cleaned: String, ctx: DictationContext, audioSource: URL?) {
         let text = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let id = UUID().uuidString
         let blocked = ctx.secure && excludeSecureFields   // password field focused → keep metrics only
         if saveAudio, !blocked, let src = audioSource {
-            let dest = audioDir.appendingPathComponent("\(id).wav")
-            try? FileManager.default.copyItem(at: src, to: dest)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
+            // 16 kHz mono AAC — ~25x smaller than the raw device-rate float WAV.
+            let dest = audioDir.appendingPathComponent("\(id).m4a")
+            if AudioConvert.to16kMonoAAC(input: src, output: dest) {
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
+            } else {
+                // Encoder failure must not lose the recording — keep the raw copy like before.
+                let wav = audioDir.appendingPathComponent("\(id).wav")
+                try? FileManager.default.copyItem(at: src, to: wav)
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: wav.path)
+            }
         }
         let e = DictationEvent(
             id: id,
@@ -134,10 +143,14 @@ public final class InsightStore: ObservableObject {
 
     // MARK: edit / delete (used from the History detail — "go train it")
 
-    /// The saved recording for an event, if audio-saving kept it.
+    /// The saved recording for an event, if audio-saving kept it. .m4a is the current format;
+    /// .wav covers recordings saved before the AAC switch.
     func audioURL(for e: DictationEvent) -> URL? {
-        let u = audioDir.appendingPathComponent("\(e.id).wav")
-        return FileManager.default.fileExists(atPath: u.path) ? u : nil
+        for ext in ["m4a", "wav"] {
+            let u = audioDir.appendingPathComponent("\(e.id).\(ext)")
+            if FileManager.default.fileExists(atPath: u.path) { return u }
+        }
+        return nil
     }
 
     /// Correct a stored transcript (recomputes word count) and persist.
@@ -151,7 +164,9 @@ public final class InsightStore: ObservableObject {
     }
 
     func delete(_ e: DictationEvent) {
-        if let u = audioURL(for: e) { try? FileManager.default.removeItem(at: u) }
+        for ext in ["m4a", "wav"] { // whichever format this event's recording was saved in
+            try? FileManager.default.removeItem(at: audioDir.appendingPathComponent("\(e.id).\(ext)"))
+        }
         events.removeAll { $0.id == e.id }
         rewrite()
     }
@@ -176,13 +191,13 @@ public final class InsightStore: ObservableObject {
         return (try? enc.encode(events)) ?? Data("[]".utf8)
     }
 
-    /// "N recordings · X MB" for the Data panel.
+    /// "N recordings · X MB" for the Data panel — both the current .m4a and legacy .wav count.
     var audioSummary: String {
         let files = (try? FileManager.default.contentsOfDirectory(at: audioDir,
                      includingPropertiesForKeys: [.fileSizeKey])) ?? []
-        let wavs = files.filter { $0.pathExtension == "wav" }
-        let bytes = wavs.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
-        return "\(wavs.count) recordings · \(String(format: "%.1f", Double(bytes) / 1_048_576.0)) MB"
+        let clips = files.filter { ["m4a", "wav"].contains($0.pathExtension) }
+        let bytes = clips.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
+        return "\(clips.count) recordings · \(String(format: "%.1f", Double(bytes) / 1_048_576.0)) MB"
     }
 
     // MARK: derived stats

@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="brand/warble-mark.svg" alt="warble — a songbird whose wing is a sound-wave" width="180">
-
-# warble — the voice layer for your Mac
+<img src="apps/macos/media/logo.png" alt="warble — the voice layer for your Mac. speak to type, select to hear. 100% on-device." width="720">
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-2E74FF)](LICENSE)
 [![Platform](https://img.shields.io/badge/macOS-13%2B-161520)](#download)
@@ -46,13 +44,16 @@ on-device engine, so it lands in well under a second — and nothing ever leaves
 
 ## Highlights
 
-- **100% on-device** — no cloud, no API keys, no accounts; your dictations and recordings are kept **local-only** in `~/.warble` (turn either off, or clear/export, in Insights ▸ Data & Privacy), never uploaded. The optional **Insights AI** layer is on-device too and **off by default** — it reads only your local **stats** (never your transcripts) to phrase a weekly recap, and is cached in `~/.warble/insights-ai.json`, cleared when you clear your history.
+- **100% on-device** — no cloud, no API keys, no accounts; your dictations and recordings are kept **local-only** in `~/.warble` (turn either off, or clear/export, in Dashboard ▸ Data & Privacy), never uploaded. The optional **Insights AI** layer is on-device too and **off by default** — it reads only your local **stats** (never your transcripts) to phrase a weekly recap, and is cached in `~/.warble/insights-ai.json`, cleared when you clear your history.
 - **Genuinely clean output** — an optional on-device LLM removes fillers and false starts, adds punctuation, and formats numbers, currency, and dates (Wispr-class — still no cloud).
 - **Near-instant** — a warm NVIDIA Parakeet engine transcribes in ~0.08 s instead of reloading the model every clip.
 - **Learns your words** — correct a name a couple of times, or just spell it out loud (*"Dhaval, that's D H A V A L"*), and it sticks in your dictionary, everywhere — even in terminals.
 - **Hands-free or hold** — double-tap **Fn** to toggle, or hold **Fn**; **Esc** cancels mid-dictation.
 - **Reads back, too** — select any text + **⌃V** for warm, on-device neural read-aloud that follows along word by word.
+- **A real dashboard, a real app** — a proper dashboard window (toolbar search, per-app filters, Export), a **Dock icon while it's open** (or always/never — your call), a full menu bar with the shortcuts you expect (⌘W, ⌘,, copy/paste), and a menu bar kept short: mode toggles up top, details tucked into **Dictate ▸** / **Read Aloud ▸** submenus.
 - **Stays current** — a built-in *Check for Updates* (plus a quiet daily check) installs new versions in place, each verified by signature. No App Store, no manual re-download, no visiting GitHub.
+
+New in **0.2.0**: the rename (voz → warble), the songbird mark, and the dashboard-as-a-real-app upgrade — the full story is in [CHANGELOG.md](CHANGELOG.md).
 
 ## The two modes
 
@@ -81,25 +82,34 @@ it never steals focus. Or right-click → **Services → Read Aloud with warble*
 One identity across both modes: a **black surface with a single electric-blue accent** (`#2E74FF`),
 SF Pro type, and **motion as the only "live" signal** — the waveform reacts only while the mic is hot
 or audio is playing, never a second hue. The read-along panel and the dictation pill share the same
-dark card, the menu-bar icon is the **V** sound-wave mark, and the loading/preparing states stay in
-the same palette — so the two halves feel like one app. Full tokens in [`brand/tokens.md`](brand/tokens.md).
+dark card, the menu-bar icon is the **songbird mark** (a bird whose wing is the sound wave — it
+flips to a live waveform only while the mic is hot or audio plays), and the loading/preparing states
+stay in the same palette — so the two halves feel like one app. Full tokens in
+[`brand/tokens.md`](brand/tokens.md); the machine-readable design law lives in [`DESIGN.md`](DESIGN.md).
 
-## Insights — your voice, tracked locally
+## The dashboard — your voice, tracked locally
 
-Open **menu → Insights…** for a dark dashboard (same identity) that turns your dictation and
-read-aloud into stats — **100% on your Mac**, nothing uploaded.
+Open **menu → Open Dashboard** for a real dashboard window (same dark identity) that turns your
+dictation and read-aloud into stats — **100% on your Mac**, nothing uploaded. While it's open,
+warble steps into the Dock and puts up a full menu bar, so everything behaves the way a Mac app
+should: **⌘W** closes, **⌘,** opens Settings, copy/paste works in every field, and clicking the
+Dock icon brings the dashboard back. Close it and warble melts back into the menu bar. (Prefer a
+permanent Dock icon — or none, ever? It's a setting.)
 
 <div align="center">
-<img src="apps/macos/media/insights.png" alt="warble Insights — Home stats, History with replay, Dictionary, and trend charts" width="860">
+<img src="apps/macos/media/insights.png" alt="the warble dashboard — Home stats, sidebar, and toolbar" width="860">
 </div>
 
 - **Home** — words dictated, your WPM, a day streak, words read aloud, and a recent feed.
-- **Insights** — words-per-day, a speaking-pace (WPM) trend, and a per-app breakdown ("where you dictate").
-- **History** — a searchable, per-app feed of every dictation; open one to **replay the recording**,
-  fix the text, or **teach the dictionary** a word so future dictations get it right — train it as you go.
+- **Insights** — words-per-day, a speaking-pace (WPM) trend, and a per-app breakdown ("where you
+  dictate"), plus the optional on-device **Insights AI** weekly recap.
+- **History** — every dictation, with **search and a per-app filter right in the toolbar**; open one
+  to **replay the recording**, fix the text, or **teach the dictionary** a word — train it as you go.
 - **Dictionary** — your spelling corrections and read-aloud pronunciations, the learn-threshold, and where the file lives.
-- **Data & Privacy** — toggles for keeping history, saving recordings, and skipping password fields,
-  plus **Export** and **Clear**. Everything is local and owner-only; a spoken password is never stored.
+- **Data & Privacy** (also the Settings pane, **⌘,**) — toggles for keeping history, saving recordings,
+  skipping password fields, automatic updates, and the **Dock icon** (while the dashboard is open /
+  always / never), plus **Export** and **Clear**. Everything is local and owner-only; a spoken
+  password is never stored.
 
 ## Permissions — you grant only what you turn on
 
@@ -114,21 +124,6 @@ its hotkey or asks for anything at all. When on, each mode lights up exactly the
 | **Learn-from-edits** dictionary | – | – | ✓ (to spot your in-place fixes) |
 
 If you only ever read aloud, warble never touches your microphone.
-
-## Development
-
-**To use warble, [download the `.dmg`](#download) — that's the only install.** This section is just for
-contributors hacking on the app:
-
-```sh
-# build + run locally from a checkout
-cd apps/macos && sh scripts/bundle.sh && open build/warble.app
-```
-
-Optional premium engines install from the app's **menu → "Set up better engines…"** (capability-checked,
-asks first). **Cut a release:** `sh scripts/release.sh` builds a Developer-ID-signed, **notarized**
-`.dmg` in `dist/` (needs a Developer ID cert + a `voz-notary` notarytool profile in your Keychain;
-no secrets ever live in the repo), then `gh release create v<ver> dist/warble-<ver>.dmg`.
 
 ## Engines — on-device and pluggable
 
@@ -197,7 +192,7 @@ resolution (shared → app/legacy); the standard itself lives in the [memex proj
 No cloud, no API keys, no accounts, no telemetry — **everything stays on your Mac.** warble keeps a
 **local** history of your dictations (and, when **Save recordings** is on, the audio) under `~/.warble`
 (owner-only), so the Insights dashboard can show your stats, let you replay a clip, and learn your
-words. You're in control in **Insights ▸ Data & Privacy**: turn **Keep history** off for stats-only
+words. You're in control in **Dashboard ▸ Data & Privacy**: turn **Keep history** off for stats-only
 (no transcript text stored), turn **Save recordings** off to delete audio after transcription as it
 always did, keep **Skip password fields** on so a spoken password is never written, and **Clear** or
 **Export** anytime. Nothing is ever uploaded. warble reaches the network in only two ways, both benign and
@@ -231,6 +226,9 @@ non-macOS shell (or another project of yours) can embed `core/` untouched.
 
 ## Development
 
+**To use warble, [download the `.dmg`](#download) — that's the only install.** This section is just
+for contributors hacking on the app:
+
 ```sh
 cd apps/macos
 swift build                              # debug build
@@ -248,10 +246,15 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --selftest              # learn-from-edits logic
 ```
 
+**Cut a release:** `sh scripts/release.sh` builds a Developer-ID-signed, **notarized** `.dmg` in
+`dist/` (needs a Developer ID cert + a `voz-notary` notarytool profile in your Keychain — the
+profile name is a holdover from the voz era; no secrets ever live in the repo), then
+`gh release create v<ver> dist/warble-<ver>.dmg` and `sh scripts/update-appcast.sh <ver> <dmg>`.
+
 ## Roadmap
 
-- **Insights AI** — optional on-device weekly summaries & suggested dictionary words (the local stats dashboard ships now).
 - **Dictate → read-back** proofreading loop (speak it, hear it back to catch errors).
+- Regenerated marketing media (the showcase board still wears the voz-era art).
 - Non-macOS shells over the same `core/`.
 
 ## License

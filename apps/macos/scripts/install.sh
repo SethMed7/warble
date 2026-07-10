@@ -13,4 +13,4 @@ open /Applications/warble.app
 echo "Installed and launched /Applications/warble.app"
 echo "Each capability prompts only for what it needs the first time you use it:"
 echo "  • Read aloud (⌃V): Accessibility (to read your selection)"
-echo "  • Dictate (hold ⌃+⌥): Microphone + Accessibility (to type the result)"
+echo "  • Dictate (hold Fn): Microphone + Accessibility (to type the result)"

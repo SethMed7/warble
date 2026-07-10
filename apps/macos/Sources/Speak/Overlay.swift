@@ -42,7 +42,7 @@ final class Overlay {
     private var activeWord: NSRange?
     private var placeholderShown = false
 
-    // voz read-aloud — the dark identity: black surface, one electric-blue accent (brand: black +
+    // warble read-aloud — the dark identity: black surface, one electric-blue accent (brand: black +
     // blue). Matches the dictation pill so the two capabilities feel like one app. "It's reading"
     // is carried by MOTION (the animated waveform + play glyph), never a second hue. Tokens from
     // Shared/Theme — one canon (brand/tokens.md), no local literals.

@@ -1,12 +1,12 @@
 #!/bin/sh
-# Installs voz's canonical cleanup helper (pure Bun TypeScript, fully on-device)
-# to ~/.voz. Without it, voz uses the built-in Swift cleaner. Requires bun
+# Installs warble's canonical cleanup helper (pure Bun TypeScript, fully on-device)
+# to ~/.warble. Without it, warble uses the built-in Swift cleaner. Requires bun
 # (https://bun.sh).
 # Run in-place by the app's "Set up better engines…"; not meant to be run standalone.
 set -e
-DIR="$HOME/.voz"
+DIR="$HOME/.warble"
 LEGACY="$HOME/.dictado"
-RAW="https://raw.githubusercontent.com/SethMed7/voz/main/core"
+RAW="https://raw.githubusercontent.com/SethMed7/warble/main/core"
 command -v bun >/dev/null 2>&1 || { echo "bun not found — install from https://bun.sh first"; exit 1; }
 mkdir -p "$DIR"
 
@@ -20,13 +20,13 @@ fi
 # Carry a learned dictionary forward from the legacy ~/.dictado (non-destructive copy).
 if [ -f "$LEGACY/dictionary.json" ] && [ ! -f "$DIR/dictionary.json" ]; then
   cp "$LEGACY/dictionary.json" "$DIR/dictionary.json"
-  echo "Migrated your dictionary from ~/.dictado → ~/.voz/dictionary.json."
+  echo "Migrated your dictionary from ~/.dictado → ~/.warble/dictionary.json."
 fi
 echo
-echo "Cleanup helper installed to ~/.voz (no dependencies, nothing to download)."
+echo "Cleanup helper installed to ~/.warble (no dependencies, nothing to download)."
 
 # --- Optional: the Parakeet engine (best accuracy, non-OpenAI, no silence noise) ---
-# voz works out of the box on Apple's on-device recognizer. Installing NVIDIA
+# warble works out of the box on Apple's on-device recognizer. Installing NVIDIA
 # Parakeet (CC-BY-4.0) via the sherpa-onnx binary upgrades accuracy and removes any
 # length cap — fully on-device, nothing from OpenAI. ~25MB binary + ~482MB model.
 # Lives in the shared ~/.cache/sherpa; skipped silently when piped (no TTY) or if you decline.
@@ -51,9 +51,9 @@ if ! have_parakeet; then
         curl -fL "$REL/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2" -o "$SHERPA_DIR/parakeet.tar.bz2" \
           && tar xjf "$SHERPA_DIR/parakeet.tar.bz2" -C "$SHERPA_DIR" && rm -f "$SHERPA_DIR/parakeet.tar.bz2"
       fi
-      have_parakeet && echo "Parakeet installed → voz will use it automatically." \
-        || echo "Install incomplete — voz falls back to Apple's on-device recognizer."
+      have_parakeet && echo "Parakeet installed → warble will use it automatically." \
+        || echo "Install incomplete — warble falls back to Apple's on-device recognizer."
       ;;
-    *) echo "Skipped Parakeet — voz uses Apple's on-device recognizer until you add it." ;;
+    *) echo "Skipped Parakeet — warble uses Apple's on-device recognizer until you add it." ;;
   esac
 fi

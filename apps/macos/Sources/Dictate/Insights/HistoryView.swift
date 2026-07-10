@@ -33,7 +33,7 @@ struct HistoryView: View {
         }
         .animation(.easeInOut(duration: 0.15), value: opened)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VozTheme.black)
+        .background(WarbleTheme.black)
     }
 
     @ViewBuilder private var feed: some View {
@@ -47,7 +47,7 @@ struct HistoryView: View {
             } else if rows.isEmpty {
                 // Filtered to nothing — say so plainly, so it doesn't read as lost history.
                 Text("No matches.")
-                    .font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                    .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
@@ -55,11 +55,11 @@ struct HistoryView: View {
                         HistoryRowButton(store: store, event: e,
                                          focused: focusedEvent == e.id) { opened = e }
                             .focused($focusedEvent, equals: e.id)
-                            .listRowBackground(VozTheme.ink)
+                            .listRowBackground(WarbleTheme.ink)
                     }
                 }
                 .scrollContentBackground(.hidden)
-                .background(VozTheme.black)
+                .background(WarbleTheme.black)
             }
         }
     }
@@ -84,7 +84,7 @@ private struct HistoryRowButton: View {
         .background(hovered ? Color.white.opacity(0.04) : Color.clear,
                     in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 8)
-            .strokeBorder(VozTheme.electricBright, lineWidth: 2)
+            .strokeBorder(WarbleTheme.electricBright, lineWidth: 2)
             .padding(-2)
             .opacity(focused ? 1 : 0))
         .onHover { hovered = $0 }
@@ -99,17 +99,17 @@ struct HistoryRow: View {
             AppIconView(bundleId: event.appBundleId)
             VStack(alignment: .leading, spacing: 3) {
                 Text(event.text.isEmpty ? "\(event.words) words" : event.text)
-                    .font(.system(size: 13)).foregroundStyle(VozTheme.textHi).lineLimit(1)
+                    .font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi).lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(event.appName ?? "—").foregroundStyle(VozTheme.electricText)
-                    Text("· \(RelTime.string(event.date)) · \(event.words) words").foregroundStyle(VozTheme.mist)
+                    Text(event.appName ?? "—").foregroundStyle(WarbleTheme.electricText)
+                    Text("· \(RelTime.string(event.date)) · \(event.words) words").foregroundStyle(WarbleTheme.mist)
                 }
                 .font(.system(size: 11))
             }
             Spacer(minLength: 0)
             Image(systemName: event.kind == "read" ? "speaker.wave.2.fill"
                                                     : (store.audioURL(for: event) != nil ? "waveform" : "mic.fill"))
-                .font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
         }
         .padding(.vertical, 4)
     }
@@ -142,7 +142,7 @@ struct DictationDetailView: View {
                 Button { onClose() } label: {
                     Label("History", systemImage: "chevron.left")
                         .font(.system(size: 13))
-                        .foregroundStyle(backHovered ? VozTheme.textHi : VozTheme.mist)
+                        .foregroundStyle(backHovered ? WarbleTheme.textHi : WarbleTheme.mist)
                 }
                 .buttonStyle(.plain)
                 .onHover { backHovered = $0 }
@@ -151,8 +151,8 @@ struct DictationDetailView: View {
                     AppIconView(bundleId: event.appBundleId, size: 30)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(event.appName ?? (event.kind == "read" ? "Read aloud" : "Dictation"))
-                            .font(.system(size: 16, weight: .semibold)).foregroundStyle(VozTheme.textHi)
-                        Text(metaLine).font(.system(size: 11)).foregroundStyle(VozTheme.mist)
+                            .font(.system(size: 16, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+                        Text(metaLine).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                     }
                     Spacer()
                 }
@@ -161,28 +161,28 @@ struct DictationDetailView: View {
                     HStack(spacing: 12) {
                         Button { audio.toggle(url) } label: {
                             Image(systemName: audio.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                .font(.system(size: 30)).foregroundStyle(VozTheme.electric)
+                                .font(.system(size: 30)).foregroundStyle(WarbleTheme.electric)
                         }
                         .buttonStyle(.plain)
-                        ProgressView(value: audio.progress).tint(VozTheme.electric)
-                        Text("recording").font(.system(size: 11)).foregroundStyle(VozTheme.mist)
+                        ProgressView(value: audio.progress).tint(WarbleTheme.electric)
+                        Text("recording").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                     }
                     .padding(12)
-                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
+                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
                 } else if event.kind == "dictate" {
-                    Text("No saved recording for this one.").font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                    Text("No saved recording for this one.").font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
                 }
 
                 section("Transcript")
                 TextEditor(text: $editedText)
                     .font(.system(size: 14))
-                    .foregroundStyle(VozTheme.textHi)
+                    .foregroundStyle(WarbleTheme.textHi)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 110)
                     .padding(8)
-                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
+                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
                 HStack {
                     Spacer()
                     Button("Save text") { store.updateText(event.id, to: editedText); note = "Saved." }
@@ -191,18 +191,18 @@ struct DictationDetailView: View {
 
                 section("Teach the dictionary")
                 Text("Heard a word wrong? Add the fix so future dictations get it right — that's how you train it.")
-                    .font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                    .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
                 HStack(spacing: 8) {
-                    TextField("voz heard…", text: $heard).textFieldStyle(.roundedBorder)
-                    Image(systemName: "arrow.right").foregroundStyle(VozTheme.mist)
+                    TextField("warble heard…", text: $heard).textFieldStyle(.roundedBorder)
+                    Image(systemName: "arrow.right").foregroundStyle(WarbleTheme.mist)
                     TextField("should be…", text: $correct).textFieldStyle(.roundedBorder)
                     Button("Add") { addCorrection() }.disabled(heard.isEmpty || correct.isEmpty)
                 }
                 if !note.isEmpty {
-                    Text(note).font(.system(size: 12)).foregroundStyle(VozTheme.electricText)
+                    Text(note).font(.system(size: 12)).foregroundStyle(WarbleTheme.electricText)
                 }
 
-                Divider().overlay(VozTheme.line).padding(.top, 8)
+                Divider().overlay(WarbleTheme.line).padding(.top, 8)
                 // Destructive stays neutral (One-Accent Rule: no red) — the trash glyph carries the
                 // meaning, hover brightens mist to text-hi, same as every ghost affordance.
                 Button(role: .destructive) {
@@ -210,7 +210,7 @@ struct DictationDetailView: View {
                 } label: {
                     Label("Delete this dictation", systemImage: "trash")
                         .font(.system(size: 13))
-                        .foregroundStyle(deleteHovered ? VozTheme.textHi : VozTheme.mist)
+                        .foregroundStyle(deleteHovered ? WarbleTheme.textHi : WarbleTheme.mist)
                 }
                 .buttonStyle(.plain)
                 .onHover { deleteHovered = $0 }
@@ -218,7 +218,7 @@ struct DictationDetailView: View {
             .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VozTheme.black)
+        .background(WarbleTheme.black)
         .onDisappear { audio.stop() }
     }
 
@@ -232,7 +232,7 @@ struct DictationDetailView: View {
     }
 
     private func section(_ title: String) -> some View {
-        Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(VozTheme.mist).textCase(.uppercase)
+        Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(WarbleTheme.mist).textCase(.uppercase)
     }
 
     /// The live event from the store, so the header + Save button reflect an edit immediately
@@ -256,7 +256,7 @@ struct AppIconView: View {
             Image(nsImage: img).resizable().frame(width: size, height: size).cornerRadius(size * 0.22)
         } else {
             Image(systemName: "app.dashed").font(.system(size: size * 0.8))
-                .foregroundStyle(VozTheme.mist).frame(width: size, height: size)
+                .foregroundStyle(WarbleTheme.mist).frame(width: size, height: size)
         }
     }
     static func icon(_ bundleId: String?) -> NSImage? {

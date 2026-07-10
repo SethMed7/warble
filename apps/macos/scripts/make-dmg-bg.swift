@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Composes the voz DMG background from the official brand watermark (diagonal energy beam + rising
+// Composes the warble DMG background from the official brand watermark (diagonal energy beam + rising
 // sound-wave ribs, dark) with one quiet install line. The watermark's center is intentionally calm,
 // so the app + Applications icons (placed by dmgbuild) read cleanly on top.
 // Usage: swift make-dmg-bg.swift <out.png>   — expects watermark.png beside the output (media/).
@@ -43,7 +43,7 @@ if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
 NSGraphicsContext.current?.cgContext.restoreGState()
 
 // One quiet install line near the bottom.
-let hint = "Drag voz onto Applications to install" as NSString
+let hint = "Drag warble onto Applications to install" as NSString
 let attr: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13.5, weight: .semibold),
                                             .foregroundColor: NSColor(white: 0.92, alpha: 1)]
 let hw = hint.size(withAttributes: attr).width

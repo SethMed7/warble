@@ -62,11 +62,11 @@ public final class InsightsWindow: NSObject {
         w.isReleasedWhenClosed = false
         w.contentView = host
         w.contentMinSize = NSSize(width: 860, height: 560)
-        w.backgroundColor = Theme.black.ns // voz black behind live-resize, no flash
+        w.backgroundColor = Theme.black.ns // warble black behind live-resize, no flash
         // isMovableByWindowBackground stays false: the toolbar strip is already a generous drag
         // region, and background-drag through NSHostingView hit-testing fights the rows' gestures.
 
-        let tb = NSToolbar(identifier: "voz.dashboard")
+        let tb = NSToolbar(identifier: "warble.dashboard")
         tb.delegate = self
         tb.displayMode = .iconOnly
         tb.allowsUserCustomization = false
@@ -75,8 +75,8 @@ public final class InsightsWindow: NSObject {
 
         // Restore the saved frame if there is one; center only the very first time. (Autosave-then-
         // center re-centered the restored position on every fresh launch.)
-        if !w.setFrameUsingName("voz.insights") { w.center() }
-        w.setFrameAutosaveName("voz.insights")
+        if !w.setFrameUsingName("warble.insights") { w.center() }
+        w.setFrameAutosaveName("warble.insights")
         window = w
 
         // One path for every way the section changes — sidebar click, menu deep-link, ⌘, and the
@@ -85,7 +85,7 @@ public final class InsightsWindow: NSObject {
             .sink { [weak self] in self?.applySection($0) }
             .store(in: &bag)
         // "Clear all history" wipes the events; a stale filter would show an inexplicably empty list.
-        NotificationCenter.default.publisher(for: .vozInsightsCleared)
+        NotificationCenter.default.publisher(for: .warbleInsightsCleared)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.resetHistoryFilters() }
             .store(in: &bag)
@@ -94,7 +94,7 @@ public final class InsightsWindow: NSObject {
     /// Retitle the chrome and swap the contextual items: search + filter on History, export on Data.
     private func applySection(_ s: InsightsSection) {
         guard let w = window, let tb = w.toolbar else { return }
-        w.title = "voz — \(s.rawValue)" // hidden, but feeds the Window menu / Mission Control / VoiceOver
+        w.title = "warble — \(s.rawValue)" // hidden, but feeds the Window menu / Mission Control / VoiceOver
         titleLabel?.stringValue = s.rawValue
         // Base is [.sectionTitle, .flexibleSpace]; everything past index 1 is contextual.
         while tb.items.count > 2 { tb.removeItem(at: 2) }
@@ -141,10 +141,10 @@ public final class InsightsWindow: NSObject {
 // MARK: - NSToolbarDelegate
 
 private extension NSToolbarItem.Identifier {
-    static let sectionTitle = NSToolbarItem.Identifier("voz.sectionTitle")
-    static let historySearch = NSToolbarItem.Identifier("voz.historySearch")
-    static let historyFilter = NSToolbarItem.Identifier("voz.historyFilter")
-    static let exportData = NSToolbarItem.Identifier("voz.exportData")
+    static let sectionTitle = NSToolbarItem.Identifier("warble.sectionTitle")
+    static let historySearch = NSToolbarItem.Identifier("warble.historySearch")
+    static let historyFilter = NSToolbarItem.Identifier("warble.historyFilter")
+    static let exportData = NSToolbarItem.Identifier("warble.exportData")
 }
 
 extension InsightsWindow: NSToolbarDelegate {

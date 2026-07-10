@@ -1,6 +1,6 @@
 import Foundation
 
-/// Spoken spelling. Say a word, then a cue and the letters — "Dhaval, that's D H A V A L" — and voz
+/// Spoken spelling. Say a word, then a cue and the letters — "Dhaval, that's D H A V A L" — and warble
 /// takes the letters as the truth: it replaces the heard word with the spelled one, drops the spelling
 /// phrase, and learns it *immediately* (you said it on purpose, so it skips the frequency gate). Future
 /// dictations of that word are then auto-corrected everywhere.

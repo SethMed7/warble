@@ -64,20 +64,20 @@ struct SetupView: View {
     }
 
     /// Where new downloads land. Anything already on your Mac is reused automatically; this only chooses
-    /// where fresh weights are written — the shared memex store (reusable by Breve/Rotli) or voz-only.
+    /// where fresh weights are written — the shared memex store (reusable by Breve/Rotli) or warble-only.
     private var installTargetRow: some View {
         HStack(spacing: 10) {
             Image(systemName: "shippingbox").font(.system(size: 12, weight: .medium)).foregroundColor(Theme.mist.color)
             Text("New downloads").font(.system(size: 12, weight: .medium)).foregroundColor(Theme.mist.color)
             Picker("", selection: $setup.target) {
                 Text("Shared store").tag(AIStore.Target.shared)
-                Text("voz only").tag(AIStore.Target.app)
+                Text("warble only").tag(AIStore.Target.app)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 220)
             Spacer(minLength: 0)
-            Text(setup.target == .shared ? "~/.memex/ai — reusable by your memex apps" : "~/.voz — removed with voz")
+            Text(setup.target == .shared ? "~/.memex/ai — reusable by your memex apps" : "~/.warble — removed with warble")
                 .font(.system(size: 11)).foregroundColor(Theme.mist.color).lineLimit(1)
         }
         .padding(.horizontal, 20)
@@ -89,12 +89,12 @@ struct SetupView: View {
             Divider().overlay(Theme.line.color)
             DisclosureGroup(isExpanded: $showDetails) {
                 Text("""
-                Models live OUTSIDE the app, so deleting voz never deletes them — that's why a fresh \
+                Models live OUTSIDE the app, so deleting warble never deletes them — that's why a fresh \
                 download can already show “Installed” (it's reusing what's on your Mac, not re-downloading).
                 • Shared store (\u{007E}/.memex/ai) — the big model weights, reusable by your other memex \
                 apps (Breve, Rotli).
-                • voz only (\u{007E}/.voz) — the small warm-server runtimes; and the models too, if you pick \
-                “voz only” above.
+                • warble only (\u{007E}/.warble) — the small warm-server runtimes; and the models too, if you pick \
+                “warble only” above.
                 Permissions are requested only the first time you use a feature: Microphone (dictation), \
                 Accessibility (typing the result), Speech Recognition (Apple fallback). Everything installs \
                 in your home folder — never system-wide, no admin. Every engine runs locally and binds \
@@ -112,7 +112,7 @@ struct SetupView: View {
             .tint(Theme.mist.color)
             .padding(.horizontal, 20)
             HStack(spacing: 10) {
-                Text("voz lives in your menu bar — reopen this anytime from there.")
+                Text("warble lives in your menu bar — reopen this anytime from there.")
                     .font(.system(size: 11)).foregroundColor(Theme.mist.color)
                 Spacer()
                 Button("Done") { onDone() }

@@ -63,7 +63,7 @@ public final class SpeakController: NSObject {
     }
 
     /// Warm the Kokoro TTS server in the background so the model is resident before the first read.
-    /// No-ops if the warm server isn't installed (voz then uses the per-spawn cold path).
+    /// No-ops if the warm server isn't installed (warble then uses the per-spawn cold path).
     private func prewarmTTS() {
         DispatchQueue.global(qos: .utility).async { WarmTTS.shared.prewarm() }
     }
@@ -166,7 +166,7 @@ public final class SpeakController: NSObject {
         watchMenuItem?.state = .on
         Overlay.shared.present(watching: true)
         Overlay.shared.center() // always start bottom-center
-        Overlay.shared.clearTranscript(placeholder: "Highlight text anywhere — voz reads each selection in order and follows along word by word.")
+        Overlay.shared.clearTranscript(placeholder: "Highlight text anywhere — warble reads each selection in order and follows along word by word.")
         Overlay.shared.setStatus("watching — highlight to read")
         installMonitors()
         registerEscapeHotKey() // Esc stops the whole session, for its full life (not just while watching)
@@ -385,7 +385,7 @@ public final class SpeakController: NSObject {
     /// Register ⌃V (the watch toggle). Idempotent; toggled with read-aloud on/off.
     private func registerHotKey() {
         guard hotKeyRef == nil else { return }
-        let hotKeyID = EventHotKeyID(signature: OSType(0x766F_7A20), id: 1) // "voz "
+        let hotKeyID = EventHotKeyID(signature: OSType(0x766F_7A20), id: 1) // "warble "
         RegisterEventHotKey(UInt32(kVK_ANSI_V),
                             UInt32(controlKey),
                             hotKeyID,
@@ -404,7 +404,7 @@ public final class SpeakController: NSObject {
 
     // Escape is the read-aloud stop key — two-stage (see handleEscape). Claimed from the shared
     // EscapeKey owner so it never collides with dictation's Esc, for the session's full life, so
-    // Escape is normal whenever voz isn't reading.
+    // Escape is normal whenever warble isn't reading.
     private func registerEscapeHotKey() { EscapeKey.shared.claim(self) { [weak self] in self?.handleEscape() } }
     private func unregisterEscapeHotKey() { EscapeKey.shared.release(self) }
 
@@ -415,14 +415,14 @@ public final class SpeakController: NSObject {
     }
 }
 
-/// Right-click → Services → "Read Aloud with voz". Receives the selection
+/// Right-click → Services → "Read Aloud with warble". Receives the selection
 /// as plain text via the pasteboard — images in a selection simply don't
 /// arrive, so they're skipped by construction.
 final class ServiceProvider: NSObject {
     @objc func readAloud(_ pboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString>) {
         guard let text = pboard.string(forType: .string),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            error.pointee = "voz: no text in selection" as NSString
+            error.pointee = "warble: no text in selection" as NSString
             return
         }
         DispatchQueue.main.async {

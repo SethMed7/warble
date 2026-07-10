@@ -1,18 +1,18 @@
 #!/bin/sh
-# voz's OPTIONAL on-device AI polish for dictation: real punctuation + contextual filler removal
-# ("like", "right", "you know"), 100% on-device — no cloud, no API key, NO Ollama. voz provisions its
+# warble's OPTIONAL on-device AI polish for dictation: real punctuation + contextual filler removal
+# ("like", "right", "you know"), 100% on-device — no cloud, no API key, NO Ollama. warble provisions its
 # OWN engine: a small open-weight model (Qwen2.5-1.5B-Instruct, Apache-2.0) run via MLX (Apple's Metal
-# framework) and kept warm in a tiny loopback server — the same warm-server pattern voz uses for
+# framework) and kept warm in a tiny loopback server — the same warm-server pattern warble uses for
 # Parakeet dictation. Apple Silicon only; Intel Macs fall back to a self-contained llama.cpp. The model
 # is PINNED (everyone gets the same cleanup) and downloaded only with your consent.
 # Run in-place by the app's "Set up better engines…"; not meant to be run standalone.
 set -e
 
-DIR="$HOME/.voz"
-MODEL_ID="${VOZ_LLM_MODEL:-mlx-community/Qwen2.5-1.5B-Instruct-4bit}"
+DIR="$HOME/.warble"
+MODEL_ID="${WARBLE_LLM_MODEL:-${VOZ_LLM_MODEL:-mlx-community/Qwen2.5-1.5B-Instruct-4bit}}"  # VOZ_: rename-era fallback
 mkdir -p "$DIR"
 
-# ── Preferred (Apple Silicon): voz's own warm MLX server ───────────────────────
+# ── Preferred (Apple Silicon): warble's own warm MLX server ───────────────────────
 if [ "$(uname -m)" = arm64 ]; then
   VENV="$DIR/llm-venv"
   command -v python3 >/dev/null 2>&1 || {
@@ -30,23 +30,23 @@ if [ "$(uname -m)" = arm64 ]; then
   if [ -n "$HERE" ] && [ -f "$HERE/../../../core/llm-server.py" ]; then
     cp "$HERE/../../../core/llm-server.py" "$DIR/"
   else
-    curl -fsSL https://raw.githubusercontent.com/SethMed7/voz/main/core/llm-server.py -o "$DIR/llm-server.py"
+    curl -fsSL https://raw.githubusercontent.com/SethMed7/warble/main/core/llm-server.py -o "$DIR/llm-server.py"
   fi
 
   # Env-only mode (the native Setup UI): the runtime is ready; the app downloads the model itself
   # in-process so it can show real % progress. Skip the model download + marker here.
-  if [ "${VOZ_SETUP_ENV_ONLY:-}" = 1 ]; then
+  if [ "${WARBLE_SETUP_ENV_ONLY:-}" = 1 ]; then
     echo "Runtime ready — the app will download the model."
     exit 0
   fi
 
   # Download the pinned model with consent (into the shared Hugging Face cache; ~0.9 GB). The marker
-  # file at ~/.voz/llm-model is what flips voz's warm path on — the server runs offline, so it only
+  # file at ~/.warble/llm-model is what flips warble's warm path on — the server runs offline, so it only
   # starts once weights are actually cached.
   if [ -f "$DIR/llm-model" ]; then
     echo "Cleanup model already downloaded ($MODEL_ID)."
   else
-    if [ "${VOZ_ASSUME_YES:-}" = 1 ]; then ans=y; else
+    if [ "${WARBLE_ASSUME_YES:-}" = 1 ]; then ans=y; else
       printf 'Download the Qwen2.5-1.5B-Instruct cleanup model (~0.9 GB, Apache-2.0)? [y/N] '
       read -r ans 2>/dev/null || ans=""
     fi
@@ -63,18 +63,18 @@ PY
           echo
           echo "On-device AI cleanup installed (menu → Dictate → 'Polish with AI')."
         else
-          echo "Download/verify failed — voz keeps using the deterministic cleaner."
+          echo "Download/verify failed — warble keeps using the deterministic cleaner."
           exit 1
         fi
         ;;
-      *) echo "Skipped — voz keeps using the deterministic cleaner."; exit 0 ;;
+      *) echo "Skipped — warble keeps using the deterministic cleaner."; exit 0 ;;
     esac
   fi
   exit 0
 fi
 
 # ── Fallback (Intel Macs, no MLX): a self-contained llama.cpp + small open-weight model ────────────
-echo "MLX needs Apple Silicon — on this Intel Mac voz uses a self-contained llama.cpp + model instead."
+echo "MLX needs Apple Silicon — on this Intel Mac warble uses a self-contained llama.cpp + model instead."
 LLM="$DIR/llm"; BIN="$LLM/bin"; mkdir -p "$BIN"
 ARCH="macos-x64"
 
@@ -108,9 +108,9 @@ else
   read -r ans 2>/dev/null || ans=""
   case "$ans" in
     [Yy]*) echo "Downloading model…"; curl -fL "$MODEL_URL" -o "$MODEL" ;;
-    *) echo "Skipped — voz keeps using the deterministic cleaner."; exit 0 ;;
+    *) echo "Skipped — warble keeps using the deterministic cleaner."; exit 0 ;;
   esac
 fi
 echo
 [ -f "$MODEL" ] && have_llama && echo "On-device AI cleanup installed (menu → Dictate → 'Polish with AI')." \
-  || echo "Setup incomplete — voz falls back to the deterministic cleaner."
+  || echo "Setup incomplete — warble falls back to the deterministic cleaner."

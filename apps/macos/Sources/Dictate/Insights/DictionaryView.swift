@@ -32,7 +32,7 @@ struct DictionaryView: View {
             .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VozTheme.black)
+        .background(WarbleTheme.black)
         .onAppear(perform: reload)
     }
 
@@ -41,7 +41,7 @@ struct DictionaryView: View {
             cardHeader("Corrections", "Applied to every dictation — heard → should be.")
             if corrections.isEmpty {
                 Text("Nothing yet. Fix a word below — or open any dictation in History and teach it from there.")
-                    .font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                    .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
             } else {
                 ForEach(corrections) { p in pairRow(p.a, p.b) { Lexicon.shared.forget(p.a); reload() } }
             }
@@ -57,7 +57,7 @@ struct DictionaryView: View {
             cardHeader("Pronunciations", "How read-aloud says a word — word → say it like.")
             if pronunciations.isEmpty {
                 Text("Nothing yet. Add a word and how to say it — read-aloud will use it.")
-                    .font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                    .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
             } else {
                 ForEach(pronunciations) { p in pairRow(p.a, p.b) { Lexicon.shared.forgetPronunciation(p.a); reload() } }
             }
@@ -70,11 +70,11 @@ struct DictionaryView: View {
 
     private var learningCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            cardHeader("Learning", "voz is tallying these — they become rules once you've fixed them \(threshold)×.")
+            cardHeader("Learning", "warble is tallying these — they become rules once you've fixed them \(threshold)×.")
             ForEach(pending) { p in
                 HStack(spacing: 8) {
-                    Text(p.to).font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
-                    Text("· \(p.count)/\(threshold)").font(.system(size: 11)).foregroundStyle(VozTheme.mist)
+                    Text(p.to).font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
+                    Text("· \(p.count)/\(threshold)").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                     Spacer()
                     trashButton { Lexicon.shared.forgetPending(p.target); reload() }
                 }
@@ -87,18 +87,18 @@ struct DictionaryView: View {
         VStack(alignment: .leading, spacing: 14) {
             cardHeader("Settings", nil)
             Toggle(isOn: $learnEnabled) {
-                Text("Learn words from my in-place edits").font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
+                Text("Learn words from my in-place edits").font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
             }
-            .tint(VozTheme.electric)
+            .tint(WarbleTheme.electric)
             HStack {
                 Stepper(value: $threshold, in: 1...9) {
-                    Text("Promote after \(threshold) fixes").font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
+                    Text("Promote after \(threshold) fixes").font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
                 }
                 .onChange(of: threshold) { v in Lexicon.shared.learnThreshold = v }
             }
-            Divider().overlay(VozTheme.line)
-            Text("File").font(.system(size: 11, weight: .semibold)).foregroundStyle(VozTheme.mist).textCase(.uppercase)
-            Text(path).font(.system(size: 11)).foregroundStyle(VozTheme.mist).lineLimit(1).truncationMode(.middle)
+            Divider().overlay(WarbleTheme.line)
+            Text("File").font(.system(size: 11, weight: .semibold)).foregroundStyle(WarbleTheme.mist).textCase(.uppercase)
+            Text(path).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist).lineLimit(1).truncationMode(.middle)
             HStack(spacing: 8) {
                 Button("Choose…") { choose() }
                 Button("Default") { Lexicon.shared.resetLocation(); reload() }
@@ -113,15 +113,15 @@ struct DictionaryView: View {
 
     private func cardHeader(_ title: String, _ subtitle: String?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
-            if let s = subtitle { Text(s).font(.system(size: 12)).foregroundStyle(VozTheme.mist) }
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+            if let s = subtitle { Text(s).font(.system(size: 12)).foregroundStyle(WarbleTheme.mist) }
         }
     }
     private func pairRow(_ a: String, _ b: String, delete: @escaping () -> Void) -> some View {
         HStack(spacing: 8) {
-            Text(a).font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
-            Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(VozTheme.mist)
-            Text(b).font(.system(size: 13)).foregroundStyle(VozTheme.electricText)
+            Text(a).font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
+            Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(WarbleTheme.mist)
+            Text(b).font(.system(size: 13)).foregroundStyle(WarbleTheme.electricText)
             Spacer()
             trashButton(delete)
         }
@@ -129,7 +129,7 @@ struct DictionaryView: View {
     private func addPairRow(a: Binding<String>, ap: String, b: Binding<String>, bp: String, add: @escaping () -> Void) -> some View {
         HStack(spacing: 8) {
             TextField(ap, text: a).textFieldStyle(.roundedBorder)
-            Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(VozTheme.mist)
+            Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(WarbleTheme.mist)
             TextField(bp, text: b).textFieldStyle(.roundedBorder)
             Button("Add", action: add).disabled(a.wrappedValue.isEmpty || b.wrappedValue.isEmpty)
         }
@@ -161,7 +161,7 @@ struct TrashButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "trash").font(.system(size: 12))
-                .foregroundStyle(hovered ? VozTheme.textHi : VozTheme.mist)
+                .foregroundStyle(hovered ? WarbleTheme.textHi : WarbleTheme.mist)
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
@@ -173,7 +173,7 @@ extension View {
     func cardStyle() -> some View {
         padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
+            .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
     }
 }

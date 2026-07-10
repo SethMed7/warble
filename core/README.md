@@ -1,6 +1,6 @@
-# voz core — the portable voice layer
+# warble core — the portable voice layer
 
-The parts of voz that have **nothing to do with Apple**: the on-device engines and
+The parts of warble that have **nothing to do with Apple**: the on-device engines and
 text processing that any project can embed — a macOS app, a CLI, a Linux daemon, a
 web/TS tool. Everything here runs **100% locally**; the only network access is the
 one-time model download you trigger explicitly.
@@ -34,7 +34,7 @@ clean("um so the the report");   // -> "so the report"
 
 `say.ts` is a stdin→stdout streaming helper (see the macOS `KokoroEngine` for the
 wire format: one `<audio-path>\t<chunk text>` line per chunk). The transcription
-engines voz uses (Parakeet via sherpa-onnx, whisper.cpp) are external on-device
+engines warble uses (Parakeet via sherpa-onnx, whisper.cpp) are external on-device
 binaries invoked as subprocesses — also cross-platform — and are installed by the
 app's `setup` script, never bundled.
 

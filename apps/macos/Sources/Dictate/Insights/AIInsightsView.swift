@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The "Insights AI" surface: the optional, default-off, 100% on-device layer that sits ABOVE the charts
-/// in the Insights tab. Three states, one electric-blue accent, voz's dark cards (`.cardStyle()`):
+/// in the Insights tab. Three states, one electric-blue accent, warble's dark cards (`.cardStyle()`):
 ///   1. master switch OFF  → a single ENABLE card explaining the (opt-in) feature + a "Turn on" button.
 ///   2. ON but no engine   → a ComingSoon-styled note pointing at Setup (never a crash).
 ///   3. ON + engine ready  → a summary card (with Regenerate / Generating…), then suggested-word rows
@@ -33,11 +33,11 @@ struct AIInsightsView: View {
     private var enableCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(VozTheme.electric)
-                Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(WarbleTheme.electric)
+                Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
             }
             Text("Optional, on-device weekly summary, suggested words, and nudges — default off, nothing leaves your Mac.")
-                .font(.system(size: 12.5)).foregroundStyle(VozTheme.mist)
+                .font(.system(size: 12.5)).foregroundStyle(WarbleTheme.mist)
                 .fixedSize(horizontal: false, vertical: true)
             Button("Turn on") {
                 store.aiInsightsEnabled = true
@@ -55,11 +55,11 @@ struct AIInsightsView: View {
     private var unavailableCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(VozTheme.electric)
-                Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(WarbleTheme.electric)
+                Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
             }
             Text("Insights AI needs the on-device cleanup engine. Install it from Setup and your weekly summary will appear here — still 100% on your Mac.")
-                .font(.system(size: 12.5)).foregroundStyle(VozTheme.mist)
+                .font(.system(size: 12.5)).foregroundStyle(WarbleTheme.mist)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .cardStyle()
@@ -73,34 +73,34 @@ struct AIInsightsView: View {
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(VozTheme.electric)
-                Text("This week").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(WarbleTheme.electric)
+                Text("This week").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
                 Spacer()
                 Button(action: { ai.regenerate() }) {
                     Label("Regenerate", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon)
                 }
-                .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(VozTheme.electricText)
+                .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(WarbleTheme.electricText)
                 .disabled(ai.isGenerating)
                 .opacity(ai.isGenerating ? 0.5 : 1)
             }
 
             if ai.isGenerating {
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.small).tint(VozTheme.electric)
-                    Text("Generating…").font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                    ProgressView().controlSize(.small).tint(WarbleTheme.electric)
+                    Text("Generating…").font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
                 }
             } else if let snap = ai.snapshot {
-                Text(snap.summary).font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
+                Text(snap.summary).font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Updated \(Self.relative(snap.generatedAt))")
-                    .font(.system(size: 11)).foregroundStyle(VozTheme.mist)
+                    .font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
             } else {
                 // No cache yet and not (yet) generating — the auto path will fill this when eligible.
-                Text("Your weekly recap will appear here.").font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                Text("Your weekly recap will appear here.").font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
             }
 
             if let err = ai.lastError {
-                Text(err).font(.system(size: 11)).foregroundStyle(VozTheme.mist.opacity(0.8))
+                Text(err).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist.opacity(0.8))
             }
         }
         .cardStyle()
@@ -112,11 +112,11 @@ struct AIInsightsView: View {
     /// it) and Dismiss (drops it). Rows are divided by the same hairline as Data & Privacy.
     private func suggestionsCard(_ suggestions: [AISuggestion]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Suggested words").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+            Text("Suggested words").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(suggestions) { s in
                     suggestionRow(s)
-                    if s.id != suggestions.last?.id { Divider().overlay(VozTheme.line).padding(.vertical, 10) }
+                    if s.id != suggestions.last?.id { Divider().overlay(WarbleTheme.line).padding(.vertical, 10) }
                 }
             }
         }
@@ -127,18 +127,18 @@ struct AIInsightsView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(s.from).font(.system(size: 13)).foregroundStyle(VozTheme.mist)
-                    Image(systemName: "arrow.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(VozTheme.mist)
-                    Text(s.to).font(.system(size: 13, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                    Text(s.from).font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
+                    Image(systemName: "arrow.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(WarbleTheme.mist)
+                    Text(s.to).font(.system(size: 13, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
                 }
-                Text(s.reason).font(.system(size: 11)).foregroundStyle(VozTheme.mist)
+                Text(s.reason).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             HStack(spacing: 8) {
                 Button("Accept") { ai.acceptSuggestion(s) }.buttonStyle(AIPrimaryButton())
                 Button("Dismiss") { ai.dismissSuggestion(s) }
-                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
             }
         }
     }
@@ -148,18 +148,18 @@ struct AIInsightsView: View {
     /// Short computed insights, shown as quiet electric-tinted chips. Always real numbers (no model).
     private func nudgesCard(_ nudges: [String]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Nudges").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+            Text("Nudges").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(nudges, id: \.self) { n in
                     HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "bolt.fill").font(.system(size: 10)).foregroundStyle(VozTheme.electric)
+                        Image(systemName: "bolt.fill").font(.system(size: 10)).foregroundStyle(WarbleTheme.electric)
                             .padding(.top, 3)
-                        Text(n).font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
+                        Text(n).font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.horizontal, 10).padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(VozTheme.electric.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                    .background(WarbleTheme.electric.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
@@ -183,6 +183,6 @@ private struct AIPrimaryButton: ButtonStyle {
         configuration.label
             .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
             .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 8).fill(VozTheme.electric.opacity(configuration.isPressed ? 0.7 : 1)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(WarbleTheme.electric.opacity(configuration.isPressed ? 0.7 : 1)))
     }
 }

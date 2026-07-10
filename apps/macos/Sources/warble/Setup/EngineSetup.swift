@@ -85,8 +85,8 @@ final class EngineSetup: ObservableObject {
 
     /// Where NEW downloads land. Detection always *reuses* whatever is already on the Mac (any store);
     /// this only chooses where fresh weights are written — the shared memex store (reusable by Breve,
-    /// Rotli, …) or voz-only. Big model weights default to shared; the small venvs/servers are always
-    /// voz-local regardless.
+    /// Rotli, …) or warble-only. Big model weights default to shared; the small venvs/servers are always
+    /// warble-local regardless.
     @Published var target: AIStore.Target = .shared
 
     /// A one-time scan of this Mac's capabilities — shown in the Setup window and used to gate engines.
@@ -106,7 +106,7 @@ final class EngineSetup: ObservableObject {
         }
     }
 
-    private let q = DispatchQueue(label: "voz.engine.setup", qos: .userInitiated)
+    private let q = DispatchQueue(label: "warble.engine.setup", qos: .userInitiated)
     private var home: String { FileManager.default.homeDirectoryForCurrentUser.path }
 
     init() { refresh() }
@@ -130,14 +130,14 @@ final class EngineSetup: ObservableObject {
 
     func isInstalled(_ e: Engine) -> Bool {
         switch e {
-        case .dictation: // model in any store (shared/legacy) + the voz-local warm server
+        case .dictation: // model in any store (shared/legacy) + the warble-local warm server
             return AIStore.parakeetOrigin() != nil
-                && exists("\(home)/.voz/asr-venv/bin/python3") && exists("\(home)/.voz/asr-server.py")
+                && exists("\(home)/.warble/asr-venv/bin/python3") && exists("\(home)/.warble/asr-server.py")
         case .voices:
-            return exists("\(home)/.voz/kokoro/node_modules/kokoro-js")
+            return exists("\(home)/.warble/kokoro/node_modules/kokoro-js")
         case .cleanup:
-            return exists("\(home)/.voz/llm-venv/bin/python3") && exists("\(home)/.voz/llm-server.py")
-                && exists("\(home)/.voz/llm-model")
+            return exists("\(home)/.warble/llm-venv/bin/python3") && exists("\(home)/.warble/llm-server.py")
+                && exists("\(home)/.warble/llm-model")
         }
     }
 
@@ -146,9 +146,9 @@ final class EngineSetup: ObservableObject {
         switch e {
         case .dictation: return AIStore.parakeetOrigin()?.label
         case .cleanup: return AIStore.cleanupOrigin()?.label
-        case .voices: // weights arrive on the first read, so a fresh install labels its voz-local runtime
-            guard exists("\(home)/.voz/kokoro/node_modules/kokoro-js") else { return nil }
-            return AIStore.kokoroOrigin()?.label ?? "voz only"
+        case .voices: // weights arrive on the first read, so a fresh install labels its warble-local runtime
+            guard exists("\(home)/.warble/kokoro/node_modules/kokoro-js") else { return nil }
+            return AIStore.kokoroOrigin()?.label ?? "warble only"
         }
     }
 
@@ -180,7 +180,7 @@ final class EngineSetup: ObservableObject {
     // MARK: per-engine procedures
 
     private func installDictation() throws {
-        let dest = AIStore.modelsDir(for: target) // shared store or voz-only cache
+        let dest = AIStore.modelsDir(for: target) // shared store or warble-only cache
         try? FileManager.default.createDirectory(atPath: dest, withIntermediateDirectories: true)
         let rel = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
         // 1. Engine binary (~25 MB) — skip if a copy is already on the Mac (any store).
@@ -195,7 +195,7 @@ final class EngineSetup: ObservableObject {
                 URL(string: "\(rel)/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2")!,
                 into: dest, engine: .dictation, status: "Downloading model")
         }
-        // 3. Warm server env (venv + sherpa-onnx) — always voz-local (small, tied to the server script).
+        // 3. Warm server env (venv + sherpa-onnx) — always warble-local (small, tied to the server script).
         progress(.dictation, nil, "Setting up warm server…")
         try runScript("setup-asr.sh", status: "Setting up warm server…")
     }
@@ -224,24 +224,24 @@ final class EngineSetup: ObservableObject {
     }
 
     private func installCleanup() throws {
-        // 1. Environment only (venv + mlx-lm + server script). VOZ_SETUP_ENV_ONLY skips the script's
+        // 1. Environment only (venv + mlx-lm + server script). WARBLE_SETUP_ENV_ONLY skips the script's
         //    own model download — we do that next in-process for real % progress.
         progress(.cleanup, nil, "Setting up runtime…")
         try runScript("setup-cleaner.sh", status: "Setting up runtime…",
-                      env: ["VOZ_ASSUME_YES": "1", "VOZ_SETUP_ENV_ONLY": "1"])
+                      env: ["WARBLE_ASSUME_YES": "1", "WARBLE_SETUP_ENV_ONLY": "1"])
         // 2. Reuse an existing model if the marker already points at one that's present.
-        if let existing = try? String(contentsOfFile: "\(home)/.voz/llm-model", encoding: .utf8) {
+        if let existing = try? String(contentsOfFile: "\(home)/.warble/llm-model", encoding: .utf8) {
             let p = existing.trimmingCharacters(in: .whitespacesAndNewlines)
             if !p.isEmpty, FileManager.default.fileExists(atPath: "\(p)/config.json") { return }
         }
         // 3. Download the pinned MLX model into the chosen store (real % on the big safetensors).
         let dir = target == .shared
             ? "\(AIStore.sharedModels)/qwen2.5-1.5b-instruct-4bit"
-            : "\(home)/.voz/llm/mlx-model"
+            : "\(home)/.warble/llm/mlx-model"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         try downloadMLXModel(repo: "mlx-community/Qwen2.5-1.5B-Instruct-4bit", into: dir, engine: .cleanup)
         // 4. Mark ready — the marker holds the local path the warm server loads from (fully offline).
-        try dir.write(toFile: "\(home)/.voz/llm-model", atomically: true, encoding: .utf8)
+        try dir.write(toFile: "\(home)/.warble/llm-model", atomically: true, encoding: .utf8)
     }
 
     // MARK: download primitives
@@ -277,7 +277,7 @@ final class EngineSetup: ObservableObject {
 
     private func downloadAndUntar(_ url: URL, into dir: String, engine: Engine, status: String) throws {
         let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("voz-dl-\(ProcessInfo.processInfo.globallyUniqueString).tar.bz2")
+            .appendingPathComponent("warble-dl-\(ProcessInfo.processInfo.globallyUniqueString).tar.bz2")
         defer { try? FileManager.default.removeItem(at: tmp) }
         try download(url, to: tmp) { written, expected in
             let f = expected > 0 ? Double(written) / Double(expected) : nil
@@ -328,7 +328,7 @@ final class EngineSetup: ObservableObject {
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
         p.arguments = [script]
         var e = ProcessInfo.processInfo.environment
-        e["VOZ_ASSUME_YES"] = "1"               // never prompt
+        e["WARBLE_ASSUME_YES"] = "1"               // never prompt
         // Make user-local toolchains the script needs discoverable (bun, Homebrew python, curl).
         let extraPath = ["\(home)/.bun/bin", "/opt/homebrew/bin", "/usr/local/bin"].joined(separator: ":")
         e["PATH"] = extraPath + ":" + (e["PATH"] ?? "/usr/bin:/bin")
@@ -339,7 +339,7 @@ final class EngineSetup: ObservableObject {
         p.standardError = pipe
         var out = Data()
         let sem = DispatchSemaphore(value: 0)
-        DispatchQueue(label: "voz.script.read").async { out = pipe.fileHandleForReading.readDataToEndOfFile(); sem.signal() }
+        DispatchQueue(label: "warble.script.read").async { out = pipe.fileHandleForReading.readDataToEndOfFile(); sem.signal() }
         try p.run(); p.waitUntilExit(); sem.wait()
         guard p.terminationStatus == 0 else {
             // Surface the script's last meaningful line (e.g. "python3 not found…") instead of a code.
@@ -352,7 +352,7 @@ final class EngineSetup: ObservableObject {
     static func scriptPath(_ name: String) -> String? {
         let fm = FileManager.default
         if let b = Bundle.main.resourceURL?.appendingPathComponent("scripts/\(name)").path, fm.fileExists(atPath: b) { return b }
-        let repo = "\(fm.homeDirectoryForCurrentUser.path)/voz/apps/macos/scripts/\(name)"
+        let repo = "\(fm.homeDirectoryForCurrentUser.path)/warble/apps/macos/scripts/\(name)"
         return fm.fileExists(atPath: repo) ? repo : nil
     }
 

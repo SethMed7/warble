@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- warble mark: geometric songbird — circle body + head, singing beak, wedge tail;
+       the wing is three waveform pills knocked out of the body. nonzero winding:
+       outer shapes clockwise, cutouts (pills + eye) counterclockwise. -->
+  <path fill="#000000" fill-rule="nonzero" d="
+    M 76 56
+    A 30 30 0 1 1 16 56
+    A 30 30 0 1 1 76 56
+    Z
+    M 84 26
+    A 14 14 0 1 1 56 26
+    A 14 14 0 1 1 84 26
+    Z
+    M 79 17
+    L 96 19
+    L 82 31
+    Z
+    M 26 72
+    L 34 84
+    L 4 90
+    Z
+    M 32.5 50
+    L 32.5 64.5
+    A 3.5 3.5 0 0 0 39.5 64.5
+    L 39.5 50
+    A 3.5 3.5 0 0 0 32.5 50
+    Z
+    M 42.5 44
+    L 42.5 70.5
+    A 3.5 3.5 0 0 0 49.5 70.5
+    L 49.5 44
+    A 3.5 3.5 0 0 0 42.5 44
+    Z
+    M 52.5 48
+    L 52.5 64.5
+    A 3.5 3.5 0 0 0 59.5 64.5
+    L 59.5 48
+    A 3.5 3.5 0 0 0 52.5 48
+    Z
+    M 72.5 24
+    A 2.5 2.5 0 0 0 77.5 24
+    A 2.5 2.5 0 0 0 72.5 24
+    Z
+  "/>
+</svg>

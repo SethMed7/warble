@@ -1,7 +1,7 @@
 #!/bin/sh
-# voz bootstrap — set up the OPTIONAL on-device engines, with full transparency and your consent.
+# warble bootstrap — set up the OPTIONAL on-device engines, with full transparency and your consent.
 #
-# voz already works the moment you launch it: dictation falls back to Apple's on-device recognizer,
+# warble already works the moment you launch it: dictation falls back to Apple's on-device recognizer,
 # read-aloud to the macOS system voice, cleanup to a built-in pass. NOTHING here is required. This
 # script only offers the premium on-device upgrades — and it installs NOTHING without you typing "y",
 # telling you exactly what each step does, where it comes from, and how big it is first.
@@ -9,6 +9,9 @@
 # Everything stays on your Mac. The only network use is downloading the open models you approve.
 
 set -e
+
+# warble was "voz" through 0.1.8 — adopt an existing ~/.voz home before touching anything.
+[ -d "$HOME/.voz" ] && [ ! -d "$HOME/.warble" ] && mv "$HOME/.voz" "$HOME/.warble" || true
 cd "$(dirname "$0")"
 
 bold() { printf '\033[1m%s\033[0m\n' "$1"; }
@@ -17,7 +20,7 @@ has()  { command -v "$1" >/dev/null 2>&1; }
 ask()  { printf '\033[1m%s\033[0m [y/N] ' "$1"; read -r a </dev/tty; [ "$a" = y ] || [ "$a" = Y ]; }
 
 clear 2>/dev/null || true
-bold "voz · set up better engines"
+bold "warble · set up better engines"
 echo "Local, on-device upgrades. Nothing installs without your yes. Ctrl-C any time."
 echo
 
@@ -39,10 +42,10 @@ if [ "$DISK_FREE_GB" -lt 3 ]; then
   echo
 fi
 
-# ── Transparency: macOS permissions voz will ask for, and why ──────────────────
-# Shown BEFORE anything installs. voz requests each one only when you first use the
+# ── Transparency: macOS permissions warble will ask for, and why ──────────────────
+# Shown BEFORE anything installs. warble requests each one only when you first use the
 # feature that needs it — never up front, and never anything it doesn't use.
-bold "Permissions voz asks macOS for (only when first used)"
+bold "Permissions warble asks macOS for (only when first used)"
 echo "  • Microphone — to hear you while you HOLD the dictation hotkey. Audio is transcribed"
 echo "    on-device and never saved."
 echo "  • Accessibility — to paste the finished text into whatever app you're typing in, and"
@@ -57,22 +60,22 @@ bold "What this can install, and where"
 echo "  Everything below is OPTIONAL, downloaded only after you type 'y', and lives in your"
 echo "  home folder — never inside the app, nothing system-wide, no admin/sudo:"
 echo "    ~/.bun                  bun JS runtime (~40 MB)            — runs the cleanup + helpers"
-echo "    ~/.voz/                 helper scripts, your dictionary + history, the warm servers"
-echo "    ~/.voz/kokoro           Kokoro neural read-aloud voices (~90 MB)"
-echo "    ~/.voz/asr-venv         Python venv for the warm Parakeet dictation server"
-echo "    ~/.voz/llm-venv         Python venv (mlx-lm) for the warm LLM cleanup server"
+echo "    ~/.warble/                 helper scripts, your dictionary + history, the warm servers"
+echo "    ~/.warble/kokoro           Kokoro neural read-aloud voices (~90 MB)"
+echo "    ~/.warble/asr-venv         Python venv for the warm Parakeet dictation server"
+echo "    ~/.warble/llm-venv         Python venv (mlx-lm) for the warm LLM cleanup server"
 echo "    ~/.cache/sherpa         Parakeet engine + model (~600 MB)"
 echo "    ~/.cache/huggingface    the MLX cleanup model (Qwen2.5-1.5B, ~0.9 GB)"
 echo "  Every engine runs locally and binds 127.0.0.1 only — no cloud, no API keys, no telemetry."
-echo "  To remove later: delete the model caches in ~/.cache, and ~/.voz (note: your dictionary"
-echo "  and dictation history live in ~/.voz too)."
+echo "  To remove later: delete the model caches in ~/.cache, and ~/.warble (note: your dictionary"
+echo "  and dictation history live in ~/.warble too)."
 echo
 
 # ── bun (shared JS runtime for cleanup + Kokoro/Parakeet helpers) ──────────────
 if has bun || [ -x "$HOME/.bun/bin/bun" ]; then
   dim "✓ bun already installed."
 else
-  echo "bun is a small, fast JS runtime (~40 MB) voz uses to run the cleanup + helper scripts."
+  echo "bun is a small, fast JS runtime (~40 MB) warble uses to run the cleanup + helper scripts."
   echo "Source: https://bun.sh/install"
   if ask "Install bun?"; then curl -fsSL https://bun.sh/install | bash; else dim "Skipped bun (cleanup will use the built-in Swift pass)."; fi
 fi
@@ -102,17 +105,17 @@ echo
 
 # ── On-device LLM polish ───────────────────────────────────────────────────────
 echo "$(bold 'LLM polish') — punctuation + filler removal via a small on-device model."
-echo "voz installs its own model (Qwen2.5-1.5B via MLX, ~0.9 GB, Apache-2.0) — no Ollama needed."
+echo "warble installs its own model (Qwen2.5-1.5B via MLX, ~0.9 GB, Apache-2.0) — no Ollama needed."
 if [ "$RAM_GB" -lt 8 ]; then
   echo "↳ Skipping LLM polish: recommends 8 GB+ RAM."
 elif [ "$APPLE_SILICON" = yes ]; then
   if ask "Set up LLM polish?"; then sh setup-cleaner.sh; fi
 else
-  echo "↳ Intel Mac: MLX needs Apple Silicon, so voz uses a self-contained llama.cpp model instead."
+  echo "↳ Intel Mac: MLX needs Apple Silicon, so warble uses a self-contained llama.cpp model instead."
   if ask "Set up LLM polish?"; then sh setup-cleaner.sh; fi
 fi
 echo
 
 bold "Done."
-echo "Open voz's menu to pick engines. Anything you skipped, re-run this any time:"
+echo "Open warble's menu to pick engines. Anything you skipped, re-run this any time:"
 echo "  menu → Set up better engines…   (or:  sh \"$PWD/bootstrap.sh\")"

@@ -1,4 +1,4 @@
-# voz Insights AI — build plan
+# warble Insights AI — build plan
 
 Phase 5 of `docs/insights-plan.md`: an **optional, on-device** layer that turns the local stats into a
 **weekly summary**, **suggested dictionary words**, and **nudges**. Behind a **default-off master
@@ -26,12 +26,12 @@ the same warm MLX server that polishes dictation, never the network.
 - **Data:** `InsightStore` already exposes `totalWords · avgWPM · dayStreak · perApp · wordsPerDay ·
   wpmPerDay · events`. Feed **aggregates**, not the raw log.
 - **Dictionary writes:** `Lexicon.shared.learn(from:to:)` + the existing sub-threshold `pending` tally.
-- **UI styling:** `.cardStyle()` · `VozTheme` · `StatCard` patterns.
+- **UI styling:** `.cardStyle()` · `WarbleTheme` · `StatCard` patterns.
 
 ## Architecture — new
 - **`Sources/Dictate/Insights/AIInsights.swift`** — `AIInsightsStore: ObservableObject`. Builds the prompt
   from `InsightStore` aggregates, calls `WarmLLM` off the main thread, parses, and **caches to
-  `~/.voz/insights-ai.json`** (`{generatedAt, windowHash, summary, nudges[], suggestions[]}`). Master-switch
+  `~/.warble/insights-ai.json`** (`{generatedAt, windowHash, summary, nudges[], suggestions[]}`). Master-switch
   gated: off → never spawns or calls the model.
 - **Cards in the Insights tab** (`InsightsView.swift`) — summary card · suggestions list (Accept/Dismiss →
   `Lexicon.learn`) · nudge chips, above the existing charts. No new sidebar row. When AI is off, an inline
@@ -60,7 +60,7 @@ template-phrased. Numbers are always real; the model only warms the wording.
 - Summary quality depends on `historyEnabled` (stats-only mode → summary works off numbers, no content).
   Say so in the enable copy.
 - Update the README/brand privacy section: "Insights AI is on-device, default-off, reads only your local
-  stats/transcripts, and is cached in `~/.voz/insights-ai.json` (clear/export like the rest)."
+  stats/transcripts, and is cached in `~/.warble/insights-ai.json` (clear/export like the rest)."
 
 ## Server change (small, no setup impact)
 Add a thin generic **`POST /generate`** to `core/llm-server.py` (no dictation `accept()` guard) for the
@@ -77,7 +77,7 @@ structured suggestions/nudges JSON; keep `/clean` purely for dictation. Same ven
 AI cards live **in the Insights tab** (no new sidebar row) · **all three features** ship together ·
 generation mode is a **user choice** (auto-refresh / on-demand), default-off master switch · feed the model
 **aggregates not raw logs** · suggestions are **deterministic-first**, model-augmented · reuse the existing
-**warm MLX server** (the plan's "Ollama/llama.cpp" note is superseded — voz provisions MLX now).
+**warm MLX server** (the plan's "Ollama/llama.cpp" note is superseded — warble provisions MLX now).
 
 ## Risks
 - **Small model drift** on the summary → keep the prompt tight, aggregate-driven, low/zero temp; clip with

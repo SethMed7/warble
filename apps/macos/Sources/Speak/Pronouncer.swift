@@ -1,9 +1,9 @@
 import Foundation
 
-/// Read-aloud pronunciations, sourced from the shared voz dictionary (~/.voz/dictionary.json).
+/// Read-aloud pronunciations, sourced from the shared warble dictionary (~/.warble/dictionary.json).
 /// Dictation's Lexicon writes them — a canonical word → a "say it like" respelling (e.g.
 /// "myela" → "my-ell-uh") — and read-aloud applies them to the text just before it's spoken,
-/// so a word voz learned to spell is also *said* the way you mean.
+/// so a word warble learned to spell is also *said* the way you mean.
 ///
 /// This shares the FILE with the dictation Lexicon, not code: the two capabilities stay
 /// separate modules (Speak never imports Dictate), exactly like they share core/ as files.
@@ -14,10 +14,10 @@ final class Pronouncer {
     private var loadedFrom: URL?
     private var loadedAt: Date?
 
-    /// Same resolution as the dictation Lexicon: VOZ_DICTIONARY/DICTADO_DICTIONARY env, the saved
-    /// location, then ~/.voz (or an existing ~/.dictado). Kept in lockstep with Lexicon.fileURL.
+    /// Same resolution as the dictation Lexicon: WARBLE_DICTIONARY/DICTADO_DICTIONARY env, the saved
+    /// location, then ~/.warble (or an existing ~/.dictado). Kept in lockstep with Lexicon.fileURL.
     private var fileURL: URL {
-        for key in ["VOZ_DICTIONARY", "DICTADO_DICTIONARY"] {
+        for key in ["WARBLE_DICTIONARY", "DICTADO_DICTIONARY"] {
             if let env = ProcessInfo.processInfo.environment[key], !env.isEmpty {
                 return URL(fileURLWithPath: (env as NSString).expandingTildeInPath)
             }
@@ -26,11 +26,11 @@ final class Pronouncer {
             return URL(fileURLWithPath: saved)
         }
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let voz = home.appendingPathComponent(".voz/dictionary.json")
+        let warble = home.appendingPathComponent(".warble/dictionary.json")
         let legacy = home.appendingPathComponent(".dictado/dictionary.json")
-        if FileManager.default.fileExists(atPath: voz.path) { return voz }
+        if FileManager.default.fileExists(atPath: warble.path) { return warble }
         if FileManager.default.fileExists(atPath: legacy.path) { return legacy }
-        return voz
+        return warble
     }
 
     /// Reload only when the file path or its modification date changed — cheap to call before a read,

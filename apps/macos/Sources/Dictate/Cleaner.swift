@@ -7,7 +7,7 @@ protocol Cleaner {
 }
 
 /// The deterministic cleaner: the built-in Swift twin of core/clean.ts. The app runs this port
-/// directly rather than spawning bun over a deployed ~/.voz/clean.ts — the rules ship with the
+/// directly rather than spawning bun over a deployed ~/.warble/clean.ts — the rules ship with the
 /// binary (an app update can't be shadowed by a stale helper from an older setup), and each
 /// dictation saves a process spawn. core/clean.ts stays the canonical, acceptance-tested source;
 /// the twins are kept rule-identical.
@@ -25,7 +25,7 @@ enum Cleaners {
     }
 
     /// Best available cleaner. With the AI layer on, the on-device LLM polishes the
-    /// text (always wrapping the deterministic cleaner as its fallback): voz's own
+    /// text (always wrapping the deterministic cleaner as its fallback): warble's own
     /// warm MLX server (Apple Silicon) is preferred, else a self-contained llama.cpp
     /// model (Intel/legacy). Otherwise the deterministic Swift twin.
     ///
@@ -39,7 +39,7 @@ enum Cleaners {
     private static func select(useLLM: Bool) -> Cleaner {
         let base: Cleaner = BasicSwiftCleaner()
         guard useLLM else { return base }
-        if MLXCleaner.isAvailable() { return MLXCleaner(fallback: base) }  // voz's own warm MLX server (Apple Silicon)
+        if MLXCleaner.isAvailable() { return MLXCleaner(fallback: base) }  // warble's own warm MLX server (Apple Silicon)
         if LLMCleaner.isAvailable() { return LLMCleaner(fallback: base) }  // self-contained llama.cpp (Intel/legacy)
         return base
     }

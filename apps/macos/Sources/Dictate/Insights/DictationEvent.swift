@@ -1,6 +1,6 @@
 import Foundation
 
-/// One recorded dictation, persisted as a single JSON line in ~/.voz/history.json. Audio is never
+/// One recorded dictation, persisted as a single JSON line in ~/.warble/history.json. Audio is never
 /// saved; this is the cleaned text (empty in stats-only mode) plus the metrics that power the
 /// dashboard. `day` is precomputed in the user's LOCAL timezone so streak math is a plain calendar
 /// walk that can't drift at midnight/DST.

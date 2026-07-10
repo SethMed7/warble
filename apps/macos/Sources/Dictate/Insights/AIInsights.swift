@@ -2,7 +2,7 @@ import Foundation
 
 /// The optional, on-device "Insights AI" layer: a weekly summary, suggested dictionary words, and
 /// nudges, all derived from the LOCAL stats `InsightStore` already keeps. Behind a default-off master
-/// switch (`InsightStore.aiInsightsEnabled`), cached to ~/.voz/insights-ai.json, and graceful when the
+/// switch (`InsightStore.aiInsightsEnabled`), cached to ~/.warble/insights-ai.json, and graceful when the
 /// model isn't installed. 100% on-device — the same warm MLX server that polishes dictation, never the
 /// network.
 ///
@@ -39,23 +39,23 @@ final class AIInsightsStore: ObservableObject {
     @Published private(set) var isGenerating = false
     @Published private(set) var lastError: String?
 
-    private let fileURL: URL    // ~/.voz/insights-ai.json
-    private let queue = DispatchQueue(label: "voz.insights.ai", qos: .utility)
+    private let fileURL: URL    // ~/.warble/insights-ai.json
+    private let queue = DispatchQueue(label: "warble.insights.ai", qos: .utility)
     private var clearObserver: NSObjectProtocol?   // wipes the cache when the user clears their history
 
     /// The on-device engine gate: no model installed → the whole feature is dark (cards hidden).
     var isAvailable: Bool { WarmLLM.isInstalled() }
 
     init() {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".voz")
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".warble")
         fileURL = dir.appendingPathComponent("insights-ai.json")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
                                                  attributes: [.posixPermissions: 0o700])
         load()
         // When the user clears their history (InsightStore.clearAll), wipe the AI cache in lockstep —
-        // both the in-memory snapshot and, via save(), the on-disk ~/.voz/insights-ai.json.
+        // both the in-memory snapshot and, via save(), the on-disk ~/.warble/insights-ai.json.
         clearObserver = NotificationCenter.default.addObserver(
-            forName: .vozInsightsCleared, object: nil, queue: .main) { [weak self] _ in
+            forName: .warbleInsightsCleared, object: nil, queue: .main) { [weak self] _ in
             self?.snapshot = nil
             self?.save()
         }
@@ -326,7 +326,7 @@ final class AIInsightsStore: ObservableObject {
 
     // MARK: persistence (mirrors InsightStore: 0600, atomic)
 
-    /// Load the cached snapshot from ~/.voz/insights-ai.json. Absent/corrupt → start empty (the auto
+    /// Load the cached snapshot from ~/.warble/insights-ai.json. Absent/corrupt → start empty (the auto
     /// path will regenerate when eligible).
     private func load() {
         guard let data = try? Data(contentsOf: fileURL) else { return }
@@ -334,7 +334,7 @@ final class AIInsightsStore: ObservableObject {
     }
 
     /// Persist the current snapshot — a plain local JSON file you can read, export, or delete. Atomic
-    /// write + 0600, the same hygiene as the rest of ~/.voz.
+    /// write + 0600, the same hygiene as the rest of ~/.warble.
     private func save() {
         guard let snap = snapshot else {
             try? FileManager.default.removeItem(at: fileURL)

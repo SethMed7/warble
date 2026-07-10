@@ -27,7 +27,7 @@ struct InsightsView: View {
             .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VozTheme.black)
+        .background(WarbleTheme.black)
         .onAppear { ai.refreshIfNeeded() }   // fire the auto path when the tab opens
     }
 
@@ -36,7 +36,7 @@ struct InsightsView: View {
             header("Words per day", "Last 30 days")
             Chart(store.wordsPerDay) { d in
                 BarMark(x: .value("Day", d.date, unit: .day), y: .value("Words", d.value), width: .fixed(6))
-                    .foregroundStyle(VozTheme.electric)
+                    .foregroundStyle(WarbleTheme.electric)
                     .cornerRadius(2)
             }
             .frame(height: 170)
@@ -51,11 +51,11 @@ struct InsightsView: View {
             header("Speaking pace", "Words per minute, by day")
             Chart(store.wpmPerDay) { d in
                 AreaMark(x: .value("Day", d.date, unit: .day), y: .value("WPM", d.value))
-                    .foregroundStyle(LinearGradient(colors: [VozTheme.electric.opacity(0.30), VozTheme.electric.opacity(0.02)],
+                    .foregroundStyle(LinearGradient(colors: [WarbleTheme.electric.opacity(0.30), WarbleTheme.electric.opacity(0.02)],
                                                     startPoint: .top, endPoint: .bottom))
                     .interpolationMethod(.catmullRom)
                 LineMark(x: .value("Day", d.date, unit: .day), y: .value("WPM", d.value))
-                    .foregroundStyle(VozTheme.electric)
+                    .foregroundStyle(WarbleTheme.electric)
                     .interpolationMethod(.catmullRom)
             }
             .frame(height: 170)
@@ -70,13 +70,13 @@ struct InsightsView: View {
             header("Where you dictate", "Words by app")
             Chart(Array(store.perApp.prefix(8))) { app in
                 BarMark(x: .value("Words", app.words), y: .value("App", app.name))
-                    .foregroundStyle(VozTheme.electric)
+                    .foregroundStyle(WarbleTheme.electric)
                     .cornerRadius(3)
             }
             .frame(height: CGFloat(min(8, max(1, store.perApp.count)) * 32 + 24))
             .chartXAxis { valueAxis }
             .chartYAxis {
-                AxisMarks { _ in AxisValueLabel().foregroundStyle(VozTheme.mist).font(.system(size: 11)) }
+                AxisMarks { _ in AxisValueLabel().foregroundStyle(WarbleTheme.mist).font(.system(size: 11)) }
             }
         }
         .cardStyle()
@@ -84,21 +84,21 @@ struct InsightsView: View {
 
     private func header(_ title: String, _ subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
-            Text(subtitle).font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+            Text(subtitle).font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
         }
     }
 
     private var dayAxis: some AxisContent {
         AxisMarks { _ in
-            AxisGridLine().foregroundStyle(VozTheme.line.opacity(0.6))
-            AxisValueLabel(format: .dateTime.month(.abbreviated).day()).foregroundStyle(VozTheme.mist).font(.system(size: 10))
+            AxisGridLine().foregroundStyle(WarbleTheme.line.opacity(0.6))
+            AxisValueLabel(format: .dateTime.month(.abbreviated).day()).foregroundStyle(WarbleTheme.mist).font(.system(size: 10))
         }
     }
     private var valueAxis: some AxisContent {
         AxisMarks { _ in
-            AxisGridLine().foregroundStyle(VozTheme.line.opacity(0.5))
-            AxisValueLabel().foregroundStyle(VozTheme.mist).font(.system(size: 10))
+            AxisGridLine().foregroundStyle(WarbleTheme.line.opacity(0.5))
+            AxisValueLabel().foregroundStyle(WarbleTheme.mist).font(.system(size: 10))
         }
     }
 }

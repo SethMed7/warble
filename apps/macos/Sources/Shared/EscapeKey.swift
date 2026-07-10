@@ -15,7 +15,7 @@ public final class EscapeKey {
     private var ref: EventHotKeyRef?
     private var installed = false
 
-    private static let sig = OSType(0x766F_7A45) // "vozE"
+    private static let sig = OSType(0x766F_7A45) // "warbleE"
     private static let hotKeyID: UInt32 = 99     // distinct from the Speak module's hotkey ids (1, 2)
 
     /// Route Escape to `onEscape` while `owner` holds the claim (most recent claim wins).

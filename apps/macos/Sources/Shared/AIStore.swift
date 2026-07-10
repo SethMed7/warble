@@ -1,15 +1,15 @@
 import Foundation
 
-/// memex-ai-routing — the shared, on-device model store every memex app (voz, breve, rotli…) can plug
+/// memex-ai-routing — the shared, on-device model store every memex app (warble, breve, rotli…) can plug
 /// into. The principle: **big model weights live once and are reused; small per-app runtimes stay local.**
 ///
 ///   ~/.memex/ai/            the shared store (override with MEMEX_AI_HOME)
 ///     models/<id>/          model weights — reused across apps
-///   ~/.voz/                 voz's own home — venvs, server scripts, app data (Parakeet model too, if
-///                           you choose "voz only"); legacy ~/.cache/sherpa is still honored
+///   ~/.warble/                 warble's own home — venvs, server scripts, app data (Parakeet model too, if
+///                           you choose "warble only"); legacy ~/.cache/sherpa is still honored
 ///
 /// This type owns the *paths + resolution* (the standard). The download/install UX lives in the app
-/// (voz's Setup). When voz reads an engine it searches **shared → app/legacy**, so a model installed once
+/// (warble's Setup). When warble reads an engine it searches **shared → app/legacy**, so a model installed once
 /// to the shared store is found by every app — and a fresh app reinstall correctly *reuses* it rather than
 /// re-downloading. Eventually this resolver + manifest move into memex proper (it owns the standard).
 public enum AIStore {
@@ -17,9 +17,9 @@ public enum AIStore {
     /// only decides where NEW weights are written.
     public enum Target: String, CaseIterable, Identifiable {
         case shared      // ~/.memex/ai — reusable by other memex apps (the recommended default)
-        case app         // ~/.voz / ~/.cache — voz only, removed when voz is removed
+        case app         // ~/.warble / ~/.cache — warble only, removed when warble is removed
         public var id: String { rawValue }
-        public var label: String { self == .shared ? "Shared store" : "voz only" }
+        public var label: String { self == .shared ? "Shared store" : "warble only" }
     }
 
     /// Where a model was found, for honest Setup labels.
@@ -28,7 +28,7 @@ public enum AIStore {
         public var label: String {
             switch self {
             case .shared: return "Shared store"
-            case .app: return "voz only"
+            case .app: return "warble only"
             case .legacy: return "Already on your Mac"
             }
         }
@@ -41,7 +41,18 @@ public enum AIStore {
         ProcessInfo.processInfo.environment["MEMEX_AI_HOME"] ?? "\(home)/.memex/ai"
     }
     public static var sharedModels: String { "\(sharedRoot)/models" }
-    public static var appRoot: String { "\(home)/.voz" }            // voz-only runtimes + data
+    public static var appRoot: String { "\(home)/.warble" }            // warble-only runtimes + data
+
+    /// One-time rename-era migration: the app was called voz through 0.1.8, so an existing install's
+    /// venvs, dictionary, and history live in ~/.voz. Move the whole directory into place before
+    /// anything reads it (called first thing in main.swift — before the CLI modes, which read the
+    /// dictionary too). A plain rename on the same volume: O(1), no copying, models untouched.
+    public static func migrateLegacyHome() {
+        let fm = FileManager.default
+        let old = "\(home)/.voz"
+        guard fm.fileExists(atPath: old), !fm.fileExists(atPath: appRoot) else { return }
+        try? fm.moveItem(atPath: old, toPath: appRoot)
+    }
     public static var legacySherpaCache: String { "\(home)/.cache/sherpa" } // pre-memex model home
     public static var kokoroCacheDir: String { "\(sharedModels)/kokoro" } // transformers.js nests <org>/<model> inside
     public static var legacyKokoroCache: String { "\(home)/.cache/huggingface-transformers" } // pre-memex Kokoro home
@@ -55,12 +66,12 @@ public enum AIStore {
     /// the first read — the say.ts/say-server.ts SPAWN env decides where weights land, not the
     /// install script — so the choice must outlive Setup.
     public static var voicesTarget: Target {
-        get { Target(rawValue: UserDefaults.standard.string(forKey: "vozVoicesTarget") ?? "") ?? .shared }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "vozVoicesTarget") }
+        get { Target(rawValue: UserDefaults.standard.string(forKey: "warbleVoicesTarget") ?? "") ?? .shared }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "warbleVoicesTarget") }
     }
 
-    /// VOZ_KOKORO_CACHE for a say.ts/say-server.ts spawn: the legacy voz-only cache when the user
-    /// chose "voz only" (also suppresses the scripts' one-time legacy→shared migration), nil to let
+    /// WARBLE_KOKORO_CACHE for a say.ts/say-server.ts spawn: the legacy warble-only cache when the user
+    /// chose "warble only" (also suppresses the scripts' one-time legacy→shared migration), nil to let
     /// the scripts' shared-store default apply.
     public static func kokoroCacheOverride() -> String? {
         voicesTarget == .app ? legacyKokoroCache : nil

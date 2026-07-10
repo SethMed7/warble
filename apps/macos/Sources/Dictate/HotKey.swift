@@ -11,7 +11,7 @@ import AppKit
 /// Accessibility, which the app already has.
 ///
 /// Note: if macOS "Press 🌐 key to" is set to Start Dictation/Show Emoji, set it to **Do Nothing**
-/// (System Settings ▸ Keyboard) so Fn is free for voz.
+/// (System Settings ▸ Keyboard) so Fn is free for warble.
 final class HotKey {
     static let shared = HotKey()
 

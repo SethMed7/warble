@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The single source of truth for voz's style tokens. Every value is canon from `brand/tokens.md`:
+/// The single source of truth for warble's style tokens. Every value is canon from `brand/tokens.md`:
 /// black + ONE electric-blue accent — the gradient ends (deep/bright) belong to identity surfaces,
 /// and "is it live?" is always answered by motion, never a second hue. AppKit reads `.ns`, SwiftUI
 /// reads `.color`; both come from one stored value so the two worlds can't drift apart again.

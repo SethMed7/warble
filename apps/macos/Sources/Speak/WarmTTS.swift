@@ -1,11 +1,11 @@
 import Foundation
 import Shared
 
-/// Manages voz's warm Kokoro TTS server (core/say-server.ts, installed beside say.ts by
+/// Manages warble's warm Kokoro TTS server (core/say-server.ts, installed beside say.ts by
 /// scripts/setup-kokoro-server.sh). It keeps the model loaded so each read skips the ~1-2s per-spawn
 /// reload the one-shot say.ts pays — same model + voices, just resident. Binds 127.0.0.1 ONLY.
 ///
-/// Optional + graceful: if bun / the script / kokoro-js aren't present, everything no-ops and voz
+/// Optional + graceful: if bun / the script / kokoro-js aren't present, everything no-ops and warble
 /// uses the cold per-spawn say.ts path (KokoroEngine falls back). A server left running from a prior
 /// session is detected (health check) and reused, so warmth persists across restarts. `ready` is a
 /// cheap cached flag the audio engine reads on the main thread to pick warm-vs-cold without blocking.
@@ -16,7 +16,7 @@ final class WarmTTS {
     // both installed one can't bind, and /health would false-positive against the LLM server (both
     // answer {"ok": true}). The port is always passed to the server we spawn, so the pair stays
     // consistent even if say-server.ts's own default drifts.
-    let port = ProcessInfo.processInfo.environment["VOZ_TTS_PORT"] ?? "8767"
+    let port = ProcessInfo.processInfo.environment["WARBLE_TTS_PORT"] ?? "8767"
     private var server: Process?
     private let lock = NSLock()
 
@@ -29,15 +29,15 @@ final class WarmTTS {
 
     private static func home() -> String { FileManager.default.homeDirectoryForCurrentUser.path }
 
-    /// Where say-server.ts + kokoro-js live: ~/.voz/kokoro (current) else ~/.leelo (legacy) — matches
+    /// Where say-server.ts + kokoro-js live: ~/.warble/kokoro (current) else ~/.leelo (legacy) — matches
     /// KokoroEngine.helperDir so the server runs with kokoro-js resolvable.
     static func helperDir() -> String {
         let home = home()
-        let voz = "\(home)/.voz/kokoro", legacy = "\(home)/.leelo"
+        let warble = "\(home)/.warble/kokoro", legacy = "\(home)/.leelo"
         let fm = FileManager.default
-        if fm.fileExists(atPath: "\(voz)/node_modules/kokoro-js") { return voz }
+        if fm.fileExists(atPath: "\(warble)/node_modules/kokoro-js") { return warble }
         if fm.fileExists(atPath: "\(legacy)/node_modules/kokoro-js") { return legacy }
-        return voz
+        return warble
     }
     static func scriptPath() -> String? {
         let p = "\(helperDir())/say-server.ts"
@@ -85,10 +85,10 @@ final class WarmTTS {
             p.arguments = ["run", script]
             p.currentDirectoryURL = URL(fileURLWithPath: Self.helperDir())
             var env = ProcessInfo.processInfo.environment
-            env["VOZ_TTS_PORT"] = port
-            // Honor an explicit "voz only" store choice — without this the script's shared-store
+            env["WARBLE_TTS_PORT"] = port
+            // Honor an explicit "warble only" store choice — without this the script's shared-store
             // default would migrate the legacy cache into ~/.memex against the user's pick.
-            if let cache = AIStore.kokoroCacheOverride() { env["VOZ_KOKORO_CACHE"] = cache }
+            if let cache = AIStore.kokoroCacheOverride() { env["WARBLE_KOKORO_CACHE"] = cache }
             p.environment = env
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice

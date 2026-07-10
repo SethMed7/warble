@@ -1,20 +1,20 @@
 #!/bin/sh
-# Installs voz's premium read-aloud voice (Kokoro, fully on-device) to ~/.voz/kokoro.
-# Requires bun (https://bun.sh). Without it, voz uses the built-in macOS voice.
+# Installs warble's premium read-aloud voice (Kokoro, fully on-device) to ~/.warble/kokoro.
+# Requires bun (https://bun.sh). Without it, warble uses the built-in macOS voice.
 # Run in-place by the app's "Set up better engines…"; not meant to be run standalone.
 set -e
-DIR="$HOME/.voz/kokoro"
+DIR="$HOME/.warble/kokoro"
 LEGACY="$HOME/.leelo"
-RAW="https://raw.githubusercontent.com/SethMed7/voz/main/core"
+RAW="https://raw.githubusercontent.com/SethMed7/warble/main/core"
 command -v bun >/dev/null 2>&1 || { echo "bun not found — install from https://bun.sh first"; exit 1; }
-mkdir -p "$HOME/.voz"
+mkdir -p "$HOME/.warble"
 
 # Migrate an existing ~/.leelo install in place: symlink it so the ~80 MB Kokoro model
 # and node_modules are never re-downloaded. The current say.ts is copied in below
-# (it reads VOZ_VOICE, with LEELO_VOICE still honored), upgrading the linked install.
+# (it reads WARBLE_VOICE, with LEELO_VOICE still honored), upgrading the linked install.
 if [ ! -e "$DIR" ] && [ -d "$LEGACY/node_modules/kokoro-js" ]; then
   ln -s "$LEGACY" "$DIR"
-  echo "Linked existing ~/.leelo install → ~/.voz/kokoro (no re-download)."
+  echo "Linked existing ~/.leelo install → ~/.warble/kokoro (no re-download)."
 fi
 mkdir -p "$DIR"
 
@@ -29,5 +29,5 @@ cd "$DIR" && bun install
 echo
 # The weights themselves land in the shared memex AI store on first read (say.ts resolves the path
 # and migrates a pre-memex ~/.cache/huggingface-transformers cache in place, one time, idempotently).
-echo "Kokoro voice installed to ~/.voz/kokoro. The first read downloads the model (~80 MB, one time)"
+echo "Kokoro voice installed to ~/.warble/kokoro. The first read downloads the model (~80 MB, one time)"
 echo "into the shared memex AI store (~/.memex/ai/models/kokoro) — reused by your other memex apps."

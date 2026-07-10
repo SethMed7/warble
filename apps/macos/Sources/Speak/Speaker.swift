@@ -286,20 +286,20 @@ final class SystemEngine: NSObject, SpeechEngine, AVSpeechSynthesizerDelegate {
     }
 }
 
-// MARK: - Kokoro voice (optional helper in ~/.voz/kokoro, rendered by bun + kokoro-js)
+// MARK: - Kokoro voice (optional helper in ~/.warble/kokoro, rendered by bun + kokoro-js)
 
 final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
-    /// Where the Kokoro helper lives: ~/.voz/kokoro (current), falling back to the legacy
+    /// Where the Kokoro helper lives: ~/.warble/kokoro (current), falling back to the legacy
     /// ~/.leelo so an existing install keeps working untouched. Whichever actually has the
-    /// helper installed wins; a fresh install lands in ~/.voz/kokoro.
+    /// helper installed wins; a fresh install lands in ~/.warble/kokoro.
     private static var helperDir: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let voz = home.appendingPathComponent(".voz/kokoro")
+        let warble = home.appendingPathComponent(".warble/kokoro")
         let legacy = home.appendingPathComponent(".leelo")
         let fm = FileManager.default
-        if fm.fileExists(atPath: voz.appendingPathComponent("node_modules/kokoro-js").path) { return voz }
+        if fm.fileExists(atPath: warble.appendingPathComponent("node_modules/kokoro-js").path) { return warble }
         if fm.fileExists(atPath: legacy.appendingPathComponent("node_modules/kokoro-js").path) { return legacy }
-        return voz
+        return warble
     }
 
     static func bunPath() -> String? {
@@ -385,11 +385,11 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
             p.arguments = ["run", "say.ts"]
             p.currentDirectoryURL = Self.helperDir
             var env = ProcessInfo.processInfo.environment
-            env["VOZ_VOICE"] = Speaker.shared.voiceId
+            env["WARBLE_VOICE"] = Speaker.shared.voiceId
             env["LEELO_VOICE"] = Speaker.shared.voiceId // keep a legacy ~/.leelo say.ts working too
-            // Honor an explicit "voz only" store choice — without this the script's shared-store
+            // Honor an explicit "warble only" store choice — without this the script's shared-store
             // default would migrate the legacy cache into ~/.memex against the user's pick.
-            if let cache = AIStore.kokoroCacheOverride() { env["VOZ_KOKORO_CACHE"] = cache }
+            if let cache = AIStore.kokoroCacheOverride() { env["WARBLE_KOKORO_CACHE"] = cache }
             p.environment = env
             payload = Data(pendingText.utf8)
         }

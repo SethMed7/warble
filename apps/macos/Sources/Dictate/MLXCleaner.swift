@@ -1,8 +1,8 @@
 import Foundation
 
 /// Preferred polish backend: a small on-device instruct model (Qwen2.5-1.5B-Instruct, Apache-2.0) run
-/// via MLX — Apple's Metal array framework — kept warm in voz's OWN loopback server (WarmLLM). No
-/// Ollama, no separate app to install: voz provisions the venv + model itself (scripts/setup-cleaner.sh),
+/// via MLX — Apple's Metal array framework — kept warm in warble's OWN loopback server (WarmLLM). No
+/// Ollama, no separate app to install: warble provisions the venv + model itself (scripts/setup-cleaner.sh),
 /// downloads the weights with your consent, and PINS the model so cleanup is identical for everyone
 /// (not "whatever model your Ollama happened to list first"). 100% on-device; the server is spawned
 /// offline so transcript text can never leave the machine.

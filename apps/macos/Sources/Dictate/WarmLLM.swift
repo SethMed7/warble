@@ -1,33 +1,33 @@
 import Foundation
 import Shared
 
-/// Manages voz's warm MLX LLM polish server (core/llm-server.py in a venv, installed by
+/// Manages warble's warm MLX LLM polish server (core/llm-server.py in a venv, installed by
 /// scripts/setup-cleaner.sh). Keeps a small instruct model (Qwen2.5-1.5B-Instruct) loaded so each
 /// polish runs in well under a second over loopback HTTP instead of paying a per-clip model reload —
 /// the same warm-server pattern as WarmASR. Apple Silicon only (MLX).
 ///
 /// Optional + graceful: if the venv/script/model aren't present, everything no-ops and the cleaner
-/// chain falls back. A server left running from a previous voz session is detected (health check) and
+/// chain falls back. A server left running from a previous warble session is detected (health check) and
 /// reused, so warmth persists across restarts. PRIVACY: spawned with HF_HUB_OFFLINE=1, so it can never
 /// reach the network at dictation time — only the weights you approved at setup are ever used.
 final class WarmLLM {
     static let shared = WarmLLM()
 
-    private let port = ProcessInfo.processInfo.environment["VOZ_LLM_PORT"] ?? "8766"
+    private let port = ProcessInfo.processInfo.environment["WARBLE_LLM_PORT"] ?? "8766"
     private var server: Process?
     private let lock = NSLock()
 
     private static func home() -> String { FileManager.default.homeDirectoryForCurrentUser.path }
-    static func venvPython() -> String? { Subprocess.firstExecutable(["\(home())/.voz/llm-venv/bin/python3"]) }
+    static func venvPython() -> String? { Subprocess.firstExecutable(["\(home())/.warble/llm-venv/bin/python3"]) }
     static func scriptPath() -> String? {
-        let p = "\(home())/.voz/llm-server.py"
+        let p = "\(home())/.warble/llm-server.py"
         return FileManager.default.fileExists(atPath: p) ? p : nil
     }
     /// A marker dropped by setup-cleaner.sh once the model is downloaded with your consent. The server
     /// runs offline, so without cached weights its first load would fail — gating on this keeps the
     /// warm path dark until the download actually happened.
     static func modelReady() -> Bool {
-        FileManager.default.fileExists(atPath: "\(home())/.voz/llm-model")
+        FileManager.default.fileExists(atPath: "\(home())/.warble/llm-model")
     }
     /// Installed = venv python + the server script + a consented model download.
     static func isInstalled() -> Bool {
@@ -50,16 +50,18 @@ final class WarmLLM {
         p.executableURL = URL(fileURLWithPath: py)
         p.arguments = [script]
         var env = ProcessInfo.processInfo.environment
-        env["VOZ_LLM_PORT"] = port
+        env["WARBLE_LLM_PORT"] = port
         env["HF_HUB_OFFLINE"] = "1"            // never reach the network at dictation time
         env["TOKENIZERS_PARALLELISM"] = "false"
         // The marker holds the model to load: a local dir (native Setup install → fully offline) or an
         // HF repo id (shell install → from the HF cache). An explicit env var still wins.
-        if let raw = try? String(contentsOfFile: "\(Self.home())/.voz/llm-model", encoding: .utf8) {
+        if let raw = try? String(contentsOfFile: "\(Self.home())/.warble/llm-model", encoding: .utf8) {
             let m = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !m.isEmpty { env["VOZ_LLM_MODEL"] = m }
+            if !m.isEmpty { env["WARBLE_LLM_MODEL"] = m }
         }
-        if let m = ProcessInfo.processInfo.environment["VOZ_LLM_MODEL"], !m.isEmpty { env["VOZ_LLM_MODEL"] = m }
+        if let m = ProcessInfo.processInfo.environment["WARBLE_LLM_MODEL"]
+                ?? ProcessInfo.processInfo.environment["VOZ_LLM_MODEL"], // rename-era fallback (voz ≤ 0.1.8)
+           !m.isEmpty { env["WARBLE_LLM_MODEL"] = m }
         p.environment = env
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice

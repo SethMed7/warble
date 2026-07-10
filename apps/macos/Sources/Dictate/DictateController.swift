@@ -28,7 +28,7 @@ public final class DictateController: NSObject {
 
     // In-memory safety net: the last few cleaned dictations, so a paste that lands in the wrong app or
     // field isn't lost forever (you'd otherwise have to re-say it). Never written to disk — consistent
-    // with "no recording is ever saved" — and cleared when voz quits. Retrieve from the menu via
+    // with "no recording is ever saved" — and cleared when warble quits. Retrieve from the menu via
     // "Copy Last Dictation" / "Recent Dictations".
     private var recentTranscripts: [String] = []
     private let maxRecent = 10
@@ -251,7 +251,7 @@ public final class DictateController: NSObject {
     private func beginRecording() {
         // Capture the app being dictated into NOW, before anything can change focus — the per-app signal.
         let app = NSWorkspace.shared.frontmostApplication
-        // If voz's own window (Insights/Dictionary) is frontmost, don't attribute the dictation to voz.
+        // If warble's own window (Insights/Dictionary) is frontmost, don't attribute the dictation to warble.
         let isSelf = app?.bundleIdentifier == Bundle.main.bundleIdentifier
         dictationApp = isSelf ? (nil, nil) : (app?.bundleIdentifier, app?.localizedName)
         dictationSecure = IsSecureEventInputEnabled()
@@ -456,12 +456,12 @@ public final class DictateController: NSObject {
                     break
                 }
             }
-            // If voz can't read this app's text (most browsers/Electron apps), it can't learn edits
+            // If warble can't read this app's text (most browsers/Electron apps), it can't learn edits
             // here — say so once so it isn't silently mysterious. Native fields (Notes, TextEdit…) work.
             if !watching, !UserDefaults.standard.bool(forKey: "warnedNoWatch") {
                 UserDefaults.standard.set(true, forKey: "warnedNoWatch")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    LearnPill.shared.showNote("voz can’t watch this app to learn edits")
+                    LearnPill.shared.showNote("warble can’t watch this app to learn edits")
                 }
             }
         }

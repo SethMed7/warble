@@ -57,12 +57,12 @@ struct InsightsRootView: View {
                 sidebar
                     .frame(width: 212)
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .background(VozTheme.ink)
+                    .background(WarbleTheme.ink)
                 // A Divider stops at the safe-area edge; the toolbar strip above would show a gap.
-                Rectangle().fill(VozTheme.line).frame(width: 1).ignoresSafeArea(edges: .top)
+                Rectangle().fill(WarbleTheme.line).frame(width: 1).ignoresSafeArea(edges: .top)
                 detail
                     .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
-                    .background(VozTheme.black)
+                    .background(WarbleTheme.black)
             }
 
             if nav.showTutorial {
@@ -70,7 +70,7 @@ struct InsightsRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VozTheme.black)
+        .background(WarbleTheme.black)
         .preferredColorScheme(.dark)
         .coordinateSpace(name: Self.space)
         .onPreferenceChange(RowFrameKey.self) { rowFrames = $0 }
@@ -81,9 +81,9 @@ struct InsightsRootView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Image(nsImage: VozMark.coloredMark(height: 22))
-                Text("voz").font(.headline).foregroundStyle(VozTheme.textHi)
-                Text("Dashboard").font(.headline).foregroundStyle(VozTheme.mist)
+                Image(nsImage: WarbleMark.coloredMark(height: 22))
+                Text("warble").font(.headline).foregroundStyle(WarbleTheme.textHi)
+                Text("Dashboard").font(.headline).foregroundStyle(WarbleTheme.mist)
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
@@ -138,11 +138,11 @@ private struct SidebarRow: View {
                 Spacer(minLength: 0)
             }
             .font(.system(size: 13, weight: selected ? .semibold : .regular))
-            .foregroundStyle(selected ? VozTheme.textHi : VozTheme.mist)
+            .foregroundStyle(selected ? WarbleTheme.textHi : WarbleTheme.mist)
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(fill, in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(VozTheme.electricBright, lineWidth: 2)
+                .strokeBorder(WarbleTheme.electricBright, lineWidth: 2)
                 .padding(-2)
                 .opacity(focused ? 1 : 0))
             .contentShape(Rectangle())
@@ -152,7 +152,7 @@ private struct SidebarRow: View {
     }
 
     private var fill: Color {
-        if selected { return VozTheme.electric.opacity(0.18) }
+        if selected { return WarbleTheme.electric.opacity(0.18) }
         if hovered { return Color.white.opacity(0.04) }
         return .clear
     }
@@ -168,9 +168,9 @@ struct TutorialOverlay: View {
 
     private struct Step { let title: String; let body: String; let section: InsightsSection; let icon: String }
     private let steps: [Step] = [
-        .init(title: "This is your dashboard", body: "Everything voz records and learns lives here — and only here, on your Mac.", section: .home, icon: "square.grid.2x2"),
-        .init(title: "History", body: "Every dictation, searchable. Open one to replay the audio, fix the text, or teach voz a word.", section: .history, icon: "clock.arrow.circlepath"),
-        .init(title: "Dictionary", body: "Your learned spellings and read-aloud pronunciations — voz gets them right next time.", section: .dictionary, icon: "character.book.closed"),
+        .init(title: "This is your dashboard", body: "Everything warble records and learns lives here — and only here, on your Mac.", section: .home, icon: "square.grid.2x2"),
+        .init(title: "History", body: "Every dictation, searchable. Open one to replay the audio, fix the text, or teach warble a word.", section: .history, icon: "clock.arrow.circlepath"),
+        .init(title: "Dictionary", body: "Your learned spellings and read-aloud pronunciations — warble gets them right next time.", section: .dictionary, icon: "character.book.closed"),
         .init(title: "Insights", body: "Trends over time: words per day, speaking pace, and where you dictate most.", section: .insights, icon: "chart.bar"),
         .init(title: "Data & Privacy", body: "You're in control — keep history or not, save recordings or not, skip password fields. Nothing ever leaves your Mac.", section: .data, icon: "lock.shield"),
     ]
@@ -214,7 +214,7 @@ struct TutorialOverlay: View {
                 Group {
                     if let h = hole {
                         RoundedRectangle(cornerRadius: 7)
-                            .stroke(VozTheme.electric.opacity(0.85), lineWidth: 1.5)
+                            .stroke(WarbleTheme.electric.opacity(0.85), lineWidth: 1.5)
                             .frame(width: h.width, height: h.height)
                             .position(x: h.midX, y: h.midY)
                     }
@@ -232,7 +232,7 @@ struct TutorialOverlay: View {
         return Group {
             if hasRow {
                 HStack(spacing: 0) {
-                    LeftArrow().fill(VozTheme.ink).frame(width: arrowW, height: 18)
+                    LeftArrow().fill(WarbleTheme.ink).frame(width: arrowW, height: 18)
                     cardBody
                 }
                 .position(x: cx, y: centerY)
@@ -245,21 +245,21 @@ struct TutorialOverlay: View {
     private var cardBody: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: steps[step].icon).font(.system(size: 16, weight: .medium)).foregroundStyle(VozTheme.electric)
-                Text(steps[step].title).font(.system(size: 16, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                Image(systemName: steps[step].icon).font(.system(size: 16, weight: .medium)).foregroundStyle(WarbleTheme.electric)
+                Text(steps[step].title).font(.system(size: 16, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
                 Spacer()
-                Button("Skip") { finish() }.buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                Button("Skip") { finish() }.buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
             }
-            Text(steps[step].body).font(.system(size: 12.5)).foregroundStyle(VozTheme.mist)
+            Text(steps[step].body).font(.system(size: 12.5)).foregroundStyle(WarbleTheme.mist)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
                 ForEach(0..<steps.count, id: \.self) { i in
-                    Circle().fill(i == step ? VozTheme.electric : VozTheme.line).frame(width: 6, height: 6)
+                    Circle().fill(i == step ? WarbleTheme.electric : WarbleTheme.line).frame(width: 6, height: 6)
                 }
                 Spacer()
                 if step > 0 {
                     Button("Back") { withAnimation { step -= 1; nav.section = steps[step].section } }
-                        .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                        .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
                 }
                 Button(step == steps.count - 1 ? "Done" : "Next") { advance() }
                     .buttonStyle(TutorialButton()).keyboardShortcut(.defaultAction)
@@ -268,8 +268,8 @@ struct TutorialOverlay: View {
         }
         .padding(18)
         .frame(width: cardWidth, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(VozTheme.ink))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 12).fill(WarbleTheme.ink))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 24, y: 10)
     }
 
@@ -299,7 +299,7 @@ private struct TutorialButton: ButtonStyle {
         configuration.label
             .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
             .padding(.horizontal, 16).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 8).fill(VozTheme.electric.opacity(configuration.isPressed ? 0.7 : 1)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(WarbleTheme.electric.opacity(configuration.isPressed ? 0.7 : 1)))
     }
 }
 
@@ -329,23 +329,23 @@ struct HomeView: View {
                 } else {
                     Text("Recent")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(VozTheme.mist)
+                        .foregroundStyle(WarbleTheme.mist)
                         .textCase(.uppercase)
                     VStack(spacing: 0) {
                         ForEach(store.events.suffix(8).reversed()) { e in
                             RecentRow(event: e)
                             if e.id != store.events.suffix(8).reversed().last?.id {
-                                Divider().overlay(VozTheme.line)
+                                Divider().overlay(WarbleTheme.line)
                             }
                         }
                     }
-                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
+                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
 
                     if !store.perApp.isEmpty {
                         Text("Where you dictate")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(VozTheme.mist).textCase(.uppercase)
+                            .foregroundStyle(WarbleTheme.mist).textCase(.uppercase)
                             .padding(.top, 8)
                         let maxWords = store.perApp.first?.words ?? 1
                         VStack(spacing: 12) {
@@ -354,15 +354,15 @@ struct HomeView: View {
                             }
                         }
                         .padding(16)
-                        .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
+                        .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
                     }
                 }
             }
             .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VozTheme.black)
+        .background(WarbleTheme.black)
     }
 }
 
@@ -372,17 +372,17 @@ struct PerAppRow: View {
     var body: some View {
         HStack(spacing: 10) {
             AppIconView(bundleId: app.id, size: 18)
-            Text(app.name).font(.system(size: 12)).foregroundStyle(VozTheme.textHi)
+            Text(app.name).font(.system(size: 12)).foregroundStyle(WarbleTheme.textHi)
                 .frame(width: 120, alignment: .leading).lineLimit(1)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(VozTheme.line)
-                    Capsule().fill(VozTheme.electric)
+                    Capsule().fill(WarbleTheme.line)
+                    Capsule().fill(WarbleTheme.electric)
                         .frame(width: max(6, geo.size.width * CGFloat(app.words) / CGFloat(max(1, maxWords))))
                 }
             }
             .frame(height: 8)
-            Text("\(app.words)").font(.system(size: 11)).foregroundStyle(VozTheme.mist)
+            Text("\(app.words)").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                 .frame(width: 52, alignment: .trailing)
         }
     }
@@ -395,15 +395,15 @@ struct StatCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(value)
                 .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(VozTheme.textHi)
+                .foregroundStyle(WarbleTheme.textHi)
             Text(label)
                 .font(.system(size: 13))
-                .foregroundStyle(VozTheme.mist)
+                .foregroundStyle(WarbleTheme.mist)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(VozTheme.line, lineWidth: 1))
+        .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WarbleTheme.line, lineWidth: 1))
     }
 }
 
@@ -416,20 +416,20 @@ private struct RecentRow: View {
         HStack(alignment: .top, spacing: 12) {
             Text(Self.time.string(from: event.date))
                 .font(.system(size: 12))
-                .foregroundStyle(VozTheme.mist)
+                .foregroundStyle(WarbleTheme.mist)
                 .frame(width: 64, alignment: .leading)
             VStack(alignment: .leading, spacing: 4) {
                 Text(event.text.isEmpty ? "\(event.words) words" : event.text)
                     .font(.system(size: 13))
-                    .foregroundStyle(VozTheme.textHi)
+                    .foregroundStyle(WarbleTheme.textHi)
                     .lineLimit(2)
                 HStack(spacing: 8) {
                     if let app = event.appName {
-                        Text(app).font(.system(size: 11)).foregroundStyle(VozTheme.electricText)
+                        Text(app).font(.system(size: 11)).foregroundStyle(WarbleTheme.electricText)
                     }
                     Text("· \(event.words) words · \(event.wpm) wpm")
                         .font(.system(size: 11))
-                        .foregroundStyle(VozTheme.mist)
+                        .foregroundStyle(WarbleTheme.mist)
                 }
             }
             Spacer(minLength: 0)
@@ -442,17 +442,17 @@ private struct RecentRow: View {
 private struct EmptyHome: View {
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: "mic").font(.system(size: 28)).foregroundStyle(VozTheme.electric)
+            Image(systemName: "mic").font(.system(size: 28)).foregroundStyle(WarbleTheme.electric)
             Text("**Hold Fn and speak** — your words, streak, and pace build up here. Select text and press ⌃V to hear it read aloud.")
                 .font(.system(size: 13))
-                .foregroundStyle(VozTheme.mist)
+                .foregroundStyle(WarbleTheme.mist)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
+        .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
     }
 }
 
@@ -463,8 +463,8 @@ struct PageHeader: View {
     let subtitle: String
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.system(size: 26, weight: .bold)).foregroundStyle(VozTheme.textHi)
-            Text(subtitle).font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+            Text(title).font(.system(size: 26, weight: .bold)).foregroundStyle(WarbleTheme.textHi)
+            Text(subtitle).font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
         }
     }
 }
@@ -477,11 +477,11 @@ struct EmptyState: View {
     let message: String // ends with the action, e.g. "Hold Fn and speak."
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 28)).foregroundStyle(VozTheme.electric)
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+            Image(systemName: icon).font(.system(size: 28)).foregroundStyle(WarbleTheme.electric)
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
             Text(message)
                 .font(.system(size: 13))
-                .foregroundStyle(VozTheme.mist)
+                .foregroundStyle(WarbleTheme.mist)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
         }

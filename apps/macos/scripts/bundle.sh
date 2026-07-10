@@ -1,26 +1,26 @@
 #!/bin/sh
-# Builds voz.app from the SwiftPM executable — no Xcode project needed.
+# Builds warble.app from the SwiftPM executable — no Xcode project needed.
 set -e
 cd "$(dirname "$0")/.."
 
 swift build -c release
 
-APP="build/voz.app"
+APP="build/warble.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/voz "$APP/Contents/MacOS/voz"
+cp .build/release/warble "$APP/Contents/MacOS/warble"
 cp Info.plist "$APP/Contents/Info.plist"
 
-# SwiftPM resource bundles (e.g. voz_Shared.bundle — the brand SVGs loaded via Bundle.module).
+# SwiftPM resource bundles (e.g. warble_Shared.bundle — the brand SVGs loaded via Bundle.module).
 # Bundle.module resolves these from the app's Resources dir, so copy any that the build emitted.
 for b in .build/release/*.bundle; do
   [ -e "$b" ] && cp -R "$b" "$APP/Contents/Resources/"
 done
 
 # Strip the debug symbol map — it embeds absolute build paths like
-# /Users/<you>/voz/.build/.../*.swift.o, which would otherwise leak your macOS
+# /Users/<you>/warble/.build/.../*.swift.o, which would otherwise leak your macOS
 # username into the public binary. Must run before codesign (it edits the binary).
-strip -S "$APP/Contents/MacOS/voz"
+strip -S "$APP/Contents/MacOS/warble"
 
 # Bundle the setup + bootstrap scripts so a DOWNLOADED app can install the optional engines
 # itself (menu → "Set up better engines…"). They're sealed by the signature below.
@@ -28,15 +28,15 @@ mkdir -p "$APP/Contents/Resources/scripts"
 cp scripts/bootstrap.sh scripts/setup-*.sh "$APP/Contents/Resources/scripts/" 2>/dev/null || true
 chmod +x "$APP/Contents/Resources/scripts/"*.sh 2>/dev/null || true
 
-# App icon: media/icon.png (1024px) -> voz.icns, when present.
+# App icon: media/icon.png (1024px) -> warble.icns, when present.
 if [ -f media/icon.png ]; then
-  ICONSET="build/voz.iconset"
+  ICONSET="build/warble.iconset"
   rm -rf "$ICONSET" && mkdir -p "$ICONSET"
   for s in 16 32 128 256 512; do
     sips -z $s $s media/icon.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
     sips -z $((s * 2)) $((s * 2)) media/icon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
   done
-  iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/voz.icns"
+  iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/warble.icns"
 fi
 
 # Embed Sparkle.framework (in-app updates) and point the binary's rpath at Contents/Frameworks.
@@ -46,20 +46,20 @@ fi
 if [ -d .build/release/Sparkle.framework ]; then
   mkdir -p "$APP/Contents/Frameworks"
   cp -R .build/release/Sparkle.framework "$APP/Contents/Frameworks/"
-  if ! otool -l "$APP/Contents/MacOS/voz" | grep -q "@executable_path/../Frameworks"; then
-    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/voz"
+  if ! otool -l "$APP/Contents/MacOS/warble" | grep -q "@executable_path/../Frameworks"; then
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/warble"
   fi
 fi
 
 # Sign with a STABLE identity so macOS keeps the Accessibility / Microphone grants
 # across updates. An ad-hoc signature is content-hashed and changes every build,
 # which silently invalidates the grants and re-prompts on every update.
-# Order: explicit $VOZ_SIGN_ID -> self-signed "voz Code Signing" -> first valid
+# Order: explicit $WARBLE_SIGN_ID -> self-signed "warble Code Signing" -> first valid
 # codesigning identity -> ad-hoc (only if nothing else is available).
 find_identity() {
-  if [ -n "${VOZ_SIGN_ID:-}" ]; then printf '%s' "$VOZ_SIGN_ID"; return; fi
-  if security find-identity -p codesigning 2>/dev/null | grep -q "voz Code Signing"; then
-    printf '%s' "voz Code Signing"; return
+  if [ -n "${WARBLE_SIGN_ID:-}" ]; then printf '%s' "$WARBLE_SIGN_ID"; return; fi
+  if security find-identity -p codesigning 2>/dev/null | grep -q "warble Code Signing"; then
+    printf '%s' "warble Code Signing"; return
   fi
   printf '%s' "$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/"/{print $2; exit}')"
 }

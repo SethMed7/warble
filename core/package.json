@@ -1,7 +1,7 @@
 {
-  "name": "voz-core",
+  "name": "warble-core",
   "private": true,
-  "description": "voz's portable, 100% on-device voice helpers — cross-platform, no Apple APIs. say.ts (Kokoro neural TTS) and clean.ts (deterministic transcript cleanup). Any project (a macOS shell, a CLI, a web/TS app) can embed these directly.",
+  "description": "warble's portable, 100% on-device voice helpers — cross-platform, no Apple APIs. say.ts (Kokoro neural TTS) and clean.ts (deterministic transcript cleanup). Any project (a macOS shell, a CLI, a web/TS app) can embed these directly.",
   "dependencies": {
     "kokoro-js": "^1.2.0"
   }

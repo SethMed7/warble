@@ -1,20 +1,21 @@
 /**
- * voz's premium read-aloud voice: reads text on stdin, renders it sentence by
+ * warble's premium read-aloud voice: reads text on stdin, renders it sentence by
  * sentence with Kokoro (fully on-device), and prints one WAV path per line as
  * each chunk is ready — the app starts playing after the first line.
- * Installed to ~/.voz/kokoro by scripts/setup-kokoro.sh; run with bun.
+ * Installed to ~/.warble/kokoro by scripts/setup-kokoro.sh; run with bun.
  */
 import { existsSync, mkdirSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Kokoro's weights follow the memex standard: big models live ONCE in the shared store
-// (~/.memex/ai/models, relocatable via MEMEX_AI_HOME) and are reused across apps; VOZ_KOKORO_CACHE
-// overrides for voz alone. A pre-memex cache at ~/.cache/huggingface-transformers is moved into the
+// (~/.memex/ai/models, relocatable via MEMEX_AI_HOME) and are reused across apps; WARBLE_KOKORO_CACHE
+// overrides for warble alone. A pre-memex cache at ~/.cache/huggingface-transformers is moved into the
 // store one time; if that move fails for ANY reason, the legacy dir keeps serving so reads never
-// break. Duplicated in say-server.ts — both are standalone scripts deployed to ~/.voz/kokoro.
+// break. Duplicated in say-server.ts — both are standalone scripts deployed to ~/.warble/kokoro.
 function kokoroCacheDir(): string {
-  if (process.env.VOZ_KOKORO_CACHE) return process.env.VOZ_KOKORO_CACHE;
+  const cacheOverride = process.env.WARBLE_KOKORO_CACHE ?? process.env.VOZ_KOKORO_CACHE; // VOZ_: rename-era fallback
+  if (cacheOverride) return cacheOverride;
   const root = process.env.MEMEX_AI_HOME ?? `${process.env.HOME}/.memex/ai`;
   const shared = `${root}/models/kokoro`; // transformers.js nests its own <org>/<model> dirs inside
   const legacy = `${process.env.HOME}/.cache/huggingface-transformers`;
@@ -107,8 +108,8 @@ const tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX
   device: "cpu",
 });
 
-const voice = (process.env.VOZ_VOICE ?? process.env.LEELO_VOICE ?? "af_heart") as Parameters<typeof tts.generate>[1] extends { voice?: infer V } ? V : never;
-const dir = mkdtempSync(join(tmpdir(), "voz-"));
+const voice = (process.env.WARBLE_VOICE ?? process.env.LEELO_VOICE ?? "af_heart") as Parameters<typeof tts.generate>[1] extends { voice?: infer V } ? V : never;
+const dir = mkdtempSync(join(tmpdir(), "warble-"));
 let i = 0;
 for (const chunk of chunkText(text)) {
   const audio = await tts.generate(chunk, { voice });

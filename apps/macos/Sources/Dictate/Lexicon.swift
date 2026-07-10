@@ -5,8 +5,8 @@ import Foundation
 /// word when you fix it in place. Keys match case-insensitively on word boundaries; the value is
 /// inserted verbatim, so "myela" → "Myela" fixes both the spelling and the casing.
 ///
-/// Fully local. The file defaults to ~/.voz/dictionary.json but you can point it anywhere
-/// (dashboard "Choose…", or the VOZ_DICTIONARY env var) — e.g. into a synced folder you control.
+/// Fully local. The file defaults to ~/.warble/dictionary.json but you can point it anywhere
+/// (dashboard "Choose…", or the WARBLE_DICTIONARY env var) — e.g. into a synced folder you control.
 /// An existing ~/.dictado/dictionary.json (or DICTADO_DICTIONARY) is still honored as a fallback.
 final class Lexicon {
     static let shared = Lexicon()
@@ -23,7 +23,7 @@ final class Lexicon {
 
     struct PendingTarget { var to: String; var froms: Set<String>; var count: Int }
 
-    /// How many times you must make the same in-place fix before voz adds it as a rule. Default 2;
+    /// How many times you must make the same in-place fix before warble adds it as a rule. Default 2;
     /// set it in the Dictionary window. So "Deval"→"Dhaval" becomes a rule on the 2nd time you fix it.
     var learnThreshold: Int {
         get { max(1, UserDefaults.standard.object(forKey: "learnThreshold") as? Int ?? 2) }
@@ -36,14 +36,14 @@ final class Lexicon {
         case ignored                                         // nothing to learn
     }
 
-    private let comment = "corrections: map a misspelling (lowercase) to the spelling you want — e.g. \"myayla\": \"Myela\"; voz applies these to every dictation. pronunciations: map a word (lowercase) to how read-aloud should say it — e.g. \"myela\": \"my-ell-uh\"."
+    private let comment = "corrections: map a misspelling (lowercase) to the spelling you want — e.g. \"myayla\": \"Myela\"; warble applies these to every dictation. pronunciations: map a word (lowercase) to how read-aloud should say it — e.g. \"myela\": \"my-ell-uh\"."
 
     init() { load() }
 
-    /// Resolved dictionary file: VOZ_DICTIONARY/DICTADO_DICTIONARY env → saved location →
-    /// ~/.voz (or an existing ~/.dictado). Always a file path.
+    /// Resolved dictionary file: WARBLE_DICTIONARY/DICTADO_DICTIONARY env → saved location →
+    /// ~/.warble (or an existing ~/.dictado). Always a file path.
     var fileURL: URL {
-        for key in ["VOZ_DICTIONARY", "DICTADO_DICTIONARY"] {
+        for key in ["WARBLE_DICTIONARY", "DICTADO_DICTIONARY"] {
             if let env = ProcessInfo.processInfo.environment[key], !env.isEmpty {
                 return URL(fileURLWithPath: (env as NSString).expandingTildeInPath)
             }
@@ -52,11 +52,11 @@ final class Lexicon {
             return URL(fileURLWithPath: saved)
         }
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let voz = home.appendingPathComponent(".voz/dictionary.json")
+        let warble = home.appendingPathComponent(".warble/dictionary.json")
         let legacy = home.appendingPathComponent(".dictado/dictionary.json")
-        if FileManager.default.fileExists(atPath: voz.path) { return voz }
+        if FileManager.default.fileExists(atPath: warble.path) { return warble }
         if FileManager.default.fileExists(atPath: legacy.path) { return legacy } // keep prior dictionary loading
-        return voz // fresh installs write here
+        return warble // fresh installs write here
     }
 
     func load() {

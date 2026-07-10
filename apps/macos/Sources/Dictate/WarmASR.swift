@@ -1,24 +1,24 @@
 import Foundation
 import Shared
 
-/// Manages voz's warm Parakeet ASR server (core/asr-server.py in a venv, installed by
+/// Manages warble's warm Parakeet ASR server (core/asr-server.py in a venv, installed by
 /// scripts/setup-asr.sh). It keeps the model loaded so each clip transcribes in ~0.08s over
 /// loopback HTTP instead of the ~1.5s a cold sherpa CLI spawn costs — same model, same quality.
 ///
-/// Optional + graceful: if the venv/script/model aren't present, everything no-ops and voz uses the
-/// cold transcription chain. A server left running from a previous voz session is detected (health
+/// Optional + graceful: if the venv/script/model aren't present, everything no-ops and warble uses the
+/// cold transcription chain. A server left running from a previous warble session is detected (health
 /// check) and reused, so warmth persists across restarts.
 final class WarmASR {
     static let shared = WarmASR()
 
-    private let port = ProcessInfo.processInfo.environment["VOZ_ASR_PORT"] ?? "8765"
+    private let port = ProcessInfo.processInfo.environment["WARBLE_ASR_PORT"] ?? "8765"
     private var server: Process?
     private let lock = NSLock()
 
     private static func home() -> String { FileManager.default.homeDirectoryForCurrentUser.path }
-    static func venvPython() -> String? { Subprocess.firstExecutable(["\(home())/.voz/asr-venv/bin/python3"]) }
+    static func venvPython() -> String? { Subprocess.firstExecutable(["\(home())/.warble/asr-venv/bin/python3"]) }
     static func scriptPath() -> String? {
-        let p = "\(home())/.voz/asr-server.py"
+        let p = "\(home())/.warble/asr-server.py"
         return FileManager.default.fileExists(atPath: p) ? p : nil
     }
     /// Installed = venv python + the server script + the Parakeet model all present.
@@ -42,8 +42,8 @@ final class WarmASR {
         p.executableURL = URL(fileURLWithPath: py)
         p.arguments = [script]
         var env = ProcessInfo.processInfo.environment
-        env["VOZ_ASR_PORT"] = port
-        if let model = SherpaTranscriber.modelDir() { env["VOZ_PARAKEET_MODEL"] = model }
+        env["WARBLE_ASR_PORT"] = port
+        if let model = SherpaTranscriber.modelDir() { env["WARBLE_PARAKEET_MODEL"] = model }
         p.environment = env
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice

@@ -23,7 +23,7 @@ public enum LoopbackHTTP {
         return perform(req, timeout: timeout)
     }
 
-    /// A warm-server port can be squatted by an unrelated local service, and every voz server answers
+    /// A warm-server port can be squatted by an unrelated local service, and every warble server answers
     /// /health with {"ok": true} — so "responded but not ours" is its own signal, distinct from "no
     /// response". `.foreign` will never become healthy (our spawn couldn't even bind), so callers bail
     /// to their cold chains at once instead of polling the full model-load wait on every request.

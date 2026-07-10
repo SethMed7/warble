@@ -14,7 +14,7 @@ final class LearnPill: NSObject {
 
     // Tokens from Shared/Theme — one canon (brand/tokens.md), no local literals.
     private let textHi = Theme.textHi.ns
-    private let blue = Theme.electric.ns   // electric blue — voz brand accent
+    private let blue = Theme.electric.ns   // electric blue — warble brand accent
     private let muted = Theme.mist.ns
     private let bg = Theme.pillSurface.ns  // canon ink at 97%, same surface as the dictation pill
     private let circle = Theme.line.ns     // neutral circle-control fill: line, with a text-hi glyph

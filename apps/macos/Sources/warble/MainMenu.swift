@@ -23,10 +23,10 @@ enum MainMenu {
         bar.addItem(item)
     }
 
-    /// The app menu. The title string is cosmetic — the bar shows the process name "voz".
+    /// The app menu. The title string is cosmetic — the bar shows the process name "warble".
     private static func appMenu(updater: SPUStandardUpdaterController, delegate: AppDelegate) -> NSMenu {
-        let menu = NSMenu(title: "voz")
-        let about = NSMenuItem(title: "About voz",
+        let menu = NSMenu(title: "warble")
+        let about = NSMenuItem(title: "About warble",
                                action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                                keyEquivalent: "")
         about.target = NSApp
@@ -45,7 +45,7 @@ enum MainMenu {
         menu.addItem(settings)
         menu.addItem(.separator())
         // A .regular app is expected to honor ⌘H; these cost zero code.
-        menu.addItem(NSMenuItem(title: "Hide voz", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"))
+        menu.addItem(NSMenuItem(title: "Hide warble", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"))
         let hideOthers = NSMenuItem(title: "Hide Others",
                                     action: #selector(NSApplication.hideOtherApplications(_:)),
                                     keyEquivalent: "h")
@@ -55,7 +55,7 @@ enum MainMenu {
                                 keyEquivalent: ""))
         menu.addItem(.separator())
         // Runs the existing applicationWillTerminate teardown (engine shutdowns).
-        menu.addItem(NSMenuItem(title: "Quit voz", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit warble", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
     }
 
@@ -69,7 +69,7 @@ enum MainMenu {
     /// The full standard Edit menu — the reason this menu exists: SwiftUI text fields inside
     /// NSHostingView only get cut/copy/paste/undo via main-menu key equivalents; without it,
     /// ⌘C in the History search field just beeps. Every item targets the first responder.
-    /// (No collision with voz's global hotkeys: read-aloud is ⌃V not ⌘V, dictation is Fn.)
+    /// (No collision with warble's global hotkeys: read-aloud is ⌃V not ⌘V, dictation is Fn.)
     private static func editMenu() -> NSMenu {
         let menu = NSMenu(title: "Edit")
         // undo:/redo: are string selectors — the standard AppKit idiom; there's no @objc method to reference.

@@ -1,5 +1,5 @@
 ---
-name: voz
+name: warble
 description: The voice layer for your Mac — one electric-blue signal on black, 100% on-device.
 colors:
   electric-deep: "#1E5BFF"
@@ -126,16 +126,16 @@ components:
      tint of electric (7.70:1 on ink); warn #FF9F0A (macOS systemOrange, dark) is the single
      declared exception to the one-accent law, failure states only. -->
 
-# Design System: voz
+# Design System: warble
 
 ## 1. Overview
 
 **Creative North Star: "One lit signal on black."**
 
-voz is a quiet black instrument, and the only living thing on it is the voice — a single
+warble is a quiet black instrument, and the only living thing on it is the voice — a single
 electric-blue signal that moves when you speak and rests when you don't. Every surface is dark
 (black `#07080C` backdrop, ink `#161520` panels), every border is a hairline, and every trace of
-blue means either *voz itself* or *the user acting*. The system deliberately rejects: second
+blue means either *warble itself* or *the user acting*. The system deliberately rejects: second
 accent hues, light in-app surfaces, decorative glow, gradient washes (the deep→cyan voice gradient
 belongs to the logo, icon, and marketing — never in-app chrome), and "AI-powered" hype styling.
 The tone is calm, plain, and honest about privacy — lowercase, unhurried, bragging about what
@@ -149,7 +149,7 @@ while it processes. Nothing else moves at rest.
 
 **Key Characteristics:**
 - Two dark surfaces only (black backdrop, ink panels) separated by hairlines — no third tone.
-- One accent, electric blue, spent where the user acts or where voz is alive.
+- One accent, electric blue, spent where the user acts or where warble is alive.
 - Motion — not a second color — is the "live" signal.
 - SF Pro everywhere in-app; the brand faces (Sora, Inter) never appear inside the app.
 - Floating surfaces are full capsules; windowed surfaces are soft rectangles (6–16px).
@@ -188,7 +188,7 @@ lives on.
 ### Named Rules
 **The One-Accent Rule.** Electric is the only hue in the app. Its tints (electric-deep fills,
 electric-text labels, 14–18% washes) are the *same* accent, not new colors. Accent is spent only
-where the user acts or where voz is alive — never on decorative borders, random headings, or every
+where the user acts or where warble is alive — never on decorative borders, random headings, or every
 icon in a list. The sole non-blue chroma permitted is warn, on failures, with a glyph.
 
 **The Motion-Is-The-Signal Rule.** "Is it listening / is it reading?" is answered by motion, never
@@ -213,7 +213,7 @@ marketing surface. Weights carry hierarchy: `.heavy` is reserved for the read-al
 
 ### Hierarchy
 - **Display** (700, 32px, 1.1): stat values on dashboard cards. Large text — 3:1 floor applies.
-- **Headline** (700, 24px, 1.15): window/page titles ("Welcome to voz", "Better engines").
+- **Headline** (700, 24px, 1.15): window/page titles ("Welcome to warble", "Better engines").
 - **Title** (600, 15px, 1.3): card and row titles (engine names, gesture titles).
 - **Reader** (400, 15px, 1.5): the read-along transcript. Inactive segments mist, active segment
   text-hi, and the live word: 15px **heavy** white on electric (4.15:1 — passes as large text,
@@ -226,12 +226,12 @@ marketing surface. Weights carry hierarchy: `.heavy` is reserved for the read-al
 **The Data-Label Rule.** Uppercase micro-labels are data labels (spec chips, table headers) —
 never section eyebrows. Default eyebrow count per screen: zero.
 
-**The Lowercase Rule.** In running text the product is always lowercase **voz** (later: the
+**The Lowercase Rule.** In running text the product is always lowercase **warble** (later: the
 renamed wordmark follows the same law). Never "AI-powered"; always "on-device."
 
 ## 4. Elevation
 
-voz is flat and tonal: depth comes from exactly two surface tones — black backdrop below, ink
+warble is flat and tonal: depth comes from exactly two surface tones — black backdrop below, ink
 panels above — separated by 1px `line` hairlines, not from shadow stacks. Hairlines are
 decorative (the label/glyph carries the affordance), so they are exempt from the 3:1 non-text
 floor by design.
@@ -330,7 +330,7 @@ not retune it from this document.** The spinner is a 2px electric arc, 16px, onl
 - **Don't** name a light color "ink" — ink is the dark surface; light text is text-hi.
 - **Don't** use the voice gradient (deep→cyan) inside the app — it belongs to the logo, icon, and
   marketing surfaces only.
-- **Don't** bring Sora or Inter into the app; in-app type is SF Pro, and "voz" stays lowercase in
+- **Don't** bring Sora or Inter into the app; in-app type is SF Pro, and "warble" stays lowercase in
   prose. Never "AI-powered"; always "on-device."
 - **Don't** let anything loop at rest: waveforms flat when idle, spinners gone when done,
   transition debris dissolved.

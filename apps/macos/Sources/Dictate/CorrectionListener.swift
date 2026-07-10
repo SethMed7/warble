@@ -101,10 +101,10 @@ final class CorrectionListener {
         return nil
     }
 
-    /// Diagnostic for `--axprobe`: describe the frontmost app's focused element + whether voz can
+    /// Diagnostic for `--axprobe`: describe the frontmost app's focused element + whether warble can
     /// read text from it (used to figure out edit-watching support in a given app, e.g. a terminal).
     static func probe() -> String {
-        guard AXIsProcessTrusted() else { return "accessibility: NOT granted — grant voz first" }
+        guard AXIsProcessTrusted() else { return "accessibility: NOT granted — grant warble first" }
         guard let el = focusedElement() else { return "no focused UI element (click into a text area, then re-run)" }
         let role = stringAttr(el, kAXRoleAttribute) ?? "?"
         let sub = stringAttr(el, kAXSubroleAttribute) ?? "-"
@@ -114,7 +114,7 @@ final class CorrectionListener {
         if let s = stringAttr(el, kAXSelectedTextAttribute), !s.isEmpty { lines.append("AXSelectedText: \"\(snippet(s))\"") }
         if let d = firstTextValue(in: el, depth: 0) { lines.append("descendant text: \(d.count) chars — \"\(snippet(d))\"") }
         let readable = value(of: el) != nil
-        lines.append(readable ? "→ voz CAN read text here (edit-watching should work)" : "→ voz CANNOT read text here (edit-watching won't work in this app)")
+        lines.append(readable ? "→ warble CAN read text here (edit-watching should work)" : "→ warble CANNOT read text here (edit-watching won't work in this app)")
         return lines.joined(separator: "\n")
     }
 

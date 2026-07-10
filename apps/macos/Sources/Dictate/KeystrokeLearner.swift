@@ -4,10 +4,10 @@ import Carbon.HIToolbox
 /// Learns spelling corrections by WATCHING THE KEYSTROKES you type after a paste — no Accessibility
 /// text-read needed, so it works where the AX approach can't (terminals like Ghostty / Claude Code).
 ///
-/// voz knows exactly what it pasted and that the cursor sits at the end of it. From there it replays
+/// warble knows exactly what it pasted and that the cursor sits at the end of it. From there it replays
 /// your edits onto a shadow copy of the text: printable keys insert, Backspace/Delete remove, ◀ ▶
 /// move the caret. When the text settles, it diffs the shadow against what was pasted; a clean
-/// one-word swap of a word voz typed is a correction. It bails (no guess) on anything it can't track
+/// one-word swap of a word warble typed is a correction. It bails (no guess) on anything it can't track
 /// — a mouse click, vertical/Home/End navigation, or a ⌘/⌃/⌥ shortcut — so it never invents an edit.
 final class KeystrokeLearner {
     private var monitors: [Any] = []

@@ -56,7 +56,7 @@ final class Recorder {
         let maxFrames = AVAudioFramePosition(Self.maxSeconds * sampleRate)
 
         let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("voz-\(ProcessInfo.processInfo.globallyUniqueString).wav")
+            .appendingPathComponent("warble-\(ProcessInfo.processInfo.globallyUniqueString).wav")
         do {
             file = try AVAudioFile(forWriting: tmp, settings: format.settings)
         } catch {

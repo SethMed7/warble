@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "voz",
+    name: "warble",
     platforms: [.macOS(.v13)],
     dependencies: [
         // Sparkle: in-app "Check for Updates…" + a quiet scheduled check, with secure (EdDSA-signed)
-        // download/replace/relaunch. The ONLY external dependency — used only by the `voz` app target;
+        // download/replace/relaunch. The ONLY external dependency — used only by the `warble` app target;
         // the portable `core/` and the capability modules stay dependency-free.
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
     ],
@@ -18,9 +18,9 @@ let package = Package(
         .target(name: "Speak", dependencies: ["Shared"], path: "Sources/Speak"),
         .target(name: "Dictate", dependencies: ["Shared"], path: "Sources/Dictate"),
         .executableTarget(
-            name: "voz",
+            name: "warble",
             dependencies: ["Speak", "Dictate", .product(name: "Sparkle", package: "Sparkle")],
-            path: "Sources/voz"
+            path: "Sources/warble"
         ),
     ]
 )

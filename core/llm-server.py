@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""voz's warm LLM polish server — loads a small on-device instruct model via MLX (Apple's Metal
+"""warble's warm LLM polish server — loads a small on-device instruct model via MLX (Apple's Metal
 array framework) ONCE and serves dictation cleanup over local HTTP, so the polish step is never
 slowed by the per-clip model reload a one-shot CLI pays. Warm polishes are ~0.3-1s. Same warm-server
 pattern as core/asr-server.py. 100% on-device; binds 127.0.0.1 ONLY; reaches the network NEVER at
@@ -27,8 +27,8 @@ def env(*names, default=""):
     return default
 
 
-MODEL = env("VOZ_LLM_MODEL", default="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
-PORT = int(env("VOZ_LLM_PORT", default="8766"))
+MODEL = env("WARBLE_LLM_MODEL", default=env("VOZ_LLM_MODEL", default="mlx-community/Qwen2.5-1.5B-Instruct-4bit"))  # VOZ_: rename-era fallback
+PORT = int(env("WARBLE_LLM_PORT", default="8766"))
 
 # Load once. On a fresh machine the weights must already be in the Hugging Face cache (setup-cleaner.sh
 # downloaded them with your consent); HF_HUB_OFFLINE=1 (set by the app) guarantees no network here.
@@ -37,7 +37,7 @@ model, tokenizer = load(MODEL)
 
 # Reclaim memory when unused: exit after a stretch with no requests (the app re-warms on the next
 # dictation). Also reclaims an orphaned server left behind by a crash/force-quit.
-IDLE = float(env("VOZ_LLM_IDLE_S", default="600"))
+IDLE = float(env("WARBLE_LLM_IDLE_S", default="600"))
 _last = [time.time()]
 
 

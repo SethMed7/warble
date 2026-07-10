@@ -4,9 +4,9 @@ import Dictate
 import Shared
 import Sparkle
 
-/// voz — the voice layer for your Mac. One menu-bar app, two capabilities:
+/// warble — the voice layer for your Mac. One menu-bar app, two capabilities:
 ///   • Dictate — hold Fn, speak, release; the cleaned text is typed where your cursor is.
-///   • Read aloud — select text anywhere, press ⌃V; voz reads it and follows along.
+///   • Read aloud — select text anywhere, press ⌃V; warble reads it and follows along.
 ///
 /// Each capability is a self-contained controller from its own module. The app owns the
 /// single shared status item and routes each capability's icon/menu updates through here,
@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // onto Sparkle's scheduled checker now, and keep it in sync live. "Check for Updates…" in the
         // menu works regardless of this toggle.
         applyAutoUpdatePref()
-        NotificationCenter.default.addObserver(forName: .vozAutoUpdateChanged, object: nil, queue: .main) {
+        NotificationCenter.default.addObserver(forName: .warbleAutoUpdateChanged, object: nil, queue: .main) {
             [weak self] _ in self?.applyAutoUpdatePref()
         }
 
@@ -79,19 +79,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { WelcomeWindow.shared.open() }
         }
 
-        // QA hook (off by default): VOZ_FORCE_TUTORIAL=1 opens Insights and replays the coachmark tour,
+        // QA hook (off by default): WARBLE_FORCE_TUTORIAL=1 opens Insights and replays the coachmark tour,
         // so the first-run walkthrough can be previewed without going through engine setup each time.
-        if ProcessInfo.processInfo.environment["VOZ_FORCE_TUTORIAL"] == "1" {
+        if ProcessInfo.processInfo.environment["WARBLE_FORCE_TUTORIAL"] == "1" {
             UserDefaults.standard.set(false, forKey: "didShowTutorial")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { InsightsWindow.shared.openTutorial() }
         }
-        // QA hook (off by default): VOZ_FORCE_SETUP=1 opens the "Set up better engines" window on launch.
-        if ProcessInfo.processInfo.environment["VOZ_FORCE_SETUP"] == "1" {
+        // QA hook (off by default): WARBLE_FORCE_SETUP=1 opens the "Set up better engines" window on launch.
+        if ProcessInfo.processInfo.environment["WARBLE_FORCE_SETUP"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { SetupWindow.shared.open() }
         }
-        // QA hook (off by default): VOZ_FORCE_INSIGHTS=1 opens the Insights window on Home — handy for
+        // QA hook (off by default): WARBLE_FORCE_INSIGHTS=1 opens the Insights window on Home — handy for
         // eyeballing the dashboard/sidebar without dictating first.
-        if ProcessInfo.processInfo.environment["VOZ_FORCE_INSIGHTS"] == "1" {
+        if ProcessInfo.processInfo.environment["WARBLE_FORCE_INSIGHTS"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { InsightsWindow.shared.openHome() }
         }
     }
@@ -112,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var dockDemotion: DispatchWorkItem? // pending drop to .accessory — debounced, see windowWillClose
 
-    /// True for voz's real app windows — Dashboard, Setup, Welcome — the ones that summon the Dock
+    /// True for warble's real app windows — Dashboard, Setup, Welcome — the ones that summon the Dock
     /// icon. Overlays/pills are NSPanels; Sparkle's update windows arrive wrapped in SU*/SPU*
     /// window controllers; ours are bare titled NSWindows we create ourselves.
     private func isAppWindow(_ w: NSWindow) -> Bool {
@@ -190,12 +190,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Show the highest-priority capability's icon; when both are idle, show the brand mark.
     private func applyIcon() {
         let winner = dictateIcon.priority >= speakIcon.priority ? dictateIcon : speakIcon
-        // Resting (both idle) → the voz brand V. Active → the live SF Symbol, so a hot mic or an
+        // Resting (both idle) → the warble brand V. Active → the live SF Symbol, so a hot mic or an
         // in-progress read still reads at a glance.
         if winner.priority == 0 {
-            statusItem.button?.image = VozMark.menuBarTemplate()
+            statusItem.button?.image = WarbleMark.menuBarTemplate()
         } else {
-            statusItem.button?.image = NSImage(systemSymbolName: winner.symbol, accessibilityDescription: "voz")
+            statusItem.button?.image = NSImage(systemSymbolName: winner.symbol, accessibilityDescription: "warble")
         }
     }
 
@@ -206,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.autoenablesItems = false // the header row is explicitly disabled
 
-        let header = NSMenuItem(title: "voz", action: nil, keyEquivalent: "")
+        let header = NSMenuItem(title: "warble", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         menu.addItem(.separator())
@@ -232,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(updates)
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quit voz", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit warble", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
 
         statusItem.menu = menu
@@ -250,17 +250,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func runBootstrap() { SetupWindow.shared.open() }
 }
 
-/// "Show Dock icon" — app-level pref (plain UserDefaults, voz. prefix per convention).
+/// "Show Dock icon" — app-level pref (plain UserDefaults, warble. prefix per convention).
 /// whileWindowsOpen is the Rectangle/Ice hybrid: Dock icon + main menu appear only while a real
 /// app window (Dashboard, Setup, Welcome) is open; the menu-bar presence never changes.
 private enum DockIconMode: String {
     case whileWindowsOpen, always, never
     static var current: DockIconMode {
-        DockIconMode(rawValue: UserDefaults.standard.string(forKey: "voz.dockIcon") ?? "") ?? .whileWindowsOpen
+        DockIconMode(rawValue: UserDefaults.standard.string(forKey: "warble.dockIcon") ?? "") ?? .whileWindowsOpen
     }
 }
 
 /// Posted by the dashboard's "Show Dock icon" control after it writes the default. No payload —
 /// we re-read UserDefaults, the single source of truth. (Not KVO: the key contains a dot, which
-/// UserDefaults KVO can't address, and this mirrors the .vozAutoUpdateChanged pattern anyway.)
-private let dockIconModeChanged = Notification.Name("voz.dockIconModeChanged")
+/// UserDefaults KVO can't address, and this mirrors the .warbleAutoUpdateChanged pattern anyway.)
+private let dockIconModeChanged = Notification.Name("warble.dockIconModeChanged")

@@ -2,9 +2,9 @@ import SwiftUI
 import Shared
 
 /// The Insights window's palette — every value aliases the shared `Theme` (canon: brand/tokens.md),
-/// kept only so existing call sites keep reading `VozTheme.x` unchanged.
+/// kept only so existing call sites keep reading `WarbleTheme.x` unchanged.
 /// One accent only — surfaces and charts differentiate by depth/opacity, never a second hue.
-enum VozTheme {
+enum WarbleTheme {
     static let black = Theme.black.color                   // backdrop
     static let ink = Theme.ink.color                       // raised surface (cards)
     static let line = Theme.line.color                     // hairline

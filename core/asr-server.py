@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""voz's warm ASR server — loads NVIDIA Parakeet (sherpa-onnx) ONCE and serves transcription over
+"""warble's warm ASR server — loads NVIDIA Parakeet (sherpa-onnx) ONCE and serves transcription over
 local HTTP, so dictation is never slowed by the per-clip model reload (~1.5s) that the one-shot CLI
 pays. Warm decodes are ~0.05s. 100% on-device; binds 127.0.0.1 ONLY. Reuses the model already on
 disk — nothing is re-downloaded. Installed + run by scripts/setup-asr.sh (a venv with sherpa-onnx).
@@ -22,10 +22,10 @@ def env(*names, default=""):
     return default
 
 
-MODEL = env("VOZ_PARAKEET_MODEL", "DICTADO_PARAKEET_MODEL",
+MODEL = env("WARBLE_PARAKEET_MODEL", "DICTADO_PARAKEET_MODEL",
             default=os.path.expanduser("~/.cache/sherpa/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"))
-PORT = int(env("VOZ_ASR_PORT", default="8765"))
-THREADS = int(env("VOZ_ASR_THREADS", default="4"))
+PORT = int(env("WARBLE_ASR_PORT", default="8765"))
+THREADS = int(env("WARBLE_ASR_THREADS", default="4"))
 
 recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
     tokens=f"{MODEL}/tokens.txt",
@@ -40,7 +40,7 @@ recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
 
 # Reclaim memory when unused: exit after a stretch with no requests (the app re-warms on the next
 # dictation). Also reclaims an orphaned server left behind by a crash/force-quit.
-IDLE = float(env("VOZ_ASR_IDLE_S", default="300"))
+IDLE = float(env("WARBLE_ASR_IDLE_S", default="300"))
 _last = [time.time()]
 
 

@@ -2,12 +2,12 @@ import AppKit
 
 extension Notification.Name {
     /// Posted by `InsightStore.clearAll()` so derived local caches (the Insights AI snapshot) wipe in lockstep.
-    static let vozInsightsCleared = Notification.Name("voz.insightsCleared")
+    static let warbleInsightsCleared = Notification.Name("warble.insightsCleared")
     /// Posted when `autoUpdateEnabled` changes so the app target's Sparkle updater applies it immediately.
-    public static let vozAutoUpdateChanged = Notification.Name("voz.autoUpdateChanged")
+    public static let warbleAutoUpdateChanged = Notification.Name("warble.autoUpdateChanged")
 }
 
-/// The local store behind voz Insights, all under ~/.voz:
+/// The local store behind warble Insights, all under ~/.warble:
 ///   history.json   — append-only JSON-Lines log of dictations (text + metrics)
 ///   audio/<id>.m4a — the saved recording for each dictation (when audio-saving is on);
 ///                    16 kHz mono AAC. Pre-0.1.8 installs have raw <id>.wav — still read.
@@ -48,21 +48,21 @@ public final class InsightStore: ObservableObject {
         get { UserDefaults.standard.object(forKey: "insightsAIAuto") as? Bool ?? true }
         set { objectWillChange.send(); UserDefaults.standard.set(newValue, forKey: "insightsAIAuto") }
     }
-    /// Whether voz checks for app updates automatically (the quiet ~daily background check). The
+    /// Whether warble checks for app updates automatically (the quiet ~daily background check). The
     /// "Check for Updates…" menu item is always available regardless. Default on. The app target's
-    /// Sparkle updater syncs to this — the setter posts `.vozAutoUpdateChanged` so it applies at once.
+    /// Sparkle updater syncs to this — the setter posts `.warbleAutoUpdateChanged` so it applies at once.
     public var autoUpdateEnabled: Bool {
-        get { UserDefaults.standard.object(forKey: "vozAutoUpdate") as? Bool ?? true }
+        get { UserDefaults.standard.object(forKey: "warbleAutoUpdate") as? Bool ?? true }
         set {
             objectWillChange.send()
-            UserDefaults.standard.set(newValue, forKey: "vozAutoUpdate")
-            NotificationCenter.default.post(name: .vozAutoUpdateChanged, object: nil)
+            UserDefaults.standard.set(newValue, forKey: "warbleAutoUpdate")
+            NotificationCenter.default.post(name: .warbleAutoUpdateChanged, object: nil)
         }
     }
 
-    let dir: URL          // ~/.voz
-    private let fileURL: URL    // ~/.voz/history.json
-    private let audioDir: URL   // ~/.voz/audio
+    let dir: URL          // ~/.warble
+    private let fileURL: URL    // ~/.warble/history.json
+    private let audioDir: URL   // ~/.warble/audio
 
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
@@ -70,7 +70,7 @@ public final class InsightStore: ObservableObject {
     }()
 
     private init() {
-        dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".voz")
+        dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".warble")
         fileURL = dir.appendingPathComponent("history.json")
         audioDir = dir.appendingPathComponent("audio")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
@@ -173,7 +173,7 @@ public final class InsightStore: ObservableObject {
 
     /// Wipe every transcript and recording — AND the derived Insights AI cache (the Data & Privacy
     /// "Clear all" promises everything goes). Deletes the AI file directly (true even if the AI view was
-    /// never opened) and posts `.vozInsightsCleared` so a live `AIInsightsStore` drops its in-memory copy.
+    /// never opened) and posts `.warbleInsightsCleared` so a live `AIInsightsStore` drops its in-memory copy.
     func clearAll() {
         events.removeAll()
         try? FileManager.default.removeItem(at: fileURL)
@@ -181,7 +181,7 @@ public final class InsightStore: ObservableObject {
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("insights-ai.json"))
         try? FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true,
                                                  attributes: [.posixPermissions: 0o700])
-        NotificationCenter.default.post(name: .vozInsightsCleared, object: nil)
+        NotificationCenter.default.post(name: .warbleInsightsCleared, object: nil)
     }
 
     /// All events as a pretty JSON array, for Export.

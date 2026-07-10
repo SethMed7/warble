@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-07-10T00:00:00Z",
-  "title": "Design System: voz",
+  "title": "Design System: warble",
   "extensions": {
     "colorMeta": {
       "electric": { "role": "primary", "displayName": "Electric", "canonical": "#2E74FF", "tonalRamp": ["#0A1E4D", "#123170", "#1A459C", "#1E5BFF", "#2E74FF", "#5B8FFF", "#7FA8FF", "#B8CFFF"] },
@@ -95,7 +95,7 @@
       "name": "Overlay Pill",
       "kind": "custom",
       "refersTo": "overlay-pill",
-      "description": "The floating capsule with the lit waveform — voz's signature surface.",
+      "description": "The floating capsule with the lit waveform — warble's signature surface.",
       "html": "<div class=\"ds-pill\"><div class=\"ds-pill-bars\"><span style=\"height:6px\"></span><span style=\"height:14px\"></span><span style=\"height:9px\"></span><span style=\"height:16px\"></span><span style=\"height:8px\"></span><span style=\"height:12px\"></span><span style=\"height:5px\"></span></div></div>",
       "css": ".ds-pill { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; background: rgba(22, 21, 32, 0.97); border: 1px solid #2A2833; border-radius: 999px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); } .ds-pill-bars { display: inline-flex; align-items: center; gap: 3px; width: 64px; height: 20px; justify-content: center; } .ds-pill-bars span { width: 5px; border-radius: 999px; background: #2E74FF; box-shadow: 0 0 4px rgba(46, 116, 255, 0.7); }"
     },
@@ -118,20 +118,20 @@
   ],
   "narrative": {
     "northStar": "One lit signal on black.",
-    "overview": "voz is a quiet black instrument, and the only living thing on it is the voice — a single electric-blue signal that moves when you speak and rests when you don't. Every surface is dark (black #07080C backdrop, ink #161520 panels), every border is a hairline, and every trace of blue means either voz itself or the user acting. The system deliberately rejects second accent hues, light in-app surfaces, decorative glow, gradient washes in chrome, and 'AI-powered' hype styling. The tone is calm, plain, and honest about privacy — lowercase, unhurried, bragging about what doesn't happen. Density is utility-grade; motion is restrained — entrances fire once, and the only looping motion in the whole app is the honest live signal.",
+    "overview": "warble is a quiet black instrument, and the only living thing on it is the voice — a single electric-blue signal that moves when you speak and rests when you don't. Every surface is dark (black #07080C backdrop, ink #161520 panels), every border is a hairline, and every trace of blue means either warble itself or the user acting. The system deliberately rejects second accent hues, light in-app surfaces, decorative glow, gradient washes in chrome, and 'AI-powered' hype styling. The tone is calm, plain, and honest about privacy — lowercase, unhurried, bragging about what doesn't happen. Density is utility-grade; motion is restrained — entrances fire once, and the only looping motion in the whole app is the honest live signal.",
     "keyCharacteristics": [
       "Two dark surfaces only (black backdrop, ink panels) separated by hairlines — no third tone.",
-      "One accent, electric blue, spent where the user acts or where voz is alive.",
+      "One accent, electric blue, spent where the user acts or where warble is alive.",
       "Motion — not a second color — is the 'live' signal.",
       "SF Pro everywhere in-app; the brand faces (Sora, Inter) never appear inside the app.",
       "Floating surfaces are full capsules; windowed surfaces are soft rectangles (6–16px)."
     ],
     "rules": [
-      { "name": "The One-Accent Rule", "body": "Electric is the only hue in the app. Its tints (electric-deep fills, electric-text labels, 14–18% washes) are the same accent, not new colors. Accent is spent only where the user acts or where voz is alive — never on decorative borders, random headings, or every icon in a list. The sole non-blue chroma permitted is warn, on failures, with a glyph.", "section": "colors" },
+      { "name": "The One-Accent Rule", "body": "Electric is the only hue in the app. Its tints (electric-deep fills, electric-text labels, 14–18% washes) are the same accent, not new colors. Accent is spent only where the user acts or where warble is alive — never on decorative borders, random headings, or every icon in a list. The sole non-blue chroma permitted is warn, on failures, with a glyph.", "section": "colors" },
       { "name": "The Motion-Is-The-Signal Rule", "body": "'Is it listening / is it reading?' is answered by motion, never by a second hue: the waveform only moves while the mic is hot or audio is playing; the spinner only spins while processing. Never add a 'recording red,' a 'live green,' or a pulsing tint — and never let the waveform animate while idle.", "section": "colors" },
       { "name": "The Dark-Card Rule", "body": "Both in-app panels — the dictation pill and the read-along panel — are the same black card: ink #161520, hairline #2A2833, one electric accent. All in-app surfaces are dark; paper #F5F2EC and line-light exist only for marketing/docs and are forbidden in-app. Never introduce ad-hoc darks (#161616, #1C1C1E are known past drift — extinct, do not resurrect).", "section": "colors" },
       { "name": "The Data-Label Rule", "body": "Uppercase micro-labels are data labels (spec chips, table headers) — never section eyebrows. Default eyebrow count per screen: zero.", "section": "typography" },
-      { "name": "The Lowercase Rule", "body": "In running text the product is always lowercase voz. Never 'AI-powered'; always 'on-device.'", "section": "typography" },
+      { "name": "The Lowercase Rule", "body": "In running text the product is always lowercase warble. Never 'AI-powered'; always 'on-device.'", "section": "typography" },
       { "name": "The Lit-Signal Rule", "body": "The waveform bars (and only the waveform bars) glow — a 4px electric halo that makes the voice read as lit, matching the app icon. That is the entire glow budget of the application. No other element glows, blooms, or casts colored light.", "section": "elevation" },
       { "name": "The Two-Tone Rule", "body": "If a design needs a third dark surface tone, it's wrong — restructure with spacing and hairlines instead. Raised = ink. Backdrop = black. That's the whole elevation system.", "section": "elevation" },
       { "name": "The Capsule Rule", "body": "Elements inside a capsule sit concentric with its round ends: edge inset = (capsuleHeight − elementDiameter) / 2. Odd-looking insets that satisfy this formula are correct; insets that don't are drift.", "section": "elevation" }
@@ -153,7 +153,7 @@
       "Don't overuse cards or eyebrows: no boxes-in-boxes, no caps section labels — uppercase micro-type is for data labels only.",
       "Don't name a light color 'ink' — ink is the dark surface; light text is text-hi.",
       "Don't use the voice gradient (deep→cyan) inside the app — it belongs to the logo, icon, and marketing surfaces only.",
-      "Don't bring Sora or Inter into the app; in-app type is SF Pro, and 'voz' stays lowercase in prose. Never 'AI-powered'; always 'on-device.'",
+      "Don't bring Sora or Inter into the app; in-app type is SF Pro, and 'warble' stays lowercase in prose. Never 'AI-powered'; always 'on-device.'",
       "Don't let anything loop at rest: waveforms flat when idle, spinners gone when done, transition debris dissolved."
     ]
   }

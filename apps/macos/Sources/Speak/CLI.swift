@@ -1,8 +1,8 @@
 import AppKit
 
 /// Headless smoke tests for the read-aloud pipeline:
-///   `voz --speak "text"`     — exercises the TTS path (Kokoro if installed, else macOS voice).
-///   `voz --pronounce "text"` — applies your shared-dictionary pronunciations (no audio), the
+///   `warble --speak "text"`     — exercises the TTS path (Kokoro if installed, else macOS voice).
+///   `warble --pronounce "text"` — applies your shared-dictionary pronunciations (no audio), the
 ///                              read-aloud twin of `--apply`.
 public enum SpeakCLI {
     /// Returns true if it handled the args (the caller should then exit).

@@ -12,15 +12,15 @@ public enum DictateCLI {
             return true
         }
         if args.contains("--axprobe") {
-            // Focus the app/field to test (e.g. Claude Code in Ghostty), then we report what voz can read.
+            // Focus the app/field to test (e.g. Claude Code in Ghostty), then we report what warble can read.
             FileHandle.standardError.write(Data("Focus the field to test (e.g. Claude Code in Ghostty)… probing in 4s\n".utf8))
             Thread.sleep(forTimeInterval: 4)
             print(CorrectionListener.probe())
             return true
         }
         if let i = args.firstIndex(of: "--learn-test"), i + 2 < args.count {
-            // Prove the frequency tally headlessly. Point VOZ_DICTIONARY at a temp file to avoid
-            // touching your real dictionary: VOZ_DICTIONARY=/tmp/t.json voz --learn-test deval Dhaval
+            // Prove the frequency tally headlessly. Point WARBLE_DICTIONARY at a temp file to avoid
+            // touching your real dictionary: WARBLE_DICTIONARY=/tmp/t.json warble --learn-test deval Dhaval
             let from = args[i + 1], to = args[i + 2]
             Lexicon.shared.load()
             let threshold = Lexicon.shared.learnThreshold

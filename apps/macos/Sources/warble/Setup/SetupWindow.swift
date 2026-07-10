@@ -19,12 +19,12 @@ final class SetupWindow {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 600),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
-            w.title = "voz · Set up better engines"
+            w.title = "warble · Set up better engines"
             w.titlebarAppearsTransparent = true
             w.appearance = NSAppearance(named: .darkAqua)
             w.isReleasedWhenClosed = false
             w.contentView = host
-            w.setFrameAutosaveName("voz.setup")
+            w.setFrameAutosaveName("warble.setup")
             w.center()
             window = w
         }

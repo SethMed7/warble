@@ -1,6 +1,6 @@
-# voz Insights — build plan
+# warble Insights — build plan
 
-A local dashboard inside voz that turns dictation into stats + a searchable history, in voz's
+A local dashboard inside warble that turns dictation into stats + a searchable history, in warble's
 dark / electric-blue identity. **100% on-device.** Audio is still never saved; transcripts are now
 stored **local-only** (when History is on), clearable and exportable.
 
@@ -9,12 +9,12 @@ stored **local-only** (when History is on), clearable and exportable.
   menu bar, status item, overlays, and pills are untouched.
 - **Capture** is one funnel: every finished dictation passes through `DictateController.deliver`.
   A small context (duration → WPM, engine, and the **frontmost app captured at recording start** so
-  per-app isn't just "voz") is threaded down and recorded as one `DictationEvent`.
-- **Storage:** append-only **JSON-Lines** at `~/.voz/history.json` (mirrors the proven
+  per-app isn't just "warble") is threaded down and recorded as one `DictationEvent`.
+- **Storage:** append-only **JSON-Lines** at `~/.warble/history.json` (mirrors the proven
   `dictionary.json` pattern), loaded into an `InsightStore` observable. No SQLite, no new deps — at a
   single user's volume this loads/searches in memory trivially. SQLite stays a documented later
   migration only if volume ever demands it.
-- **Theme:** `VozTheme.swift` carries the dark + single electric-blue palette (from `brand/tokens.md`)
+- **Theme:** `WarbleTheme.swift` carries the dark + single electric-blue palette (from `brand/tokens.md`)
   into SwiftUI. One accent only; chart series differ by length/opacity, never a second hue.
 
 ## Data model — `DictationEvent` (one JSON line)
@@ -31,9 +31,9 @@ off, `text` is empty but every metric still lands (stats-only mode).
 5. **Local AI insights (optional)** — weekly summary, suggested dictionary words, nudges; reuses the
    on-device Ollama/llama.cpp path; cached; master switch (default-off).
 
-## `~/.voz` layout (all local, owner-only)
+## `~/.warble` layout (all local, owner-only)
 ```
-~/.voz/
+~/.warble/
   history.json      append-only JSON-Lines event log        (0600)
   audio/<id>.m4a    the saved recording for each dictation   (0600; 16 kHz mono AAC —
                     raw-WAV fallback if the encode fails; older installs' .wav still play)
@@ -42,11 +42,11 @@ off, `text` is empty but every metric still lands (stats-only mode).
 
 ## Privacy — note the change
 Phase 2 adds **saving the recording** so you can replay a dictation and click in to correct it /
-train the dictionary. This is a deliberate departure: voz historically deleted all audio. Now, when
+train the dictionary. This is a deliberate departure: warble historically deleted all audio. Now, when
 **Save recording** is on (a toggle, default on for this user), the recording is encoded to a compact
-16 kHz mono AAC in `~/.voz/audio/`
+16 kHz mono AAC in `~/.warble/audio/`
 **local-only** — never uploaded. When off, audio is deleted as before. Transcripts likewise persist
-local-only (`~/.voz`, `0600`) with a **stats-only toggle**, **secure-field / password-manager
+local-only (`~/.warble`, `0600`) with a **stats-only toggle**, **secure-field / password-manager
 exclusion**, **Clear / Export**, and owner-only perms. **The README/brand "no recording is ever
 saved" claim MUST be rewritten before this branch merges to `main`** — that lands with the Phase 3
 Data & Privacy controls.

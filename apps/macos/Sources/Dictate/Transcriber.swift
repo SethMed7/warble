@@ -129,7 +129,7 @@ enum AudioConvert {
 
 // MARK: - Warm Parakeet (sherpa-onnx kept loaded via WarmASR — ~0.08s/clip vs ~1.5s cold)
 
-/// Transcribes via voz's warm ASR server: convert to 16k mono in-process, then hand the path to
+/// Transcribes via warble's warm ASR server: convert to 16k mono in-process, then hand the path to
 /// WarmASR (loopback HTTP). Same Parakeet model as SherpaTranscriber, just never reloaded. Returns ""
 /// on any failure so the chain falls through to the cold engines.
 final class WarmSherpaTranscriber: Transcriber {
@@ -166,16 +166,16 @@ final class SherpaTranscriber: Transcriber {
     static func binaryPath() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         var candidates = [
-            ProcessInfo.processInfo.environment["VOZ_SHERPA_BIN"],
+            ProcessInfo.processInfo.environment["WARBLE_SHERPA_BIN"],
             ProcessInfo.processInfo.environment["DICTADO_SHERPA_BIN"],
-            "\(home)/.voz/sherpa/bin/sherpa-onnx-offline",
+            "\(home)/.warble/sherpa/bin/sherpa-onnx-offline",
             "\(home)/.dictado/sherpa/bin/sherpa-onnx-offline",
             "/opt/homebrew/bin/sherpa-onnx-offline",
             "/usr/local/bin/sherpa-onnx-offline",
             "\(home)/.local/bin/sherpa-onnx-offline",
         ].compactMap { $0 }
         candidates += matches("\(AIStore.sharedModels)/*/bin/sherpa-onnx-offline") // shared memex store (preferred)
-        candidates += matches("\(home)/.cache/sherpa/*/bin/sherpa-onnx-offline")    // legacy voz-only cache
+        candidates += matches("\(home)/.cache/sherpa/*/bin/sherpa-onnx-offline")    // legacy warble-only cache
         return Subprocess.firstExecutable(candidates)
     }
 
@@ -183,13 +183,13 @@ final class SherpaTranscriber: Transcriber {
     static func modelDir() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         var candidates = [
-            ProcessInfo.processInfo.environment["VOZ_PARAKEET_MODEL"],
+            ProcessInfo.processInfo.environment["WARBLE_PARAKEET_MODEL"],
             ProcessInfo.processInfo.environment["DICTADO_PARAKEET_MODEL"],
-            "\(home)/.voz/sherpa/model",
+            "\(home)/.warble/sherpa/model",
             "\(home)/.dictado/sherpa/model",
         ].compactMap { $0 }
         candidates += matches("\(AIStore.sharedModels)/*parakeet*") // shared memex store (preferred)
-        candidates += matches("\(home)/.cache/sherpa/*parakeet*")   // legacy voz-only cache
+        candidates += matches("\(home)/.cache/sherpa/*parakeet*")   // legacy warble-only cache
         let fm = FileManager.default
         return candidates.first {
             fm.fileExists(atPath: "\($0)/tokens.txt") && fm.fileExists(atPath: "\($0)/encoder.int8.onnx")

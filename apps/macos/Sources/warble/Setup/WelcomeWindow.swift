@@ -41,13 +41,13 @@ private struct WelcomeView: View {
             Spacer().frame(height: 28)
             Image(systemName: "waveform")
                 .font(.system(size: 38, weight: .semibold)).foregroundColor(Theme.electric.color)
-            Text("Welcome to voz").font(.system(size: 24, weight: .bold)).foregroundColor(Theme.textHi.color).padding(.top, 12)
+            Text("Welcome to warble").font(.system(size: 24, weight: .bold)).foregroundColor(Theme.textHi.color).padding(.top, 12)
             Text("The voice layer for your Mac. Two gestures — that's it.")
                 .font(.system(size: 13)).foregroundColor(Theme.mist.color).padding(.top, 4)
 
             VStack(spacing: 12) {
-                gesture("mic.fill", "Speak to type", "Hold **Fn**, talk, release. voz types the cleaned text where your cursor is — in any app.")
-                gesture("text.viewfinder", "Select to hear", "Select text anywhere and press **⌃V**. voz reads it aloud in a warm voice.")
+                gesture("mic.fill", "Speak to type", "Hold **Fn**, talk, release. warble types the cleaned text where your cursor is — in any app.")
+                gesture("text.viewfinder", "Select to hear", "Select text anywhere and press **⌃V**. warble reads it aloud in a warm voice.")
             }
             .padding(.horizontal, 28).padding(.top, 24)
 

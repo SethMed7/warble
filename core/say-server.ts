@@ -1,5 +1,5 @@
 /**
- * voz's WARM read-aloud server — loads Kokoro ONCE and serves renders over loopback HTTP, so each
+ * warble's WARM read-aloud server — loads Kokoro ONCE and serves renders over loopback HTTP, so each
  * selection skips the ~1-2s per-spawn model reload the one-shot say.ts pays. Warm first-audio is
  * ~0.3-0.6s and consistent. 100% on-device; binds 127.0.0.1 ONLY. Installed beside say.ts (reusing
  * its kokoro-js) by scripts/setup-kokoro-server.sh; run with bun. Started/managed by WarmTTS.swift.
@@ -16,10 +16,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // --- kokoro weights cache (identical to say.ts: shared memex store — ~/.memex/ai/models, relocatable
-// via MEMEX_AI_HOME — with a VOZ_KOKORO_CACHE override and a one-time move of the pre-memex
+// via MEMEX_AI_HOME — with a WARBLE_KOKORO_CACHE override and a one-time move of the pre-memex
 // ~/.cache/huggingface-transformers; a failed move falls back to the legacy dir so reads never break) ---
 function kokoroCacheDir(): string {
-  if (process.env.VOZ_KOKORO_CACHE) return process.env.VOZ_KOKORO_CACHE;
+  const cacheOverride = process.env.WARBLE_KOKORO_CACHE ?? process.env.VOZ_KOKORO_CACHE; // VOZ_: rename-era fallback
+  if (cacheOverride) return cacheOverride;
   const root = process.env.MEMEX_AI_HOME ?? `${process.env.HOME}/.memex/ai`;
   const shared = `${root}/models/kokoro`; // transformers.js nests its own <org>/<model> dirs inside
   const legacy = `${process.env.HOME}/.cache/huggingface-transformers`;
@@ -41,8 +42,8 @@ hfEnv.cacheDir = kokoroCacheDir();
 const { KokoroTTS } = await import("kokoro-js");
 
 // 8767: the warm LLM server's default is 8766 and both answer {"ok":true} on /health, so sharing a
-// default could latch a TTS probe onto the LLM server. The app always passes VOZ_TTS_PORT explicitly.
-const PORT = Number(process.env.VOZ_TTS_PORT ?? 8767);
+// default could latch a TTS probe onto the LLM server. The app always passes WARBLE_TTS_PORT explicitly.
+const PORT = Number(process.env.WARBLE_TTS_PORT ?? 8767);
 
 // --- chunking (identical to say.ts: a small first chunk → fast first audio, ~360 for the rest) ---
 function splitFirstClause(s: string): [string, string] {
@@ -104,11 +105,11 @@ const tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX
   dtype: "q8",
   device: "cpu",
 });
-await tts.generate("voz", { voice: "af_heart" as any }).catch(() => {}); // warm the ONNX session once
+await tts.generate("warble", { voice: "af_heart" as any }).catch(() => {}); // warm the ONNX session once
 
 // Reclaim memory when unused: exit after a stretch with no requests (the app re-warms on the next
 // read). Also fixes orphaned servers left behind by a crash/force-quit and the ~550MB idle footprint.
-const IDLE_MS = Number(process.env.VOZ_TTS_IDLE_MS ?? 5 * 60 * 1000);
+const IDLE_MS = Number(process.env.WARBLE_TTS_IDLE_MS ?? 5 * 60 * 1000);
 let lastActivity = Date.now();
 
 // We hand out chunk-WAV paths and the client deletes the files after playing; the parent temp dir is
@@ -117,7 +118,7 @@ function sweepStaleTemp() {
   try {
     const base = tmpdir();
     for (const name of readdirSync(base)) {
-      if (!name.startsWith("voz-") && !name.startsWith("leelo-")) continue;
+      if (!name.startsWith("warble-") && !name.startsWith("leelo-")) continue;
       const p = join(base, name);
       try { if (Date.now() - statSync(p).mtimeMs > 2 * 60 * 1000) rmSync(p, { recursive: true, force: true }); } catch {}
     }
@@ -156,7 +157,7 @@ Bun.serve({
       const stream = new ReadableStream({
         start(controller) {
           serialize(async () => {
-            const dir = mkdtempSync(join(tmpdir(), "voz-"));
+            const dir = mkdtempSync(join(tmpdir(), "warble-"));
             let i = 0;
             for (const chunk of chunkText(text)) {
               if (req.signal.aborted) break; // client (curl) gone — stop rendering audio nobody hears

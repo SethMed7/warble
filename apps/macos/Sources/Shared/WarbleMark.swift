@@ -1,6 +1,6 @@
 import AppKit
 
-/// The voz brand mark, loaded from the bundled official SVGs (`Sources/Shared/Resources`, traced from
+/// The warble brand mark, loaded from the bundled official SVGs (`Sources/Shared/Resources`, traced from
 /// `brand/source/`). macOS 13+ renders SVG natively via `NSImage`, so we ship the real artwork instead
 /// of re-tracing bezier geometry by hand:
 ///   • `menuBarTemplate` — the monochrome glyph as a *template* image (the bar tints it black on a light
@@ -9,21 +9,21 @@ import AppKit
 ///
 /// Both are drawn fit-and-centered into a fresh canvas so optical balance is identical regardless of the
 /// source viewBox. If a resource ever fails to load, we fall back to an SF Symbol so the bar is never blank.
-public enum VozMark {
+public enum WarbleMark {
     /// The monochrome V glyph sized for the menu bar (square, ~18pt), rendered as a template.
     public static func menuBarTemplate(height: CGFloat = 18) -> NSImage {
-        let img = fitted(named: "voz_glyph", into: NSSize(width: height, height: height), inset: 0.06)
-            ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: "voz") ?? NSImage()
+        let img = fitted(named: "warble_glyph", into: NSSize(width: height, height: height), inset: 0.06)
+            ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: "warble") ?? NSImage()
         img.isTemplate = true
-        img.accessibilityDescription = "voz"
+        img.accessibilityDescription = "warble"
         return img
     }
 
     /// The full-color brand mark (blue gradient), for dark on-brand surfaces. Not a template.
     public static func coloredMark(height: CGFloat = 22) -> NSImage {
-        let img = fitted(named: "voz_icon", into: NSSize(width: height, height: height), inset: 0.0)
-            ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: "voz") ?? NSImage()
-        img.accessibilityDescription = "voz"
+        let img = fitted(named: "warble_icon", into: NSSize(width: height, height: height), inset: 0.0)
+            ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: "warble") ?? NSImage()
+        img.accessibilityDescription = "warble"
         return img
     }
 

@@ -1,4 +1,5 @@
 import AppKit
+import Shared
 
 /// A tiny equalizer animation — a row of rounded bars that ripple while audio plays and rest flat
 /// when paused/idle. Used in the minimized player as the "it's reading" indicator.
@@ -6,7 +7,7 @@ final class WaveformView: NSView {
     private var levels: [CGFloat]
     private var timer: Timer?
     private var phase: CGFloat = 0
-    var barColor: NSColor = NSColor(srgbRed: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0, alpha: 1) { didSet { needsDisplay = true } }
+    var barColor: NSColor = Theme.electric.ns { didSet { needsDisplay = true } }
 
     init(bars: Int = 5) {
         levels = Array(repeating: 0.3, count: max(3, bars))

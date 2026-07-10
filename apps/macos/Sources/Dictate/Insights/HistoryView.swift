@@ -1,66 +1,93 @@
 import SwiftUI
 import AppKit
 
-/// The searchable, per-app-filterable feed of every dictation. Tap one to open it: replay the saved
-/// recording, fix the text, and teach the dictionary.
+/// The searchable, per-app-filterable feed of every dictation. Search + filter live in the window
+/// toolbar (InsightsWindow) and land here through InsightsNav; the opened item is plain local state —
+/// no NavigationStack, matching this window's fixed-layout philosophy. Tap a row to open it: replay
+/// the saved recording, fix the text, and teach the dictionary.
 struct HistoryView: View {
     @ObservedObject var store: InsightStore
-    @State private var search = ""
-    @State private var appFilter: String? = nil
+    @ObservedObject var nav: InsightsNav
+    @State private var opened: DictationEvent? = nil
+    @FocusState private var focusedEvent: String?
 
     private var rows: [DictationEvent] {
         store.events.reversed().filter(matches)
     }
     private func matches(_ e: DictationEvent) -> Bool {
-        if let f = appFilter, (e.appBundleId ?? e.appName ?? "Unknown") != f { return false }
-        if search.isEmpty { return true }
-        return e.text.localizedCaseInsensitiveContains(search)
-            || (e.appName ?? "").localizedCaseInsensitiveContains(search)
-    }
-    private var filterLabel: String {
-        appFilter.flatMap { k in store.appFilters.first { $0.key == k }?.name } ?? "All apps"
+        if let f = nav.historyAppFilter, (e.appBundleId ?? e.appName ?? "Unknown") != f { return false }
+        if nav.historySearch.isEmpty { return true }
+        return e.text.localizedCaseInsensitiveContains(nav.historySearch)
+            || (e.appName ?? "").localizedCaseInsensitiveContains(nav.historySearch)
     }
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationDestination(for: DictationEvent.self) { e in
-                    DictationDetailView(store: store, event: e)
-                }
-                .searchable(text: $search, placement: .toolbar, prompt: "Search dictations")
-                .toolbar { filterToolbar }
+        Group {
+            if let e = opened {
+                DictationDetailView(store: store, event: e, onClose: { opened = nil })
+                    .transition(.opacity)
+            } else {
+                feed
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.15), value: opened)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VozTheme.black)
     }
 
-    @ViewBuilder private var content: some View {
-        if store.events.isEmpty {
-            ComingSoon(icon: "clock.arrow.circlepath", title: "No dictations yet",
-                       subtitle: "Hold Fn and speak — each dictation shows up here with its recording.")
-        } else {
-            List {
-                ForEach(rows) { e in
-                    NavigationLink(value: e) { HistoryRow(store: store, event: e) }
-                        .listRowBackground(VozTheme.ink)
+    @ViewBuilder private var feed: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PageHeader(title: "History",
+                       subtitle: "Every dictation and read-aloud, newest first — open one to replay or fix it.")
+                .padding(.horizontal, 28).padding(.top, 28)
+            if store.events.isEmpty {
+                EmptyState(icon: "clock.arrow.circlepath", title: "No dictations yet",
+                           message: "Hold Fn and speak. Every dictation lands here with its recording, so you can replay it or fix a word.")
+            } else if rows.isEmpty {
+                // Filtered to nothing — say so plainly, so it doesn't read as lost history.
+                Text("No matches.")
+                    .font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(rows) { e in
+                        HistoryRowButton(store: store, event: e,
+                                         focused: focusedEvent == e.id) { opened = e }
+                            .focused($focusedEvent, equals: e.id)
+                            .listRowBackground(VozTheme.ink)
+                    }
                 }
+                .scrollContentBackground(.hidden)
+                .background(VozTheme.black)
             }
-            .scrollContentBackground(.hidden)
-            .background(VozTheme.black)
         }
     }
+}
 
-    @ToolbarContentBuilder private var filterToolbar: some ToolbarContent {
-        ToolbarItem {
-            Menu {
-                Button("All apps") { appFilter = nil }
-                if !store.appFilters.isEmpty { Divider() }
-                ForEach(store.appFilters, id: \.key) { f in
-                    Button(f.name) { appFilter = f.key }
-                }
-            } label: {
-                Label(filterLabel, systemImage: "line.3.horizontal.decrease.circle")
-            }
+/// One tappable feed row: a real Button (Return/Space open it when focused). Hover is a neutral
+/// lift drawn inside the row — no second hue — and keyboard focus draws the same 2px
+/// electric-bright (crest) ring as FilledButton/GhostButton.
+private struct HistoryRowButton: View {
+    @ObservedObject var store: InsightStore
+    let event: DictationEvent
+    let focused: Bool
+    let open: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: open) {
+            HistoryRow(store: store, event: event)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .background(hovered ? Color.white.opacity(0.04) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 8)
+            .strokeBorder(VozTheme.electricBright, lineWidth: 2)
+            .padding(-2)
+            .opacity(focused ? 1 : 0))
+        .onHover { hovered = $0 }
     }
 }
 
@@ -74,7 +101,7 @@ struct HistoryRow: View {
                 Text(event.text.isEmpty ? "\(event.words) words" : event.text)
                     .font(.system(size: 13)).foregroundStyle(VozTheme.textHi).lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(event.appName ?? "—").foregroundStyle(VozTheme.electric)
+                    Text(event.appName ?? "—").foregroundStyle(VozTheme.electricText)
                     Text("· \(RelTime.string(event.date)) · \(event.words) words").foregroundStyle(VozTheme.mist)
                 }
                 .font(.system(size: 11))
@@ -88,26 +115,38 @@ struct HistoryRow: View {
     }
 }
 
-/// The opened dictation: replay, correct the text, and teach the dictionary.
+/// The opened dictation: replay, correct the text, and teach the dictionary. Presented by
+/// HistoryView's explicit `opened` state; `onClose` is the only way back (no dismiss environment).
 struct DictationDetailView: View {
     @ObservedObject var store: InsightStore
     let event: DictationEvent
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
     @StateObject private var audio = AudioPlayer()
     @State private var editedText: String
     @State private var heard = ""
     @State private var correct = ""
     @State private var note = ""
+    @State private var backHovered = false
+    @State private var deleteHovered = false
 
-    init(store: InsightStore, event: DictationEvent) {
+    init(store: InsightStore, event: DictationEvent, onClose: @escaping () -> Void) {
         self.store = store
         self.event = event
+        self.onClose = onClose
         _editedText = State(initialValue: event.text)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                Button { onClose() } label: {
+                    Label("History", systemImage: "chevron.left")
+                        .font(.system(size: 13))
+                        .foregroundStyle(backHovered ? VozTheme.textHi : VozTheme.mist)
+                }
+                .buttonStyle(.plain)
+                .onHover { backHovered = $0 }
+
                 HStack(spacing: 12) {
                     AppIconView(bundleId: event.appBundleId, size: 30)
                     VStack(alignment: .leading, spacing: 2) {
@@ -129,8 +168,8 @@ struct DictationDetailView: View {
                         Text("recording").font(.system(size: 11)).foregroundStyle(VozTheme.mist)
                     }
                     .padding(12)
-                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(VozTheme.line, lineWidth: 1))
+                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
                 } else if event.kind == "dictate" {
                     Text("No saved recording for this one.").font(.system(size: 12)).foregroundStyle(VozTheme.mist)
                 }
@@ -142,8 +181,8 @@ struct DictationDetailView: View {
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 110)
                     .padding(8)
-                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(VozTheme.line, lineWidth: 1))
+                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
                 HStack {
                     Spacer()
                     Button("Save text") { store.updateText(event.id, to: editedText); note = "Saved." }
@@ -160,19 +199,23 @@ struct DictationDetailView: View {
                     Button("Add") { addCorrection() }.disabled(heard.isEmpty || correct.isEmpty)
                 }
                 if !note.isEmpty {
-                    Text(note).font(.system(size: 12)).foregroundStyle(VozTheme.electric)
+                    Text(note).font(.system(size: 12)).foregroundStyle(VozTheme.electricText)
                 }
 
                 Divider().overlay(VozTheme.line).padding(.top, 8)
+                // Destructive stays neutral (One-Accent Rule: no red) — the trash glyph carries the
+                // meaning, hover brightens mist to text-hi, same as every ghost affordance.
                 Button(role: .destructive) {
-                    audio.stop(); store.delete(event); dismiss()
+                    audio.stop(); store.delete(event); onClose()
                 } label: {
                     Label("Delete this dictation", systemImage: "trash")
+                        .font(.system(size: 13))
+                        .foregroundStyle(deleteHovered ? VozTheme.textHi : VozTheme.mist)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.red.opacity(0.85))
+                .onHover { deleteHovered = $0 }
             }
-            .padding(24)
+            .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VozTheme.black)
@@ -193,7 +236,7 @@ struct DictationDetailView: View {
     }
 
     /// The live event from the store, so the header + Save button reflect an edit immediately
-    /// (the captured `event` value is frozen at navigation time).
+    /// (the captured `event` value is frozen at open time).
     private var current: DictationEvent { store.events.first { $0.id == event.id } ?? event }
 
     private var metaLine: String {

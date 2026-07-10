@@ -29,6 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dictateIcon = (priority: 0, symbol: "waveform")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The real main menu, built once before any window can open. No menu bar shows while
+        // .accessory, but AppKit still routes its key equivalents to the key window — it's what
+        // makes ⌘W/⌘C/⌘,… work in the dashboard under every Dock-icon mode, including "never".
+        NSApp.mainMenu = MainMenu.build(updater: updaterController, delegate: self)
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         applyIcon()
 
@@ -53,6 +58,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: .vozAutoUpdateChanged, object: nil, queue: .main) {
             [weak self] _ in self?.applyAutoUpdatePref()
         }
+
+        // Hybrid Dock policy (the Rectangle/Ice pattern): a real app window (Dashboard, Setup,
+        // Welcome) becoming key promotes to .regular — Dock icon + menu bar — and the last one
+        // closing demotes back to .accessory. The "Show Dock icon" pref can pin either way; the
+        // dashboard's control posts the change signal, behavior lives entirely here.
+        NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) {
+            [weak self] note in self?.windowDidBecomeKey(note)
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) {
+            [weak self] note in self?.windowWillClose(note)
+        }
+        NotificationCenter.default.addObserver(forName: dockIconModeChanged, object: nil, queue: .main) {
+            [weak self] _ in self?.applyDockPolicy()
+        }
+        applyDockPolicy() // honor "always" from a previous run; no key window at launch, so no focus steal
 
         // First launch: a native welcome so a new user isn't dropped into a bare menu bar.
         if WelcomeWindow.shouldShow {
@@ -81,6 +101,87 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         speak.shutdown()   // stop any read + kill the Kokoro subprocess and delete its temp audio
     }
 
+    /// Dock icon clicked (only reachable while .regular). No visible windows → open the dashboard;
+    /// otherwise let AppKit do its default bring-forward/deminiaturize.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { InsightsWindow.shared.openHome(); return false }
+        return true
+    }
+
+    // MARK: Dock policy — .accessory ↔ .regular, a pure function of the pref + our open windows
+
+    private var dockDemotion: DispatchWorkItem? // pending drop to .accessory — debounced, see windowWillClose
+
+    /// True for voz's real app windows — Dashboard, Setup, Welcome — the ones that summon the Dock
+    /// icon. Overlays/pills are NSPanels; Sparkle's update windows arrive wrapped in SU*/SPU*
+    /// window controllers; ours are bare titled NSWindows we create ourselves.
+    private func isAppWindow(_ w: NSWindow) -> Bool {
+        guard !(w is NSPanel), w.styleMask.contains(.titled) else { return false }
+        if let wc = w.windowController {
+            let cls = String(describing: type(of: wc))
+            if cls.hasPrefix("SU") || cls.hasPrefix("SPU") { return false } // Sparkle's alert/status/permission windows
+        }
+        return true
+    }
+
+    /// The app windows currently "open" from the user's point of view. Miniaturized counts — a window
+    /// living in the Dock must keep the Dock icon alive, and `isVisible` is false while miniaturized.
+    private var appWindows: [NSWindow] {
+        NSApp.windows.filter { isAppWindow($0) && ($0.isVisible || $0.isMiniaturized) }
+    }
+
+    private func windowDidBecomeKey(_ note: Notification) {
+        guard let w = note.object as? NSWindow, isAppWindow(w) else { return }
+        dockDemotion?.cancel(); dockDemotion = nil        // a live window vetoes any pending demotion
+        guard DockIconMode.current != .never, NSApp.activationPolicy() != .regular else { return }
+        NSApp.setActivationPolicy(.regular)
+        // Pitfall: after the policy flip the menu bar keeps showing the PREVIOUS app's menu until we
+        // re-activate — and the activation must land on the runloop tick AFTER the flip to take.
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            w.makeKeyAndOrderFront(nil)                   // re-assert key; the flip can drop key status
+        }
+    }
+
+    /// Demotion is debounced: window→window handoffs (Welcome → Setup, Setup → tutorial) close one
+    /// window and open the next in the same user action — demoting synchronously would flap
+    /// .regular → .accessory → .regular inside one tick (the Dock icon blinks, focus can drop).
+    /// The next window's didBecomeKey cancels the pending demotion; otherwise it re-checks and fires.
+    private func windowWillClose(_ note: Notification) {
+        guard let w = note.object as? NSWindow, isAppWindow(w) else { return }
+        guard DockIconMode.current == .whileWindowsOpen else { return }
+        // At willClose time the closing window is still isVisible — exclude it by identity.
+        guard appWindows.allSatisfy({ $0 === w }) else { return } // another app window remains → stay .regular
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.appWindows.isEmpty else { return } // re-check: something reopened meanwhile
+            NSApp.setActivationPolicy(.accessory)
+        }
+        dockDemotion = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+    }
+
+    /// Reconcile the activation policy with the pref and the current window state. Called at launch
+    /// and whenever the dashboard's "Show Dock icon" control posts a change.
+    private func applyDockPolicy() {
+        dockDemotion?.cancel(); dockDemotion = nil
+        let want: NSApplication.ActivationPolicy
+        switch DockIconMode.current {
+        case .always:           want = .regular
+        case .never:            want = .accessory
+        case .whileWindowsOpen: want = appWindows.isEmpty ? .accessory : .regular
+        }
+        guard NSApp.activationPolicy() != want else { return }
+        NSApp.setActivationPolicy(want)
+        // Promoting while one of our windows is up (pref flipped from the dashboard): re-activate so
+        // the main menu actually appears. At launch there's no key window, so this never steals focus.
+        if want == .regular, let key = NSApp.keyWindow, isAppWindow(key) {
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+                key.makeKeyAndOrderFront(nil)
+            }
+        }
+    }
+
     /// Mirror the in-app "Install updates automatically" toggle onto Sparkle's scheduled checker.
     private func applyAutoUpdatePref() {
         updaterController.updater.automaticallyChecksForUpdates = InsightStore.shared.autoUpdateEnabled
@@ -98,25 +199,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// One menu, two sections. Rebuilt on demand (e.g. when a capability toggles a checkmark).
+    /// One menu, two capability blocks. Each block is a toggle row plus a submenu of detail rows,
+    /// so the top level stays short — the toggles delimit the blocks, no separator needed between
+    /// them. Rebuilt on demand (e.g. when a capability toggles a checkmark).
     private func rebuildMenu() {
         let menu = NSMenu()
-        menu.autoenablesItems = false // dictation has disabled info rows
+        menu.autoenablesItems = false // the header row is explicitly disabled
 
         let header = NSMenuItem(title: "voz", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         menu.addItem(.separator())
 
+        dictate.menuItems().forEach { menu.addItem($0) }
         speak.menuItems().forEach { menu.addItem($0) }
         menu.addItem(.separator())
-        dictate.menuItems().forEach { menu.addItem($0) }
+
+        let dashboard = NSMenuItem(title: "Open Dashboard", action: #selector(openDashboard), keyEquivalent: "i")
+        dashboard.target = self
+        menu.addItem(dashboard)
         menu.addItem(.separator())
 
         let setup = NSMenuItem(title: "Set up better engines…", action: #selector(runBootstrap), keyEquivalent: "")
         setup.target = self
         menu.addItem(setup)
-        menu.addItem(.separator())
 
         // Sparkle owns this action; it opens the standard update flow (and reports "you're up to date").
         let updates = NSMenuItem(title: "Check for Updates…",
@@ -132,8 +238,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
+    /// Status-menu "Open Dashboard" — the Insights window is the app's main window now.
+    @objc private func openDashboard() { InsightsWindow.shared.openHome() }
+
+    /// Main-menu Settings… (⌘,) — the dashboard's Data & Privacy section doubles as Settings.
+    @objc func openSettings() { InsightsWindow.shared.openData() }
+
     /// Open the native, in-app setup screen — engine cards with Install buttons and live progress,
     /// matching the rest of the app. No Terminal: each engine downloads its model in-process (real %)
     /// and runs only its environment step headlessly. (Replaced the old Terminal `.command` flow.)
     @objc private func runBootstrap() { SetupWindow.shared.open() }
 }
+
+/// "Show Dock icon" — app-level pref (plain UserDefaults, voz. prefix per convention).
+/// whileWindowsOpen is the Rectangle/Ice hybrid: Dock icon + main menu appear only while a real
+/// app window (Dashboard, Setup, Welcome) is open; the menu-bar presence never changes.
+private enum DockIconMode: String {
+    case whileWindowsOpen, always, never
+    static var current: DockIconMode {
+        DockIconMode(rawValue: UserDefaults.standard.string(forKey: "voz.dockIcon") ?? "") ?? .whileWindowsOpen
+    }
+}
+
+/// Posted by the dashboard's "Show Dock icon" control after it writes the default. No payload —
+/// we re-read UserDefaults, the single source of truth. (Not KVO: the key contains a dot, which
+/// UserDefaults KVO can't address, and this mirrors the .vozAutoUpdateChanged pattern anyway.)
+private let dockIconModeChanged = Notification.Name("voz.dockIconModeChanged")

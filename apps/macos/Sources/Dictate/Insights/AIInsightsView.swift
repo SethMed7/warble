@@ -79,7 +79,7 @@ struct AIInsightsView: View {
                 Button(action: { ai.regenerate() }) {
                     Label("Regenerate", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon)
                 }
-                .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(VozTheme.electric)
+                .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(VozTheme.electricText)
                 .disabled(ai.isGenerating)
                 .opacity(ai.isGenerating ? 0.5 : 1)
             }
@@ -159,7 +159,7 @@ struct AIInsightsView: View {
                     }
                     .padding(.horizontal, 10).padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(VozTheme.electric.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
+                    .background(VozTheme.electric.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }

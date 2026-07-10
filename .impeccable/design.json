@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-10T00:00:00Z",
+  "title": "Design System: voz",
+  "extensions": {
+    "colorMeta": {
+      "electric": { "role": "primary", "displayName": "Electric", "canonical": "#2E74FF", "tonalRamp": ["#0A1E4D", "#123170", "#1A459C", "#1E5BFF", "#2E74FF", "#5B8FFF", "#7FA8FF", "#B8CFFF"] },
+      "electric-deep": { "role": "primary-derivative", "displayName": "Electric Deep", "canonical": "#1E5BFF" },
+      "electric-bright": { "role": "primary-derivative", "displayName": "Electric Bright (Crest)", "canonical": "#3CC6FF", "tonalRamp": ["#0B3B52", "#12566F", "#1A7A9C", "#28A0C9", "#3CC6FF", "#66D3FF", "#94E0FF", "#C9EFFF"] },
+      "electric-text": { "role": "primary-derivative", "displayName": "Electric Text (AA tint)", "canonical": "#7FA8FF" },
+      "black": { "role": "neutral", "displayName": "Black (Backdrop)", "canonical": "#07080C", "tonalRamp": ["#07080C", "#0E0D15", "#161520", "#201E2A", "#2A2833", "#3A3846", "#55525F", "#8B8794"] },
+      "ink": { "role": "neutral", "displayName": "Ink (Raised Surface)", "canonical": "#161520", "tonalRamp": ["#07080C", "#0E0D15", "#161520", "#201E2A", "#2A2833", "#3A3846", "#55525F", "#8B8794"] },
+      "line": { "role": "neutral", "displayName": "Line (Hairline / Neutral Control)", "canonical": "#2A2833" },
+      "mist": { "role": "neutral", "displayName": "Mist (Secondary Text)", "canonical": "#8B8794", "tonalRamp": ["#2A2833", "#3E3B47", "#55525F", "#6F6B7A", "#8B8794", "#A5A2AE", "#C4C2CB", "#E2E0E6"] },
+      "text-hi": { "role": "neutral", "displayName": "Text Hi", "canonical": "#EDF0F5", "tonalRamp": ["#55525F", "#8B8794", "#A5A2AE", "#C4C2CB", "#D8D9DF", "#EDF0F5", "#F5F7FA", "#FBFCFE"] },
+      "warn": { "role": "state", "displayName": "Warn (declared exception, failures only)", "canonical": "#FF9F0A", "tonalRamp": ["#4D2F03", "#7A4B05", "#A86707", "#D48408", "#FF9F0A", "#FFB43E", "#FFCA75", "#FFE0AD"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Dashboard stat values only." },
+      "headline": { "displayName": "Headline", "purpose": "Window and page titles." },
+      "title": { "displayName": "Title", "purpose": "Card and row titles." },
+      "reader": { "displayName": "Reader", "purpose": "Read-along transcript; active word is 15px heavy, white on electric." },
+      "body": { "displayName": "Body", "purpose": "Descriptions, list content, button labels (600 in buttons)." },
+      "label": { "displayName": "Label", "purpose": "Status lines, timestamps, meta counts — mist on ink/black." },
+      "data-label": { "displayName": "Data Label", "purpose": "Uppercase micro data labels only ('YOUR MAC') — never section eyebrows." }
+    },
+    "shadows": [
+      { "name": "floating-panel", "value": "0 18px 40px rgba(0, 0, 0, 0.45)", "purpose": "Web approximation of the system NSWindow shadow under floating overlays (pill, read-along panel, learn capsule). In-app: hasShadow = true, always." },
+      { "name": "callout", "value": "0 10px 24px rgba(0, 0, 0, 0.5)", "purpose": "The tutorial coachmark card — the only in-window shadow." },
+      { "name": "lit-signal", "value": "0 0 4px rgba(46, 116, 255, 0.7)", "purpose": "The waveform bars' electric glow — the entire glow budget of the app (Lit-Signal Rule)." }
+    ],
+    "motion": [
+      { "name": "pill-arrive", "value": "180ms ease-out", "purpose": "Overlay pop-in: fade from 0 with a 10px upward slide — arrives, doesn't blink. Fires once." },
+      { "name": "step-transition", "value": "220ms ease-in-out", "purpose": "Tutorial step changes and equivalent in-window state swaps." },
+      { "name": "spinner", "value": "800ms linear infinite", "purpose": "The processing arc. Spins only while actually processing (Motion-Is-The-Signal Rule)." },
+      { "name": "countdown", "value": "linear, duration = grace window", "purpose": "LearnPill undo bar: scaleX 1→0 over the undo window; honest time remaining." },
+      { "name": "vu-meter", "value": "attack 0.6 / release 0.16 per 60fps frame", "purpose": "Dictation waveform easing coefficients. BEHAVIORAL CODE — documented for reference; never retune from the design layer." }
+    ],
+    "breakpoints": [
+      { "name": "dashboard-min-width", "value": "860px" },
+      { "name": "dashboard-min-height", "value": "560px" },
+      { "name": "setup-window", "value": "460px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled text button — the one committed act on a surface (Install, Done, Next).",
+      "html": "<button class=\"ds-btn-primary\">Install</button>",
+      "css": ".ds-btn-primary { background: #1E5BFF; color: #FFFFFF; font: 600 13px 'SF Pro', -apple-system, system-ui, sans-serif; padding: 7px 16px; border: none; border-radius: 8px; cursor: pointer; transition: background 150ms ease; } .ds-btn-primary:hover { background: #2E74FF; } .ds-btn-primary:active { background: rgba(30, 91, 255, 0.7); } .ds-btn-primary:focus-visible { outline: 2px solid #3CC6FF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The quiet decline (Maybe later, Skip, Back) — mist text, no fill.",
+      "html": "<button class=\"ds-btn-ghost\">Maybe later</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #8B8794; font: 500 13px 'SF Pro', -apple-system, system-ui, sans-serif; padding: 7px 12px; border: none; border-radius: 8px; cursor: pointer; transition: color 150ms ease; } .ds-btn-ghost:hover { color: #EDF0F5; } .ds-btn-ghost:focus-visible { outline: 2px solid #3CC6FF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Circle Control — Primary",
+      "kind": "custom",
+      "refersTo": "control-circle-primary",
+      "description": "The one electric circle per overlay: play/pause, accept. White glyph on electric.",
+      "html": "<button class=\"ds-circle-primary\" aria-label=\"Play\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 13 13\" fill=\"currentColor\"><path d=\"M2.5 1.5l9 5-9 5v-10z\"/></svg></button>",
+      "css": ".ds-circle-primary { width: 34px; height: 34px; border-radius: 50%; background: #2E74FF; color: #FFFFFF; border: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: filter 150ms ease; } .ds-circle-primary:hover { filter: brightness(1.08); } .ds-circle-primary:active { filter: brightness(0.9); } .ds-circle-primary:focus-visible { outline: 2px solid #3CC6FF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Circle Control — Neutral",
+      "kind": "custom",
+      "refersTo": "control-circle-neutral",
+      "description": "Every secondary act (stop, minimize, voice, dismiss): line fill, text-hi glyph.",
+      "html": "<button class=\"ds-circle-neutral\" aria-label=\"Stop\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 11 11\" fill=\"currentColor\"><rect x=\"1\" y=\"1\" width=\"9\" height=\"9\" rx=\"1.5\"/></svg></button>",
+      "css": ".ds-circle-neutral { width: 32px; height: 32px; border-radius: 50%; background: #2A2833; color: #EDF0F5; border: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: filter 150ms ease; } .ds-circle-neutral:hover { filter: brightness(1.25); } .ds-circle-neutral:active { filter: brightness(0.85); } .ds-circle-neutral:focus-visible { outline: 2px solid #3CC6FF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The ink panel: raised content on the black backdrop, hairline border, no shadow.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Parakeet</div><div class=\"ds-card-body\">Sharper dictation, fully on-device.</div></div>",
+      "css": ".ds-card { background: #161520; border: 1px solid #2A2833; border-radius: 12px; padding: 16px; } .ds-card-title { font: 600 15px 'SF Pro', -apple-system, system-ui, sans-serif; color: #EDF0F5; margin-bottom: 4px; } .ds-card-body { font: 400 13px/1.45 'SF Pro', -apple-system, system-ui, sans-serif; color: #8B8794; }"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "card",
+      "refersTo": "stat-card",
+      "description": "Dashboard hero stat: display value over a mist label, lg radius.",
+      "html": "<div class=\"ds-stat-card\"><div class=\"ds-stat-value\">12.4k</div><div class=\"ds-stat-label\">words dictated</div></div>",
+      "css": ".ds-stat-card { background: #161520; border: 1px solid #2A2833; border-radius: 16px; padding: 20px; min-width: 140px; } .ds-stat-value { font: 700 32px/1.1 'SF Pro', -apple-system, system-ui, sans-serif; color: #EDF0F5; } .ds-stat-label { font: 400 13px 'SF Pro', -apple-system, system-ui, sans-serif; color: #8B8794; margin-top: 6px; }"
+    },
+    {
+      "name": "Overlay Pill",
+      "kind": "custom",
+      "refersTo": "overlay-pill",
+      "description": "The floating capsule with the lit waveform — voz's signature surface.",
+      "html": "<div class=\"ds-pill\"><div class=\"ds-pill-bars\"><span style=\"height:6px\"></span><span style=\"height:14px\"></span><span style=\"height:9px\"></span><span style=\"height:16px\"></span><span style=\"height:8px\"></span><span style=\"height:12px\"></span><span style=\"height:5px\"></span></div></div>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; background: rgba(22, 21, 32, 0.97); border: 1px solid #2A2833; border-radius: 999px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); } .ds-pill-bars { display: inline-flex; align-items: center; gap: 3px; width: 64px; height: 20px; justify-content: center; } .ds-pill-bars span { width: 5px; border-radius: 999px; background: #2E74FF; box-shadow: 0 0 4px rgba(46, 116, 255, 0.7); }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Non-interactive data chip (model size, counts) — mist on a half-line wash.",
+      "html": "<span class=\"ds-chip\">1.2 GB</span>",
+      "css": ".ds-chip { display: inline-block; background: rgba(42, 40, 51, 0.5); color: #8B8794; font: 500 11px 'SF Pro', -apple-system, system-ui, sans-serif; padding: 1px 6px; border-radius: 6px; }"
+    },
+    {
+      "name": "Sidebar Row",
+      "kind": "nav",
+      "refersTo": "sidebar-row-selected",
+      "description": "Dashboard navigation row: mist at rest, electric 18% wash + text-hi when selected.",
+      "html": "<nav class=\"ds-side\"><a class=\"ds-side-row\" href=\"#\">History</a><a class=\"ds-side-row ds-selected\" href=\"#\" aria-current=\"page\">Insights</a></nav>",
+      "css": ".ds-side { display: flex; flex-direction: column; gap: 2px; background: #161520; padding: 8px; width: 200px; border-radius: 12px; } .ds-side-row { font: 400 13px 'SF Pro', -apple-system, system-ui, sans-serif; color: #8B8794; text-decoration: none; padding: 7px 10px; border-radius: 8px; transition: background 150ms ease; } .ds-side-row:hover { background: rgba(255, 255, 255, 0.04); } .ds-side-row.ds-selected { background: rgba(46, 116, 255, 0.18); color: #EDF0F5; font-weight: 600; } .ds-side-row:focus-visible { outline: 2px solid #3CC6FF; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "One lit signal on black.",
+    "overview": "voz is a quiet black instrument, and the only living thing on it is the voice — a single electric-blue signal that moves when you speak and rests when you don't. Every surface is dark (black #07080C backdrop, ink #161520 panels), every border is a hairline, and every trace of blue means either voz itself or the user acting. The system deliberately rejects second accent hues, light in-app surfaces, decorative glow, gradient washes in chrome, and 'AI-powered' hype styling. The tone is calm, plain, and honest about privacy — lowercase, unhurried, bragging about what doesn't happen. Density is utility-grade; motion is restrained — entrances fire once, and the only looping motion in the whole app is the honest live signal.",
+    "keyCharacteristics": [
+      "Two dark surfaces only (black backdrop, ink panels) separated by hairlines — no third tone.",
+      "One accent, electric blue, spent where the user acts or where voz is alive.",
+      "Motion — not a second color — is the 'live' signal.",
+      "SF Pro everywhere in-app; the brand faces (Sora, Inter) never appear inside the app.",
+      "Floating surfaces are full capsules; windowed surfaces are soft rectangles (6–16px)."
+    ],
+    "rules": [
+      { "name": "The One-Accent Rule", "body": "Electric is the only hue in the app. Its tints (electric-deep fills, electric-text labels, 14–18% washes) are the same accent, not new colors. Accent is spent only where the user acts or where voz is alive — never on decorative borders, random headings, or every icon in a list. The sole non-blue chroma permitted is warn, on failures, with a glyph.", "section": "colors" },
+      { "name": "The Motion-Is-The-Signal Rule", "body": "'Is it listening / is it reading?' is answered by motion, never by a second hue: the waveform only moves while the mic is hot or audio is playing; the spinner only spins while processing. Never add a 'recording red,' a 'live green,' or a pulsing tint — and never let the waveform animate while idle.", "section": "colors" },
+      { "name": "The Dark-Card Rule", "body": "Both in-app panels — the dictation pill and the read-along panel — are the same black card: ink #161520, hairline #2A2833, one electric accent. All in-app surfaces are dark; paper #F5F2EC and line-light exist only for marketing/docs and are forbidden in-app. Never introduce ad-hoc darks (#161616, #1C1C1E are known past drift — extinct, do not resurrect).", "section": "colors" },
+      { "name": "The Data-Label Rule", "body": "Uppercase micro-labels are data labels (spec chips, table headers) — never section eyebrows. Default eyebrow count per screen: zero.", "section": "typography" },
+      { "name": "The Lowercase Rule", "body": "In running text the product is always lowercase voz. Never 'AI-powered'; always 'on-device.'", "section": "typography" },
+      { "name": "The Lit-Signal Rule", "body": "The waveform bars (and only the waveform bars) glow — a 4px electric halo that makes the voice read as lit, matching the app icon. That is the entire glow budget of the application. No other element glows, blooms, or casts colored light.", "section": "elevation" },
+      { "name": "The Two-Tone Rule", "body": "If a design needs a third dark surface tone, it's wrong — restructure with spacing and hairlines instead. Raised = ink. Backdrop = black. That's the whole elevation system.", "section": "elevation" },
+      { "name": "The Capsule Rule", "body": "Elements inside a capsule sit concentric with its round ends: edge inset = (capsuleHeight − elementDiameter) / 2. Odd-looking insets that satisfy this formula are correct; insets that don't are drift.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do measure contrast, not vibe it: body text ≥ 4.5:1, large/UI ≥ 3:1. Reference pairs: mist/ink 5.15:1 · text-hi/ink 15.8:1 · electric-text/ink 7.70:1 · white/electric-deep 5.26:1.",
+      "Do use electric-text #7FA8FF for any accent-colored text at ≤13px on dark surfaces.",
+      "Do keep one electric circle per overlay — the primary act — and make every other control neutral (line fill, text-hi glyph).",
+      "Do show keyboard focus (2px electric-bright ring) on every focusable control in windowed UI, and hover/pressed feedback on every control in the non-activating overlays.",
+      "Do keep floating pills full capsules with concentric insets, on ink #161520F7, hairline line, bottom-center +28px of the screen under the pointer.",
+      "Do hold the 4px spacing grid (4/8/12/16/20/24/28) and the radius scale (6/8/12/16/capsule).",
+      "Do signal success with a checkmark glyph + text-hi label, and failures with warn + a glyph."
+    ],
+    "donts": [
+      "Don't resurrect the ad-hoc darks — #161616, #1C1C1E, #36383D, #3D4045, #45474C are extinct drift; the only dark surfaces are black, ink, and line.",
+      "Don't set solid electric #2E74FF as small text on ink/black — it measures 4.35:1 and fails AA. That's what electric-text is for.",
+      "Don't introduce a second hue: no success green, no recording red, no purple gradients, no neon accents, no glassmorphism. Motion is the live signal.",
+      "Don't add glows or shadows beyond the three in the vocabulary — no smudge glows, no unmotivated shadows; light needs a source.",
+      "Don't overuse cards or eyebrows: no boxes-in-boxes, no caps section labels — uppercase micro-type is for data labels only.",
+      "Don't name a light color 'ink' — ink is the dark surface; light text is text-hi.",
+      "Don't use the voice gradient (deep→cyan) inside the app — it belongs to the logo, icon, and marketing surfaces only.",
+      "Don't bring Sora or Inter into the app; in-app type is SF Pro, and 'voz' stays lowercase in prose. Never 'AI-powered'; always 'on-device.'",
+      "Don't let anything loop at rest: waveforms flat when idle, spinners gone when done, transition debris dissolved."
+    ]
+  }
+}

@@ -7,13 +7,16 @@ import UniformTypeIdentifiers
 struct DataPrivacyView: View {
     @ObservedObject var store: InsightStore
     @State private var confirmClear = false
+    @State private var clearHovered = false
+    /// App-level pref, read by the AppDelegate's Dock policy — this view only writes the default
+    /// and posts the change signal; the lifecycle side owns the actual .accessory ↔ .regular flip.
+    @AppStorage("voz.dockIcon") private var dockIconMode = "whileWindowsOpen"
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Data & Privacy").font(.system(size: 26, weight: .bold)).foregroundStyle(VozTheme.textHi)
-                Text("Everything lives on your Mac, in ~/.voz — never uploaded. Audio is deleted unless you keep it.")
-                    .font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                PageHeader(title: "Data & Privacy",
+                           subtitle: "Everything lives on your Mac, in ~/.voz — never uploaded. Audio is deleted unless you keep it.")
 
                 VStack(alignment: .leading, spacing: 0) {
                     toggleRow("Keep dictation history",
@@ -58,24 +61,53 @@ struct DataPrivacyView: View {
                 }
                 .cardStyle()
 
+                // App: voz is a menu-bar app first — this picks when it also shows in the Dock.
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("App").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+                        .padding(.bottom, 12)
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Show Dock icon").font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
+                            Text("voz lives in the menu bar. Choose when it also appears in the Dock with a full app menu.")
+                                .font(.system(size: 11)).foregroundStyle(VozTheme.mist)
+                        }
+                        Spacer()
+                        Picker("", selection: $dockIconMode) {
+                            Text("While a window is open").tag("whileWindowsOpen")
+                            Text("Always").tag("always")
+                            Text("Never").tag("never")
+                        }
+                        .labelsHidden().pickerStyle(.menu).frame(width: 210)
+                        .tint(VozTheme.electric)
+                        .onChange(of: dockIconMode) { _ in
+                            NotificationCenter.default.post(name: Notification.Name("voz.dockIconModeChanged"), object: nil)
+                        }
+                    }
+                }
+                .cardStyle()
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Your data").font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
                     Text("\(store.dictations.count) dictations · \(store.reads.count) reads · \(store.audioSummary)")
                         .font(.system(size: 12)).foregroundStyle(VozTheme.mist)
                     HStack(spacing: 8) {
-                        Button("Export…") { export() }
+                        Button("Export…") { HistoryExport.run(store) }
                         Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([store.dir]) }
                         Spacer()
+                        // Destructive stays neutral (One-Accent Rule: no red) — the confirm alert is
+                        // the safety net; hover brightens mist to text-hi like every ghost button.
                         Button { confirmClear = true } label: {
-                            Text("Clear all history").foregroundStyle(.red.opacity(0.85))
+                            Text("Clear all history")
+                                .foregroundStyle(clearHovered ? VozTheme.textHi : VozTheme.mist)
                         }
                         .buttonStyle(.plain)
+                        .onHover { clearHovered = $0 }
                     }
                     .font(.system(size: 12))
                 }
                 .cardStyle()
             }
-            .padding(24)
+            .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VozTheme.black)
@@ -97,8 +129,11 @@ struct DataPrivacyView: View {
         }
         .tint(VozTheme.electric)
     }
+}
 
-    private func export() {
+/// One export path for the pane button and the window toolbar — same panel, same JSON.
+enum HistoryExport {
+    static func run(_ store: InsightStore) {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "voz-history.json"
         panel.allowedContentTypes = [.json]

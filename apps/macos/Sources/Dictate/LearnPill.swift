@@ -1,4 +1,5 @@
 import AppKit
+import Shared
 
 /// The little learn prompt: a rounded capsule that appears bottom-center when dictado notices
 /// you fixed a word — "miele → Myela" between a ✕ (dismiss) and a ✓ (add to your dictionary).
@@ -11,11 +12,13 @@ final class LearnPill: NSObject {
     private var onAccept: (() -> Void)?
     private var onRemove: (() -> Void)?
 
-    private let ink = NSColor(srgbRed: 0.93, green: 0.94, blue: 0.96, alpha: 1)
-    private let blue = NSColor(srgbRed: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0, alpha: 1) // electric blue — voz brand accent
-    private let muted = NSColor(srgbRed: 0.62, green: 0.66, blue: 0.72, alpha: 1)
-    private let bg = NSColor(srgbRed: 0x1c / 255.0, green: 0x1c / 255.0, blue: 0x1e / 255.0, alpha: 0.98)
-    private let circle = NSColor(srgbRed: 0.27, green: 0.28, blue: 0.30, alpha: 1)
+    // Tokens from Shared/Theme — one canon (brand/tokens.md), no local literals.
+    private let textHi = Theme.textHi.ns
+    private let blue = Theme.electric.ns   // electric blue — voz brand accent
+    private let muted = Theme.mist.ns
+    private let bg = Theme.pillSurface.ns  // canon ink at 97%, same surface as the dictation pill
+    private let circle = Theme.line.ns     // neutral circle-control fill: line, with a text-hi glyph
+    private let electricText = Theme.electricText.ns // the accent's AA-safe small-text tint
 
     /// Show "from → to". ✓ runs onAccept (learn it); ✕ or a ~6s timeout dismisses without learning.
     func show(from: String, to: String, onAccept: @escaping () -> Void) {
@@ -24,10 +27,10 @@ final class LearnPill: NSObject {
 
         let height: CGFloat = 44
         let dot: CGFloat = 30 // button diameter
-        let center = label("\(from)  →  \(to)", size: 13, weight: .medium, color: ink)
+        let center = label("\(from)  →  \(to)", size: 13, weight: .medium, color: textHi)
         center.alignment = .center
 
-        let reject = circleButton(symbol: "xmark", fg: ink, bgColor: circle, diameter: dot, action: #selector(rejectTapped))
+        let reject = circleButton(symbol: "xmark", fg: textHi, bgColor: circle, diameter: dot, action: #selector(rejectTapped))
         let accept = circleButton(symbol: "checkmark", fg: .white, bgColor: blue, diameter: dot, action: #selector(acceptTapped))
 
         let stack = NSStackView(views: [reject, center, accept])
@@ -54,7 +57,7 @@ final class LearnPill: NSObject {
         let height: CGFloat = 44
         let badge = circleButton(symbol: "checkmark", fg: .white, bgColor: blue, diameter: 26, action: #selector(noop))
         badge.isEnabled = false
-        let center = label("“\(word)” added to your dictionary", size: 13, weight: .medium, color: ink)
+        let center = label("“\(word)” added to your dictionary", size: 13, weight: .medium, color: textHi)
         let undo = textButton("Undo", action: #selector(removeTapped))
 
         let stack = NSStackView(views: [badge, center, undo])
@@ -110,10 +113,10 @@ final class LearnPill: NSObject {
         stack.orientation = .horizontal
         stack.spacing = 9
         stack.alignment = .centerY
-        stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 14)
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 14) // (38 − 22) / 2 — concentric with the capsule end
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let width = min(420, center.intrinsicContentSize.width + 22 + 9 + 10 + 14)
+        let width = min(420, center.intrinsicContentSize.width + 22 + 9 + 8 + 14)
         mountCapsule(stack: stack, width: width, height: height)
 
         let work = DispatchWorkItem { [weak self] in self?.close() }
@@ -133,10 +136,10 @@ final class LearnPill: NSObject {
         stack.orientation = .horizontal
         stack.spacing = 9
         stack.alignment = .centerY
-        stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 14)
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 14) // (38 − 22) / 2 — concentric with the capsule end
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let width = min(460, center.intrinsicContentSize.width + 22 + 9 + 10 + 14)
+        let width = min(460, center.intrinsicContentSize.width + 22 + 9 + 8 + 14)
         mountCapsule(stack: stack, width: width, height: height)
 
         let work = DispatchWorkItem { [weak self] in self?.close() }
@@ -162,7 +165,7 @@ final class LearnPill: NSObject {
         content.layer?.backgroundColor = bg.cgColor
         content.layer?.cornerRadius = height / 2 // full capsule
         content.layer?.borderWidth = 1
-        content.layer?.borderColor = NSColor(srgbRed: 0.24, green: 0.25, blue: 0.27, alpha: 1).cgColor
+        content.layer?.borderColor = Theme.line.ns.cgColor
         content.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: content.topAnchor),
@@ -198,7 +201,7 @@ final class LearnPill: NSObject {
         b.target = self
         b.action = action
         b.attributedTitle = NSAttributedString(string: title, attributes: [
-            .foregroundColor: blue,
+            .foregroundColor: electricText, // the accent's AA-safe text tint — solid electric fails at 12px
             .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
         ])
         b.setContentHuggingPriority(.required, for: .horizontal)
@@ -206,7 +209,7 @@ final class LearnPill: NSObject {
     }
 
     private func circleButton(symbol: String, fg: NSColor, bgColor: NSColor, diameter: CGFloat, action: Selector) -> NSButton {
-        let b = NSButton()
+        let b = HoverCircleButton()
         b.translatesAutoresizingMaskIntoConstraints = false
         b.bezelStyle = .regularSquare
         b.isBordered = false
@@ -214,7 +217,7 @@ final class LearnPill: NSObject {
         b.target = self
         b.action = action
         b.wantsLayer = true
-        b.layer?.backgroundColor = bgColor.cgColor
+        b.baseColor = bgColor
         b.layer?.cornerRadius = diameter / 2
         var cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .bold)
         cfg = cfg.applying(.init(paletteColors: [fg]))
@@ -235,5 +238,32 @@ final class LearnPill: NSObject {
         l.textColor = color
         l.setContentHuggingPriority(.defaultLow, for: .horizontal)
         return l
+    }
+}
+
+/// A layer-backed circle button that answers the pointer. The capsule is a non-activating panel —
+/// keyboard focus never enters it — so hover (~8% lighter) and press (~10% darker) are the whole
+/// state story.
+private final class HoverCircleButton: NSButton {
+    var baseColor: NSColor = .clear { didSet { layer?.backgroundColor = baseColor.cgColor } }
+    private var hovered = false
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways],
+                                       owner: self, userInfo: nil))
+    }
+    override func mouseEntered(with event: NSEvent) { hovered = true; refresh() }
+    override func mouseExited(with event: NSEvent) { hovered = false; refresh() }
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        layer?.backgroundColor = (baseColor.blended(withFraction: 0.10, of: .black) ?? baseColor).cgColor
+        super.mouseDown(with: event) // NSButton's tracking loop — returns on release
+        refresh()
+    }
+    private func refresh() {
+        let c = (hovered && isEnabled) ? (baseColor.blended(withFraction: 0.08, of: .white) ?? baseColor) : baseColor
+        layer?.backgroundColor = c.cgColor
     }
 }

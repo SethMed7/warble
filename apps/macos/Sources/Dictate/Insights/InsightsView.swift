@@ -10,20 +10,21 @@ struct InsightsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Insights").font(.system(size: 26, weight: .bold)).foregroundStyle(VozTheme.textHi)
+                PageHeader(title: "Insights",
+                           subtitle: "Trends over the last 30 days — volume, pace, and where you dictate.")
                 // Insights AI sits above the charts and shows even with no dictations yet (so the
                 // opt-in enable card is reachable). The charts below stay gated on having data.
                 AIInsightsView(ai: ai, store: store)
                 if store.dictations.isEmpty {
-                    ComingSoon(icon: "chart.bar", title: "No data yet",
-                               subtitle: "Dictate a few times and your trends show up here.")
+                    EmptyState(icon: "chart.bar", title: "No trends yet",
+                               message: "Dictate a few times — words per day, speaking pace, and your top apps chart here. Hold Fn and speak.")
                 } else {
                     wordsCard
                     wpmCard
                     perAppCard
                 }
             }
-            .padding(24)
+            .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VozTheme.black)

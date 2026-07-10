@@ -22,15 +22,14 @@ struct DictionaryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Dictionary").font(.system(size: 26, weight: .bold)).foregroundStyle(VozTheme.textHi)
-                Text("Spelling fixes for dictation and how read-aloud says a word — local, on your Mac.")
-                    .font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+                PageHeader(title: "Dictionary",
+                           subtitle: "Spelling fixes for dictation and how read-aloud says a word — local, on your Mac.")
                 correctionsCard
                 pronunciationsCard
                 if !pending.isEmpty { learningCard }
                 settingsCard
             }
-            .padding(24)
+            .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VozTheme.black)
@@ -41,7 +40,8 @@ struct DictionaryView: View {
         VStack(alignment: .leading, spacing: 12) {
             cardHeader("Corrections", "Applied to every dictation — heard → should be.")
             if corrections.isEmpty {
-                Text("No corrections yet.").font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                Text("Nothing yet. Fix a word below — or open any dictation in History and teach it from there.")
+                    .font(.system(size: 12)).foregroundStyle(VozTheme.mist)
             } else {
                 ForEach(corrections) { p in pairRow(p.a, p.b) { Lexicon.shared.forget(p.a); reload() } }
             }
@@ -56,7 +56,8 @@ struct DictionaryView: View {
         VStack(alignment: .leading, spacing: 12) {
             cardHeader("Pronunciations", "How read-aloud says a word — word → say it like.")
             if pronunciations.isEmpty {
-                Text("No pronunciations yet.").font(.system(size: 12)).foregroundStyle(VozTheme.mist)
+                Text("Nothing yet. Add a word and how to say it — read-aloud will use it.")
+                    .font(.system(size: 12)).foregroundStyle(VozTheme.mist)
             } else {
                 ForEach(pronunciations) { p in pairRow(p.a, p.b) { Lexicon.shared.forgetPronunciation(p.a); reload() } }
             }
@@ -120,7 +121,7 @@ struct DictionaryView: View {
         HStack(spacing: 8) {
             Text(a).font(.system(size: 13)).foregroundStyle(VozTheme.textHi)
             Image(systemName: "arrow.right").font(.system(size: 10)).foregroundStyle(VozTheme.mist)
-            Text(b).font(.system(size: 13)).foregroundStyle(VozTheme.electric)
+            Text(b).font(.system(size: 13)).foregroundStyle(VozTheme.electricText)
             Spacer()
             trashButton(delete)
         }
@@ -134,8 +135,7 @@ struct DictionaryView: View {
         }
     }
     private func trashButton(_ action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: "trash").font(.system(size: 12)).foregroundStyle(VozTheme.mist) }
-            .buttonStyle(.plain)
+        TrashButton(action: action)
     }
     private func choose() {
         let panel = NSOpenPanel()
@@ -152,12 +152,28 @@ struct DictionaryView: View {
     }
 }
 
+/// The destructive affordance appears on approach: mist at rest, brightening to text-hi on hover.
+/// The trash glyph carries the meaning — no red (One-Accent Rule: the only non-blue chroma is warn,
+/// failures only).
+struct TrashButton: View {
+    let action: () -> Void
+    @State private var hovered = false
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "trash").font(.system(size: 12))
+                .foregroundStyle(hovered ? VozTheme.textHi : VozTheme.mist)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+    }
+}
+
 extension View {
     /// The dashboard's ink card with hairline border.
     func cardStyle() -> some View {
         padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(VozTheme.line, lineWidth: 1))
+            .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
     }
 }

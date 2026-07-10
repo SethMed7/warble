@@ -1,4 +1,5 @@
 import AppKit
+import Shared
 
 /// The small, bottom-centered dictation indicator. Recording shows ONLY a live blue waveform that
 /// moves with your voice — no text, no wordmark. On release the waveform goes flat and a spinner
@@ -12,11 +13,13 @@ final class Overlay {
     private var spinner: Spinner?
     private var autoCloseWork: DispatchWorkItem?
 
-    private let ink = NSColor(srgbRed: 0.93, green: 0.94, blue: 0.96, alpha: 1)
-    private let blue = NSColor(srgbRed: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0, alpha: 1) // electric blue — the live waveform, accents
-    private let muted = NSColor(srgbRed: 0.62, green: 0.66, blue: 0.72, alpha: 1)
-    private let bg = NSColor(srgbRed: 0x16 / 255.0, green: 0x16 / 255.0, blue: 0x16 / 255.0, alpha: 0.97)
-    private let stroke = NSColor(srgbRed: 0.21, green: 0.22, blue: 0.24, alpha: 1)
+    // Tokens from Shared/Theme — one canon (brand/tokens.md), no local literals.
+    private let textHi = Theme.textHi.ns
+    private let blue = Theme.electric.ns   // electric blue — the live waveform, accents
+    private let muted = Theme.mist.ns
+    private let bg = Theme.pillSurface.ns  // canon ink at 97% — the floating-capsule surface
+    private let stroke = Theme.line.ns
+    private let electricText = Theme.electricText.ns // the accent's AA-safe small-text tint
 
     private let pillHeight: CGFloat = 32
     private let waveSize = CGSize(width: 64, height: 20)
@@ -113,10 +116,10 @@ final class Overlay {
     private func presentText(_ message: String, detail: String?) {
         close()
         let hasDetail = detail != nil && !(detail!.isEmpty)
-        let msg = label(message, size: 12, weight: .medium, color: hasDetail ? blue : muted)
+        let msg = label(message, size: 12, weight: .medium, color: hasDetail ? electricText : muted)
         var views: [NSView] = [msg]
         if hasDetail {
-            let d = label(detail!, size: 12, weight: .regular, color: ink)
+            let d = label(detail!, size: 12, weight: .regular, color: textHi)
             d.maximumNumberOfLines = 1
             d.lineBreakMode = .byTruncatingTail
             d.setContentHuggingPriority(.defaultLow, for: .horizontal)

@@ -68,28 +68,33 @@ public final class SpeakController: NSObject {
         DispatchQueue.global(qos: .utility).async { WarmTTS.shared.prewarm() }
     }
 
-    /// The read-aloud section of the shared menu. Rebuilt by the coordinator on demand.
-    /// The header is the on/off switch for the whole capability; when off it stands alone.
+    /// The read-aloud block of the shared menu: the on/off toggle plus a "Read Aloud" submenu
+    /// carrying the detail rows. Rebuilt by the coordinator on demand; when the capability is off
+    /// the toggle stands alone. `watchMenuItem` keeps its live reference — session code mutates its
+    /// checkmark directly, and nesting it in a submenu changes nothing about that.
     public func menuItems() -> [NSMenuItem] {
-        var items: [NSMenuItem] = []
         let toggle = NSMenuItem(title: "Read aloud — select + ⌃V", action: #selector(toggleEnabled), keyEquivalent: "")
         toggle.target = self
         toggle.state = speakEnabled ? .on : .off
-        items.append(toggle)
-        guard speakEnabled else { return items }
+        guard speakEnabled else { return [toggle] }
+
+        let sub = NSMenu()
+        sub.autoenablesItems = false // the root's setting doesn't propagate to submenus
 
         watchMenuItem = NSMenuItem(title: "Watch selections  ⌃V", action: #selector(toggleCapture), keyEquivalent: "")
         watchMenuItem.target = self
         watchMenuItem.state = sessionActive ? .on : .off
-        items.append(watchMenuItem)
+        sub.addItem(watchMenuItem)
         let read = NSMenuItem(title: "Read Selection", action: #selector(readSelection), keyEquivalent: "")
         read.target = self
-        items.append(read)
+        sub.addItem(read)
         let stop = NSMenuItem(title: "Stop Reading", action: #selector(stopSpeaking), keyEquivalent: "")
         stop.target = self
-        items.append(stop)
+        sub.addItem(stop)
+        sub.addItem(.separator())
         let voiceItem = NSMenuItem(title: "Voice", action: nil, keyEquivalent: "")
         let voiceMenu = NSMenu()
+        voiceMenu.autoenablesItems = false
         for voice in Voices.all {
             let item = NSMenuItem(title: voice.label, action: #selector(selectVoice(_:)), keyEquivalent: "")
             item.target = self
@@ -98,8 +103,11 @@ public final class SpeakController: NSObject {
             voiceMenu.addItem(item)
         }
         voiceItem.submenu = voiceMenu
-        items.append(voiceItem)
-        return items
+        sub.addItem(voiceItem)
+
+        let subItem = NSMenuItem(title: "Read Aloud", action: nil, keyEquivalent: "")
+        subItem.submenu = sub
+        return [toggle, subItem]
     }
 
     @objc private func selectVoice(_ sender: NSMenuItem) {

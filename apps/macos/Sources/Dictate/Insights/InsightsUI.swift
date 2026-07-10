@@ -2,8 +2,9 @@ import SwiftUI
 import AppKit
 import Shared
 
-/// The Insights dashboard shell: a Flow-style dark sidebar (Home / Insights / Dictionary / History)
-/// over a detail pane. Phase 1 wires Home to real stats; the others are honest placeholders.
+/// The dashboard shell: a Flow-style dark sidebar (Home / Insights / Dictionary / History /
+/// Data & Privacy) over a detail pane. Pure content — the window chrome (toolbar, section title,
+/// contextual search/filter/export) lives in InsightsWindow.
 enum InsightsSection: String, CaseIterable, Identifiable, Hashable {
     case home = "Home", insights = "Insights", dictionary = "Dictionary", history = "History", data = "Data & Privacy"
     var id: String { rawValue }
@@ -22,6 +23,10 @@ enum InsightsSection: String, CaseIterable, Identifiable, Hashable {
 final class InsightsNav: ObservableObject {
     @Published var section: InsightsSection = .home
     @Published var showTutorial = false
+    /// History's live filters — owned here so the window's toolbar (AppKit) and HistoryView
+    /// (SwiftUI) read and write the same state.
+    @Published var historySearch = ""
+    @Published var historyAppFilter: String? = nil
 }
 
 /// Captures each sidebar row's on-screen frame (in the shared coordinate space) so the tutorial can
@@ -38,6 +43,7 @@ struct InsightsRootView: View {
     @ObservedObject var nav: InsightsNav
     @StateObject private var ai = AIInsightsStore()
     @State private var rowFrames: [InsightsSection: CGRect] = [:]
+    @FocusState private var focusedRow: InsightsSection?
 
     static let space = "insights.coach"
 
@@ -52,7 +58,8 @@ struct InsightsRootView: View {
                     .frame(width: 212)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .background(VozTheme.ink)
-                Divider().overlay(VozTheme.line)
+                // A Divider stops at the safe-area edge; the toolbar strip above would show a gap.
+                Rectangle().fill(VozTheme.line).frame(width: 1).ignoresSafeArea(edges: .top)
                 detail
                     .frame(minWidth: 560, maxWidth: .infinity, maxHeight: .infinity)
                     .background(VozTheme.black)
@@ -69,17 +76,17 @@ struct InsightsRootView: View {
         .onPreferenceChange(RowFrameKey.self) { rowFrames = $0 }
     }
 
-    /// The fixed sidebar: brand header + the section rows. Top padding clears the transparent titlebar
-    /// (where the window's traffic lights sit).
+    /// The fixed sidebar: brand header + the section rows. The toolbar's safe-area inset already
+    /// clears the titlebar; the small top padding is just breathing room.
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
                 Image(nsImage: VozMark.coloredMark(height: 22))
                 Text("voz").font(.headline).foregroundStyle(VozTheme.textHi)
-                Text("Insights").font(.headline).foregroundStyle(VozTheme.mist)
+                Text("Dashboard").font(.headline).foregroundStyle(VozTheme.mist)
             }
             .padding(.horizontal, 14)
-            .padding(.top, 30)
+            .padding(.top, 12)
             .padding(.bottom, 12)
 
             ForEach(InsightsSection.allCases) { s in sidebarRow(s) }
@@ -87,26 +94,17 @@ struct InsightsRootView: View {
         }
     }
 
-    /// One selectable row. Publishes its frame (RowFrameKey) so the coachmark tour can spotlight it.
+    /// One selectable row. Publishes its frame (RowFrameKey) so the coachmark tour can spotlight it —
+    /// the GeometryReader background must stay right here in the chain (after the row's own padding
+    /// and background, before the outer horizontal padding) or the coachmarks shift.
     private func sidebarRow(_ s: InsightsSection) -> some View {
-        let selected = nav.section == s
-        return HStack(spacing: 10) {
-            Image(systemName: s.icon).frame(width: 20)
-            Text(s.rawValue)
-            Spacer(minLength: 0)
-        }
-        .font(.system(size: 13, weight: selected ? .semibold : .regular))
-        .foregroundStyle(selected ? VozTheme.textHi : VozTheme.mist)
-        .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(selected ? VozTheme.electric.opacity(0.18) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 8))
-        .contentShape(Rectangle())
-        .onTapGesture { nav.section = s }
-        .background(GeometryReader { geo in
-            Color.clear.preference(key: RowFrameKey.self,
-                                   value: [s: geo.frame(in: .named(Self.space))])
-        })
-        .padding(.horizontal, 8)
+        SidebarRow(section: s, selected: nav.section == s, focused: focusedRow == s) { nav.section = s }
+            .focused($focusedRow, equals: s)
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: RowFrameKey.self,
+                                       value: [s: geo.frame(in: .named(Self.space))])
+            })
+            .padding(.horizontal, 8)
     }
 
     /// The detail pane for the selected section.
@@ -115,9 +113,48 @@ struct InsightsRootView: View {
         case .home: HomeView(store: store)
         case .insights: InsightsView(store: store, ai: ai)
         case .dictionary: DictionaryView()
-        case .history: HistoryView(store: store)
+        case .history: HistoryView(store: store, nav: nav)
         case .data: DataPrivacyView(store: store)
         }
+    }
+}
+
+/// A sidebar row as a real Button (Space/Return activate it when focused). Hover is a neutral lift —
+/// no second hue, the accent stays on selection — and keyboard focus draws the same 2px
+/// electric-bright (crest) ring as FilledButton/GhostButton, because the system ring on `.plain`
+/// buttons is unreliable on macOS 13.
+private struct SidebarRow: View {
+    let section: InsightsSection
+    let selected: Bool
+    let focused: Bool
+    let activate: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: activate) {
+            HStack(spacing: 10) {
+                Image(systemName: section.icon).frame(width: 20)
+                Text(section.rawValue)
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 13, weight: selected ? .semibold : .regular))
+            .foregroundStyle(selected ? VozTheme.textHi : VozTheme.mist)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(fill, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(VozTheme.electricBright, lineWidth: 2)
+                .padding(-2)
+                .opacity(focused ? 1 : 0))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+    }
+
+    private var fill: Color {
+        if selected { return VozTheme.electric.opacity(0.18) }
+        if hovered { return Color.white.opacity(0.04) }
+        return .clear
     }
 }
 
@@ -151,7 +188,10 @@ struct TutorialOverlay: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .animation(.easeInOut(duration: 0.22), value: step)
         }
-        .ignoresSafeArea()
+        // No .ignoresSafeArea() here: the row frames are measured in the root ZStack's named space,
+        // which starts BELOW the toolbar's safe-area inset — expanding above it would draw every
+        // spotlight and callout ~52pt too high. The toolbar strip stays undimmed, same as the
+        // traffic lights (window chrome sits above the contentView; SwiftUI can't dim it anyway).
         .onAppear { nav.section = steps[0].section }
     }
 
@@ -228,8 +268,8 @@ struct TutorialOverlay: View {
         }
         .padding(18)
         .frame(width: cardWidth, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(VozTheme.ink))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(VozTheme.line, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 12).fill(VozTheme.ink))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 24, y: 10)
     }
 
@@ -273,10 +313,9 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("Welcome back, \(firstName)")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(VozTheme.textHi)
+            VStack(alignment: .leading, spacing: 20) {
+                PageHeader(title: "Welcome back, \(firstName)",
+                           subtitle: "Your dictation at a glance — words, pace, streak, and recent activity.")
 
                 HStack(spacing: 14) {
                     StatCard(value: store.totalWordsCompact, label: "words dictated")
@@ -300,8 +339,8 @@ struct HomeView: View {
                             }
                         }
                     }
-                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(VozTheme.line, lineWidth: 1))
+                    .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
 
                     if !store.perApp.isEmpty {
                         Text("Where you dictate")
@@ -315,8 +354,8 @@ struct HomeView: View {
                             }
                         }
                         .padding(16)
-                        .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(VozTheme.line, lineWidth: 1))
+                        .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
                     }
                 }
             }
@@ -386,7 +425,7 @@ private struct RecentRow: View {
                     .lineLimit(2)
                 HStack(spacing: 8) {
                     if let app = event.appName {
-                        Text(app).font(.system(size: 11)).foregroundStyle(VozTheme.electric)
+                        Text(app).font(.system(size: 11)).foregroundStyle(VozTheme.electricText)
                     }
                     Text("· \(event.words) words · \(event.wpm) wpm")
                         .font(.system(size: 11))
@@ -404,32 +443,47 @@ private struct EmptyHome: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "mic").font(.system(size: 28)).foregroundStyle(VozTheme.electric)
-            Text("Hold Fn and start dictating — your words, streak, and WPM build up here.")
+            Text("**Hold Fn and speak** — your words, streak, and pace build up here. Select text and press ⌃V to hear it read aloud.")
                 .font(.system(size: 13))
                 .foregroundStyle(VozTheme.mist)
                 .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(VozTheme.line, lineWidth: 1))
+        .background(VozTheme.ink, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(VozTheme.line, lineWidth: 1))
     }
 }
 
-struct ComingSoon: View {
-    let icon: String
+/// Every section opens with the same header: the section name and one plain line saying what
+/// this page is for — same scale everywhere so switching sections doesn't jump.
+struct PageHeader: View {
     let title: String
     let subtitle: String
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.system(size: 26, weight: .bold)).foregroundStyle(VozTheme.textHi)
+            Text(subtitle).font(.system(size: 13)).foregroundStyle(VozTheme.mist)
+        }
+    }
+}
+
+/// A first-run empty state: what this page will show and the one action that starts filling it.
+/// No "coming soon" — the feature is here, the data isn't yet.
+struct EmptyState: View {
+    let icon: String
+    let title: String
+    let message: String // ends with the action, e.g. "Hold Fn and speak."
+    var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 34)).foregroundStyle(VozTheme.electric)
-            Text(title).font(.system(size: 20, weight: .bold)).foregroundStyle(VozTheme.textHi)
-            Text(subtitle)
+            Image(systemName: icon).font(.system(size: 28)).foregroundStyle(VozTheme.electric)
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(VozTheme.textHi)
+            Text(message)
                 .font(.system(size: 13))
                 .foregroundStyle(VozTheme.mist)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-            Text("Coming soon").font(.system(size: 11, weight: .semibold)).foregroundStyle(VozTheme.mist)
+                .frame(maxWidth: 380)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)

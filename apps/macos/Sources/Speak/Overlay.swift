@@ -1,4 +1,5 @@
 import AppKit
+import Shared
 
 /// The read-along panel. Two modes:
 ///  • mini (default) — a small draggable player: waveform + play/pause + stop, so it stays out of
@@ -43,16 +44,14 @@ final class Overlay {
 
     // voz read-aloud — the dark identity: black surface, one electric-blue accent (brand: black +
     // blue). Matches the dictation pill so the two capabilities feel like one app. "It's reading"
-    // is carried by MOTION (the animated waveform + play glyph), never a second hue — so the live
-    // accent is the same electric blue.
-    private let textHi = NSColor(srgbRed: 0.93, green: 0.94, blue: 0.96, alpha: 1)   // near-white, high-emphasis
-    private let textLo = NSColor(srgbRed: 0.62, green: 0.66, blue: 0.72, alpha: 1)   // mist — secondary labels / placeholder
-    private let accent = NSColor(srgbRed: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0, alpha: 1) // electric blue — the one accent
-    private let iconBlue = NSColor(srgbRed: 0x7F / 255.0, green: 0xA8 / 255.0, blue: 0xFF / 255.0, alpha: 1) // lighter blue for secondary glyphs (legible on the faint tint)
-    private let liveAccent = NSColor(srgbRed: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0, alpha: 1) // live = same blue; motion signals it
-    private let surface = NSColor(srgbRed: 0x16 / 255.0, green: 0x16 / 255.0, blue: 0x16 / 255.0, alpha: 0.97) // ink panel
-    private let line = NSColor(srgbRed: 0.21, green: 0.22, blue: 0.24, alpha: 1)     // hairline border on dark
-    private var softAccent: NSColor { accent.withAlphaComponent(0.16) }              // soft tint behind secondary icons
+    // is carried by MOTION (the animated waveform + play glyph), never a second hue. Tokens from
+    // Shared/Theme — one canon (brand/tokens.md), no local literals.
+    private let textHi = Theme.textHi.ns       // near-white, high-emphasis
+    private let textLo = Theme.mist.ns         // mist — secondary labels / placeholder
+    private let accent = Theme.electric.ns     // electric blue — the one accent, spent on play/pause only
+    private let surface = Theme.pillSurface.ns // canon ink at 97% — the floating-panel surface
+    private let line = Theme.line.ns           // hairline border on dark + the neutral circle fill
+    private let electricText = Theme.electricText.ns // the accent's AA-safe small-text tint
     private let bodyFont = NSFont.systemFont(ofSize: 15)
     private var boldFont: NSFont { NSFont.systemFont(ofSize: 15, weight: .heavy) }
 
@@ -209,12 +208,7 @@ final class Overlay {
     }
     private func setSpeaking(_ on: Bool) {
         speaking = on
-        syncWaveform()
-        // The play/pause control glows the live accent only while audio is actually playing (honest
-        // "it's live"), back to the base accent when paused/idle/done. The pill background is layer-backed.
-        let live = (on ? liveAccent : accent).cgColor
-        miniPlay?.layer?.backgroundColor = live
-        playButton?.layer?.backgroundColor = live
+        syncWaveform() // motion carries "it's live" — the accent never changes hue (brand law)
     }
     private func syncWaveform() { waveform?.setActive(speaking && mode == .mini) }
 
@@ -285,7 +279,7 @@ final class Overlay {
         container = NSView(frame: NSRect(origin: .zero, size: size))
         container.wantsLayer = true
         container.layer?.backgroundColor = surface.cgColor
-        container.layer?.cornerRadius = 18
+        container.layer?.cornerRadius = 16
         container.layer?.borderWidth = 1
         container.layer?.borderColor = line.cgColor
 
@@ -327,11 +321,11 @@ final class Overlay {
         // No wordmark, no badge, no stop button (Esc stops). The waveform has a fixed width so the
         // bars stay as crisp vertical capsules instead of stretching into ovals.
         waveform = WaveformView(bars: 7)
-        waveform.barColor = liveAccent // animates only while audio plays — motion = live; rests flat
+        waveform.barColor = accent // animates only while audio plays — motion = live; rests flat
 
         miniPlay = circleButton("play.fill", label: "Play", action: #selector(togglePlay), color: accent, fg: .white, diameter: 36)
         let expandBtn = circleButton("arrow.up.left.and.arrow.down.right", label: "Show transcript", action: #selector(expand),
-                                     color: softAccent, fg: iconBlue, diameter: 32)
+                                     color: line, fg: textHi, diameter: 32)
         expandBtn.toolTip = "Show the text"
 
         let stack = NSStackView(views: [waveform, miniPlay, expandBtn])
@@ -380,21 +374,21 @@ final class Overlay {
         statusLabel.lineBreakMode = .byTruncatingTail
 
         playButton = circleButton("play.fill", label: "Play", action: #selector(togglePlay), color: accent, fg: .white, diameter: 34)
-        let stopButton = circleButton("stop.fill", label: "Stop", action: #selector(stopAll), color: softAccent, fg: iconBlue, diameter: 32)
+        let stopButton = circleButton("stop.fill", label: "Stop", action: #selector(stopAll), color: line, fg: textHi, diameter: 32)
         stopButton.toolTip = "Stop  ·  Esc again"
-        watchButton = circleButton("xmark", label: "Stop watching", action: #selector(stopWatching), color: softAccent, fg: iconBlue, diameter: 32)
+        watchButton = circleButton("xmark", label: "Stop watching", action: #selector(stopWatching), color: line, fg: textHi, diameter: 32)
         watchButton.toolTip = "Stop watching (keep reading what's queued)  ·  Esc"
-        watchBadge = label("● watching", size: 11, weight: .bold, color: liveAccent) // live capture
+        watchBadge = label("● watching", size: 11, weight: .bold, color: electricText) // live capture — AA-safe tint
         let collapseBtn = circleButton("arrow.down.right.and.arrow.up.left", label: "Minimize", action: #selector(collapse),
-                                       color: softAccent, fg: iconBlue, diameter: 32)
+                                       color: line, fg: textHi, diameter: 32)
         collapseBtn.toolTip = "Minimize"
 
-        voiceButton = circleButton("person.wave.2.fill", label: "Choose voice", action: #selector(showVoiceMenu), color: softAccent, fg: iconBlue, diameter: 32)
+        voiceButton = circleButton("person.wave.2.fill", label: "Choose voice", action: #selector(showVoiceMenu), color: line, fg: textHi, diameter: 32)
         voiceButton.toolTip = "Choose voice"
 
         let controls = NSStackView(views: [watchBadge, playButton, stopButton, watchButton, voiceButton, statusLabel, collapseBtn])
         controls.orientation = .horizontal
-        controls.spacing = 14
+        controls.spacing = 16
         controls.alignment = .centerY
         controls.translatesAutoresizingMaskIntoConstraints = false
 
@@ -408,7 +402,7 @@ final class Overlay {
             controls.topAnchor.constraint(equalTo: scroll.bottomAnchor, constant: 12),
             controls.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: pad),
             controls.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -pad),
-            controls.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -18),
+            controls.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -16),
             controls.heightAnchor.constraint(equalToConstant: 36),
         ])
         expandedView = v
@@ -428,13 +422,14 @@ final class Overlay {
     }
 
     /// A round, layer-backed control with a centered SF Symbol. `accent` filled + white icon for the
-    /// primary play/pause; a soft-blue tint + blue icon for secondary actions — clean, cohesive, modern.
+    /// primary play/pause — the one electric circle per surface; `line` fill + text-hi icon for every
+    /// secondary action, so the accent stays rationed to the primary act.
     private func circleButton(_ symbolName: String, label: String, action: Selector, color: NSColor, fg: NSColor,
                               diameter: CGFloat = 34) -> NSButton {
-        let b = NSButton(title: "", target: self, action: action)
+        let b = HoverCircleButton(title: "", target: self, action: action)
         b.isBordered = false
         b.wantsLayer = true
-        b.layer?.backgroundColor = color.cgColor
+        b.baseColor = color
         b.layer?.cornerRadius = diameter / 2
         b.contentTintColor = fg
         b.imagePosition = .imageOnly
@@ -447,5 +442,32 @@ final class Overlay {
             b.heightAnchor.constraint(equalToConstant: diameter),
         ])
         return b
+    }
+}
+
+/// A layer-backed circle button that answers the pointer. The panel is non-activating —
+/// keyboard focus never enters it — so hover (~8% lighter) and press (~10% darker) are the whole
+/// state story.
+private final class HoverCircleButton: NSButton {
+    var baseColor: NSColor = .clear { didSet { layer?.backgroundColor = baseColor.cgColor } }
+    private var hovered = false
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways],
+                                       owner: self, userInfo: nil))
+    }
+    override func mouseEntered(with event: NSEvent) { hovered = true; refresh() }
+    override func mouseExited(with event: NSEvent) { hovered = false; refresh() }
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        layer?.backgroundColor = (baseColor.blended(withFraction: 0.10, of: .black) ?? baseColor).cgColor
+        super.mouseDown(with: event) // NSButton's tracking loop — returns on release
+        refresh()
+    }
+    private func refresh() {
+        let c = (hovered && isEnabled) ? (baseColor.blended(withFraction: 0.08, of: .white) ?? baseColor) : baseColor
+        layer?.backgroundColor = c.cgColor
     }
 }

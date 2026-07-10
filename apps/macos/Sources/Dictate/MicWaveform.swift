@@ -1,4 +1,5 @@
 import AppKit
+import Shared
 
 /// A live, voice-reactive equalizer for the dictation pill. Unlike Speak's
 /// `WaveformView` (a fixed sine ripple that just signals "active"), this is
@@ -7,7 +8,7 @@ import AppKit
 /// eases each bar toward the latest level — fast attack, slow release, like a VU
 /// meter — so the motion looks fluid and alive rather than steppy.
 final class MicWaveformView: NSView {
-    var barColor: NSColor = NSColor(srgbRed: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0, alpha: 1) {
+    var barColor: NSColor = Theme.electric.ns {
         didSet { needsDisplay = true }
     }
 
@@ -97,7 +98,7 @@ final class MicWaveformView: NSView {
 /// A small electric-blue spinner for the "processing" state — a stroked arc that rotates in place.
 /// Custom (not NSProgressIndicator) so it matches the brand color, which the system spinner won't.
 final class Spinner: NSView {
-    var color: NSColor = NSColor(srgbRed: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0, alpha: 1) {
+    var color: NSColor = Theme.electric.ns {
         didSet { arc.strokeColor = color.cgColor }
     }
     private let arc = CAShapeLayer()

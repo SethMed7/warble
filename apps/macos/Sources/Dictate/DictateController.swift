@@ -94,64 +94,68 @@ public final class DictateController: NSObject {
         onIcon?(state == .idle ? 0 : 3, state == .idle ? "mic" : "mic.fill")
     }
 
-    /// The dictation section of the shared menu. Rebuilt by the coordinator on demand.
-    /// The header is the on/off switch for the whole capability; when off it stands alone
-    /// (no engine row, no dictionary) so the menu reads as "this mode is parked".
+    /// The dictation block of the shared menu: the on/off toggle plus a "Dictate" submenu carrying
+    /// the detail rows. Rebuilt by the coordinator on demand. When the capability is off the toggle
+    /// stands alone (no submenu) so the menu reads as "this mode is parked".
     public func menuItems() -> [NSMenuItem] {
-        var items: [NSMenuItem] = []
         let toggle = NSMenuItem(title: "Dictate — hold Fn to record", action: #selector(toggleEnabled), keyEquivalent: "")
         toggle.target = self
         toggle.state = dictateEnabled ? .on : .off
-        items.append(toggle)
-        guard dictateEnabled else { return items }
+        guard dictateEnabled else { return [toggle] }
+
+        let sub = NSMenu()
+        sub.autoenablesItems = false // the root's setting doesn't propagate; the Engine info row needs it
 
         let engine = NSMenuItem(title: "Engine: \(Transcribers.activeEngineName())", action: nil, keyEquivalent: "")
         engine.isEnabled = false
-        items.append(engine)
-
-        let insights = NSMenuItem(title: "Insights…", action: #selector(openInsights), keyEquivalent: "i")
-        insights.target = self
-        items.append(insights)
+        sub.addItem(engine)
 
         // Recovery: if a dictation pasted somewhere wrong, grab it here instead of re-saying it.
         if let last = recentTranscripts.first {
+            sub.addItem(.separator())
             let copyLast = NSMenuItem(title: "Copy Last Dictation", action: #selector(copyLastTranscript), keyEquivalent: "")
             copyLast.target = self
             copyLast.toolTip = oneLine(last)
-            items.append(copyLast)
+            sub.addItem(copyLast)
             if recentTranscripts.count > 1 {
                 let recent = NSMenuItem(title: "Recent Dictations", action: nil, keyEquivalent: "")
-                let sub = NSMenu()
+                let recentMenu = NSMenu()
+                recentMenu.autoenablesItems = false
                 for (i, t) in recentTranscripts.enumerated() {
                     let it = NSMenuItem(title: preview(t), action: #selector(copyRecent(_:)), keyEquivalent: "")
                     it.target = self
                     it.tag = i
                     it.toolTip = oneLine(t)
-                    sub.addItem(it)
+                    recentMenu.addItem(it)
                 }
-                recent.submenu = sub
-                items.append(recent)
+                recent.submenu = recentMenu
+                sub.addItem(recent)
             }
         }
 
+        sub.addItem(.separator())
         if MLXCleaner.isAvailable() || LLMCleaner.isAvailable() {
             let ai = NSMenuItem(title: "Polish with AI (on-device)", action: #selector(toggleLLM), keyEquivalent: "")
             ai.target = self
             ai.state = Cleaners.llmEnabled ? .on : .off
-            items.append(ai)
+            sub.addItem(ai)
         }
         let hands = NSMenuItem(title: "Hands-free — double-tap Fn", action: #selector(toggleHandsFree), keyEquivalent: "")
         hands.target = self
         hands.state = handsFreeEnabled ? .on : .off
-        items.append(hands)
+        sub.addItem(hands)
         let learn = NSMenuItem(title: "Learn from edits", action: #selector(toggleLearn), keyEquivalent: "")
         learn.target = self
         learn.state = learnEnabled ? .on : .off
-        items.append(learn)
+        sub.addItem(learn)
+        sub.addItem(.separator())
         let dash = NSMenuItem(title: "Dictionary…", action: #selector(openDictionary), keyEquivalent: "d")
         dash.target = self
-        items.append(dash)
-        return items
+        sub.addItem(dash)
+
+        let subItem = NSMenuItem(title: "Dictate", action: nil, keyEquivalent: "")
+        subItem.submenu = sub
+        return [toggle, subItem]
     }
 
     // MARK: session
@@ -192,7 +196,6 @@ public final class DictateController: NSObject {
         onMenuRebuild?() // refresh the checkmark in the shared menu
     }
 
-    @objc private func openInsights() { InsightsWindow.shared.open(section: .home) }
     @objc private func openDictionary() { InsightsWindow.shared.open(section: .dictionary) }
 
     // MARK: recent dictations — a safety net for a mis-targeted paste

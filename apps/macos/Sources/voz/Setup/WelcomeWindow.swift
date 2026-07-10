@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Shared
 
 /// Shown once, on first launch, so a brand-new user isn't dropped into an empty menu bar wondering
 /// what to do. Explains the two gestures and offers the one-click jump to engine setup.
@@ -32,15 +33,6 @@ final class WelcomeWindow {
     }
 }
 
-private enum T {
-    static let black = Color(red: 0x07 / 255.0, green: 0x08 / 255.0, blue: 0x0C / 255.0)
-    static let electric = Color(red: 0x2E / 255.0, green: 0x74 / 255.0, blue: 0xFF / 255.0)
-    static let mist = Color(red: 0x8B / 255.0, green: 0x87 / 255.0, blue: 0x94 / 255.0)
-    static let textHi = Color(red: 0.93, green: 0.94, blue: 0.96)
-    static let ink = Color(red: 0x16 / 255.0, green: 0x15 / 255.0, blue: 0x20 / 255.0)
-    static let line = Color(red: 0x2A / 255.0, green: 0x28 / 255.0, blue: 0x33 / 255.0)
-}
-
 private struct WelcomeView: View {
     let onClose: () -> Void
 
@@ -48,10 +40,10 @@ private struct WelcomeView: View {
         VStack(spacing: 0) {
             Spacer().frame(height: 28)
             Image(systemName: "waveform")
-                .font(.system(size: 38, weight: .semibold)).foregroundColor(T.electric)
-            Text("Welcome to voz").font(.system(size: 24, weight: .bold)).foregroundColor(T.textHi).padding(.top, 12)
+                .font(.system(size: 38, weight: .semibold)).foregroundColor(Theme.electric.color)
+            Text("Welcome to voz").font(.system(size: 24, weight: .bold)).foregroundColor(Theme.textHi.color).padding(.top, 12)
             Text("The voice layer for your Mac. Two gestures — that's it.")
-                .font(.system(size: 13)).foregroundColor(T.mist).padding(.top, 4)
+                .font(.system(size: 13)).foregroundColor(Theme.mist.color).padding(.top, 4)
 
             VStack(spacing: 12) {
                 gesture("mic.fill", "Speak to type", "Hold **Fn**, talk, release. voz types the cleaned text where your cursor is — in any app.")
@@ -60,44 +52,62 @@ private struct WelcomeView: View {
             .padding(.horizontal, 28).padding(.top, 24)
 
             Text("It works right now on Apple's built-in engines. Want sharper dictation, neural voices, or AI cleanup? They install on demand — your call.")
-                .font(.system(size: 12)).foregroundColor(T.mist).multilineTextAlignment(.center)
+                .font(.system(size: 12)).foregroundColor(Theme.mist.color).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 30).padding(.top, 22)
 
             Spacer()
             HStack(spacing: 12) {
-                Button("Maybe later") { onClose() }.buttonStyle(.plain).foregroundColor(T.mist)
+                Button("Maybe later") { onClose() }.buttonStyle(GhostButton())
                 Button("Set up better engines") { onClose(); SetupWindow.shared.open() }
-                    .buttonStyle(PrimaryButton())
+                    .buttonStyle(FilledButton())
             }
             .padding(.bottom, 26)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(T.black)
+        .background(Theme.black.color)
     }
 
     private func gesture(_ symbol: String, _ title: String, _ body: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol).font(.system(size: 16, weight: .medium)).foregroundColor(T.electric)
+            Image(systemName: symbol).font(.system(size: 16, weight: .medium)).foregroundColor(Theme.electric.color)
                 .frame(width: 26, height: 22)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .semibold)).foregroundColor(T.textHi)
-                Text(.init(body)).font(.system(size: 12)).foregroundColor(T.mist)
+                Text(title).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.textHi.color)
+                Text(.init(body)).font(.system(size: 12)).foregroundColor(Theme.mist.color)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 10).fill(T.ink))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(T.line, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.ink.color))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line.color, lineWidth: 1))
     }
 }
 
-private struct PrimaryButton: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
-            .padding(.horizontal, 18).padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 8).fill(T.electric.opacity(configuration.isPressed ? 0.7 : 1)))
+/// The quiet decline: mist label, no fill — hover brightens it to text-hi, and focus draws the
+/// same crest ring as the filled button (a color shift alone is not focus).
+private struct GhostButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration) }
+
+    // Not named `Body`: that would shadow ButtonStyle's associated type and break conformance.
+    private struct Styled: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var hovered = false
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(hovered ? Theme.textHi.color : Theme.mist.color)
+                .opacity(configuration.isPressed ? 0.7 : 1)
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .contentShape(Rectangle())
+                .overlay(RoundedRectangle(cornerRadius: 11)
+                    .strokeBorder(Theme.electricBright.color, lineWidth: 2)
+                    .padding(-2)
+                    .opacity(focused ? 1 : 0))
+                .onHover { hovered = $0 }
+        }
     }
 }

@@ -1,9 +1,11 @@
 import AppKit
 import ApplicationServices
+import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--hold-cap`, `--hold-cap-sim`.
+/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--hold-cap`, `--hold-cap-sim`,
+/// `--bench-e2e`.
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -146,6 +148,17 @@ public enum DictateCLI {
             print("capped")
             return true
         }
+        if let i = args.firstIndex(of: "--bench-e2e"), i + 1 < args.count {
+            // Benchmark harness (scripts/bench/latency.sh → docs/benchmarks.md): time the paste
+            // path a scripted run can reach — WAV → transcribe → spell → clean → dictionary →
+            // paste-ready string, the exact leg order of DictateController's transcribeAll — N
+            // times in ONE process, so run 1 pays any engine cold start and later runs are warm.
+            // Excluded by construction (docs/benchmarks.md estimates them): key handling, recorder
+            // finalize, and the paste event itself. WARBLE_FORCE_ENGINE (debug seam) pins the
+            // engine. Exits non-zero if any run failed, so scripts can trust parsed numbers.
+            benchE2E(wav: URL(fileURLWithPath: args[i + 1]),
+                     runs: (i + 2 < args.count ? Int(args[i + 2]) : nil).map { max(1, $0) } ?? 1)
+        }
         if args.contains("--recover-scan") {
             // Dictation recovery, headless (ROADMAP 0.3; asserted by regression.sh): exactly what
             // the app does — the launch scan plus the menu's Recover action — minus the UI.
@@ -182,6 +195,58 @@ public enum DictateCLI {
     /// line per taxonomy case. regression.sh asserts the table verbatim — copy drift is deliberate.
     public static func printErrors() {
         for e in DictateError.allCases { print("dictate/\(e.reason): \(e.message)") }
+    }
+
+    /// `--bench-e2e <wav> [N]` — per-run "run=<n> ms=<ms>" lines, then a summary
+    /// ("runs= ok= clip_s= level= median_ms= p95_ms= engine=", engine last: its name has spaces)
+    /// and the final paste-ready string as "text=…". Median/p95 conventions match
+    /// scripts/bench/stats.ts, which aggregates the cold (one-run-per-process) mode.
+    private static func benchE2E(wav: URL, runs: Int) -> Never {
+        guard FileManager.default.fileExists(atPath: wav.path) else {
+            FileHandle.standardError.write(Data("no such wav: \(wav.path)\n".utf8))
+            exit(2)
+        }
+        // Clip duration from the file, so the engine timeout scales exactly as in the app.
+        let clipDuration = (try? AVAudioFile(forReading: wav))
+            .map { Double($0.length) / $0.processingFormat.sampleRate } ?? 10
+        Lexicon.shared.load() // honors WARBLE_DICTIONARY, like the app and --apply
+        var times: [Double] = []
+        var text = ""
+        var failed = 0
+        for n in 1...runs {
+            let start = DispatchTime.now()
+            var outcome = Transcribers.Outcome.failed
+            var done = false
+            Transcribers.run(wav, clipDuration: clipDuration) { o in
+                outcome = o; done = true; CFRunLoopStop(CFRunLoopGetMain())
+            }
+            while !done { CFRunLoopRunInMode(.defaultMode, 120, false) }
+            switch outcome {
+            case .text(let raw):
+                let spell = SpellOut.process(raw)
+                text = Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text))
+                let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
+                times.append(ms)
+                print(String(format: "run=%d ms=%.1f", n, ms))
+            case .silence:
+                failed += 1; print("run=\(n) FAILED (nothing heard)")
+            case .failed:
+                failed += 1; print("run=\(n) FAILED (\(DictateError.transcribeFailed.message))")
+            }
+        }
+        let sorted = times.sorted()
+        if sorted.isEmpty {
+            print("runs=\(runs) ok=0 engine=\(Transcribers.activeEngineName())")
+            exit(1)
+        }
+        let median = sorted.count % 2 == 1 ? sorted[sorted.count / 2]
+            : (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2
+        let p95 = sorted[min(sorted.count - 1, Int((0.95 * Double(sorted.count)).rounded(.up)) - 1)]
+        print(String(format: "runs=%d ok=%d clip_s=%.1f level=%@ median_ms=%.1f p95_ms=%.1f engine=%@",
+                     runs, sorted.count, clipDuration, Cleaners.level.rawValue, median, p95,
+                     Transcribers.activeEngineName()))
+        print("text=\(text)")
+        exit(failed == 0 ? 0 : 1)
     }
 
     /// Verify the learn-from-edits detection logic and history-event codability headlessly.

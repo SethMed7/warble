@@ -46,7 +46,8 @@ said" is the sharpest cross-camp complaint against AI cleanup.*
   publish whatever is true, and add a "warm engines" toggle if the number demands it).
 
 **Exit:** a month of dogfood with zero lost dictations; the three benchmark numbers exist in
-`docs/benchmarks.md` with reproduction steps.
+[docs/benchmarks.md](docs/benchmarks.md) with reproduction steps *(landed 2026-07-11 — first
+measured run recorded; the harness lives in `scripts/bench/`)*.
 
 ## 0.4 — "The first five minutes" (onboarding)
 

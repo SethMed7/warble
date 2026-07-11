@@ -32,6 +32,12 @@ enum Transcribers {
         if Fault.isActive(.transcribeFail) { DispatchQueue.main.async { completion(.failed) }; return }
         if Fault.isActive(.engineWarming) { return } // never completes → the processing watchdog names the warm-up
         let timeout = max(15, clipDuration * 2 + 8)
+        #if DEBUG
+        if let forced = forcedChain() { // bench seam — see forcedChain()
+            tryChain(forced, 0, wav, timeout, sawEmpty: false, completion)
+            return
+        }
+        #endif
         var chain: [Transcriber] = []
         if !Fault.isActive(.engineMissing) { // debug-only: pretend no premium engine is installed
             if WarmSherpaTranscriber.isAvailable() { chain.append(WarmSherpaTranscriber()) } // warm Parakeet (~0.08s)
@@ -62,12 +68,46 @@ enum Transcribers {
     /// User-facing name of the engine a dictation would use right now — the single source of
     /// truth for the priority order, shown in the menu and the --engine flag.
     static func activeEngineName() -> String {
+        #if DEBUG
+        if let forced = forcedEngineName() { return forced } // bench seam, mirrors run()
+        #endif
         if Fault.isActive(.engineMissing) { return "Apple Speech" } // debug-only, mirrors run()
         if WarmSherpaTranscriber.isAvailable() { return "Parakeet (warm)" }
         if SherpaTranscriber.isAvailable() { return "Parakeet" }
         if WhisperTranscriber.isAvailable() { return "whisper.cpp" }
         return "Apple Speech"
     }
+
+    #if DEBUG
+    /// Bench seam (scripts/bench; DEBUG builds only, like Fault): WARBLE_FORCE_ENGINE pins the
+    /// chain to exactly ONE engine — no Apple floor, no fall-through — so a per-engine benchmark
+    /// number is that engine's alone. A forced engine that isn't installed yields an empty chain
+    /// (→ .failed), never a silent fallback that would mislabel the number. `stub` is the
+    /// engine-free fixed-utterance engine the regression smoke runs on any machine.
+    private static var forcedEngine: String? { ProcessInfo.processInfo.environment["WARBLE_FORCE_ENGINE"] }
+
+    private static func forcedChain() -> [Transcriber]? {
+        switch forcedEngine {
+        case "parakeet-warm": return WarmSherpaTranscriber.isAvailable() ? [WarmSherpaTranscriber()] : []
+        case "parakeet":      return SherpaTranscriber.isAvailable() ? [SherpaTranscriber()] : []
+        case "whisper":       return WhisperTranscriber.isAvailable() ? [WhisperTranscriber()] : []
+        case "apple":         return [AppleFileTranscriber()]
+        case "stub":          return [StubTranscriber()]
+        default:              return nil
+        }
+    }
+
+    private static func forcedEngineName() -> String? {
+        switch forcedEngine {
+        case "parakeet-warm": return "Parakeet (warm)"
+        case "parakeet":      return "Parakeet"
+        case "whisper":       return "whisper.cpp"
+        case "apple":         return "Apple Speech"
+        case "stub":          return "stub"
+        default:              return nil
+        }
+    }
+    #endif
 }
 
 // MARK: - in-process audio conversion (replaces the per-clip afconvert spawn)
@@ -405,3 +445,22 @@ enum Hallucination {
         return out
     }
 }
+
+#if DEBUG
+// MARK: - bench stub engine (DEBUG builds only)
+
+/// The regression smoke's engine (WARBLE_FORCE_ENGINE=stub): opens the WAV like a real engine —
+/// so a broken fixture fails the run — then returns a fixed messy utterance, making the whole
+/// paste-path pipeline (spell → clean → dictionary) assertable exactly on any machine with no
+/// model installed and no Speech authorization.
+final class StubTranscriber: Transcriber {
+    static let utterance = "um so the the quick brown fox"
+
+    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let readable = (try? AVAudioFile(forReading: wav)) != nil
+            DispatchQueue.main.async { completion(readable ? Self.utterance : nil) }
+        }
+    }
+}
+#endif

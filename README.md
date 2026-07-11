@@ -272,12 +272,18 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --selftest              # learn-from-edits logic
 .build/debug/warble --errors                # the cause-naming error taxonomy (a copy contract)
 .build/debug/warble --recover-scan          # dictation recovery: recover an orphaned in-flight clip
+.build/debug/warble --bench-e2e <wav> [N]   # time the paste-path pipeline over a WAV, N runs
 ```
 
 **Regression:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — it
-runs the `core/` acceptance suite, a debug `swift build`, and the headless smokes above with
-exact-output assertions, and exits non-zero on any failure. It needs no premium engines installed;
-set `WARBLE_REGRESSION_FULL=1` to also exercise the warm-engine paths (a real `--speak` render).
+runs the `core/` acceptance suite, a debug `swift build`, the headless smokes above with
+exact-output assertions, and a smoke of the benchmark harness, and exits non-zero on any failure.
+It needs no premium engines installed; set `WARBLE_REGRESSION_FULL=1` to also exercise the
+warm-engine paths (a real `--speak` render).
+
+**Benchmarks:** every public performance claim is measured, dated, and reproducible — method,
+caveats, and this machine's actual numbers live in [docs/benchmarks.md](docs/benchmarks.md); the
+harness (latency, WER, idle footprint) lives in `scripts/bench/`.
 
 **Cut a release:** `sh scripts/release.sh` builds a Developer-ID-signed, **notarized** `.dmg` in
 `dist/` (needs a Developer ID cert + a `voz-notary` notarytool profile in your Keychain — the

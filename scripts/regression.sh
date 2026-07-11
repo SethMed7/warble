@@ -2,9 +2,10 @@
 # warble regression — the single deterministic gate. Milestone 0.3+ checks extend THIS file.
 #
 # Runs, in order: the core acceptance suite (bun test) → a debug swift build → the headless CLI
-# smokes with exact-output assertions. Engine-free by default: every check passes without the
-# premium engines installed. WARBLE_REGRESSION_FULL=1 additionally exercises the warm-engine
-# paths (premium --engine, a real --speak render). Exits 0 only when every check passed.
+# smokes with exact-output assertions → a smoke of the benchmark harness (scripts/bench/).
+# Engine-free by default: every check passes without the premium engines installed.
+# WARBLE_REGRESSION_FULL=1 additionally exercises the warm-engine paths (premium --engine, a
+# real --speak render). Exits 0 only when every check passed.
 set -u
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -257,7 +258,45 @@ expect "recovery scan is idempotent (no orphan left)" "no in-flight dictation fo
 
 [ -n "$SAVE_AUDIO_ORIG" ] && defaults write warble insightsSaveAudio -int "$SAVE_AUDIO_ORIG" >/dev/null 2>&1
 
-# --- 4. warm-engine paths (opt-in: needs the premium engines installed) ---------------------
+# --- 4. benchmark harness smoke (ROADMAP 0.3 "honest numbers, measured") --------------------
+# The real numbers live in docs/benchmarks.md and are gathered by hand against real engines;
+# this smoke proves the harness itself on ANY machine: the WER/stats math (bun test + an exact
+# CLI check), the latency harness end-to-end over the committed fixture WAV through the stub
+# engine (a DEBUG-only fixed-utterance transcriber — no model, no Speech auth), and the
+# footprint sampler's ps parsing via its self row.
+section "bench harness (smoke)"
+step "bench: bun test (wer + stats)" "cd \"$ROOT/scripts/bench\" && bun test ."
+
+expect "bench: wer.ts scores one substitution in four words exactly" \
+  "wer=0.250 errors=1 (S=1 D=0 I=0) N=4" \
+  bun "$ROOT/scripts/bench/wer.ts" --ref "the quick brown fox" --hyp "the quick brown box"
+
+# Latency harness on the stub engine: cleanup pinned to light (restored after) and the fixture
+# dictionary in force, so the paste-ready text is exact. --no-cold keeps regression away from
+# the cold mode, which manages the user's warm ASR server.
+BENCH_LEVEL_ORIG=$("$BIN" --cleanup-level 2>/dev/null)
+"$BIN" --cleanup-level light >/dev/null 2>&1
+BENCH_OUT=$(env WARBLE_DICTIONARY="$DICT" WARBLE_DISABLE_LLM=1 \
+  sh "$ROOT/scripts/bench/latency.sh" --runs 2 --engine stub --no-cold 2>&1)
+BENCH_STATUS=$?
+"$BIN" --cleanup-level "$BENCH_LEVEL_ORIG" >/dev/null 2>&1
+if [ "$BENCH_STATUS" -eq 0 ] \
+  && printf '%s\n' "$BENCH_OUT" | grep -q "^runs=2 ok=2 .*median_ms=" \
+  && printf '%s\n' "$BENCH_OUT" | grep -q "^text=so the quick brown fox$"; then
+  ok "latency harness runs the fixture through the stub pipeline (2 runs, sane summary)"
+else
+  bad "latency harness runs the fixture through the stub pipeline (exit $BENCH_STATUS; got \"$BENCH_OUT\")"
+fi
+
+FOOT_OUT=$(bun "$ROOT/scripts/bench/footprint.ts" --smoke 2>&1)
+if [ $? -eq 0 ] && printf '%s\n' "$FOOT_OUT" | grep -q "^footprint: 2 samples" \
+  && printf '%s\n' "$FOOT_OUT" | grep -q "^total (running)"; then
+  ok "footprint sampler parses ps and reports a total (smoke)"
+else
+  bad "footprint sampler smoke (got \"$FOOT_OUT\")"
+fi
+
+# --- 5. warm-engine paths (opt-in: needs the premium engines installed) ---------------------
 if [ "${WARBLE_REGRESSION_FULL:-}" = "1" ]; then
   section "warm engines (WARBLE_REGRESSION_FULL=1)"
   case "$ENGINE" in

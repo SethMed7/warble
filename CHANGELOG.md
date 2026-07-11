@@ -5,6 +5,19 @@ is what a user actually gets.
 
 ## Unreleased
 
+- **Honest numbers, measured.** The benchmark harness lands in `scripts/bench/` and the first
+  real numbers in [docs/benchmarks.md](docs/benchmarks.md) — method, caveats, and a reproduction
+  command for every figure, per the product constitution (product.md §4.9: measured end-to-end,
+  never engine-time vs a competitor's round trip). Three benchmarks: **end-to-end latency**
+  (fixture WAV → transcribe → clean → dictionary → paste-ready string, cold and warm, N=10
+  median/p95 via a new `--bench-e2e` flag that times the app's exact paste-path pipeline
+  in-process), **WER** (a synthetic `say`-rendered Harvard-sentence corpus scored per engine by a
+  tested TS scorer — real recorded corpora drop into the same wav+txt layout), and **idle
+  footprint** (RSS + Δcputime CPU for the app and each warm server, on vs off — the warm ASR
+  server's honest ~1.8 GB is published, with the roadmap's "warm engines" toggle noted). A
+  DEBUG-only `WARBLE_FORCE_ENGINE` seam pins a run to one engine so no number is ever a silent
+  fallback's; the harness smoke (stub engine, fixture WAV, wer/stats unit tests, footprint
+  self-row) is wired into `scripts/regression.sh`.
 - **Dictation recovery — never lose a word.** While you dictate, the audio is now written
   incrementally to a crash buffer under `~/.warble/inflight` (owner-only, bounded, independent of
   the Save-recordings setting), so a crash or force-quit mid-dictation can't cost the words: the

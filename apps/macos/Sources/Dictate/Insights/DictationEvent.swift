@@ -9,6 +9,9 @@ struct DictationEvent: Codable, Identifiable, Hashable {
     let ts: Double            // Unix epoch seconds, UTC — the source of truth for time
     let day: String           // "yyyy-MM-dd" in the user's local timezone — the streak / per-day key
     let text: String          // the full cleaned transcript ("" when History is off)
+    let raw: String?          // the verbatim transcript, kept only when cleanup changed it — so any
+                              // polish is undoable ("what I actually said"); text only, no extra audio.
+                              // Optional so pre-0.3 history lines still decode.
     let words: Int
     let durationMs: Int
     let appBundleId: String?

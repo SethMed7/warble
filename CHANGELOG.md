@@ -5,6 +5,16 @@ is what a user actually gets.
 
 ## Unreleased
 
+- **Cleanup levels.** **Dictate ▸ Cleanup** replaces the "Polish with AI" toggle with four levels:
+  **None** (verbatim — whitespace only), **Light** (the deterministic tidy — the default),
+  **Medium** (on-device LLM punctuation + fillers — the old polish), and **High** (fuller LLM
+  formatting latitude, still guarded so it can't change your words). Verbatim-leaning by default,
+  per the product constitution; an explicitly set "Polish with AI" preference migrates
+  (on → Medium, off → Light). Headless proof: `--cleanup <none|light|medium|high> "text"` and
+  `--cleanup-level`, both wired into `scripts/regression.sh`.
+- **Undo-polish.** Every dictation now also keeps the **raw transcript** (text only, no extra
+  audio) whenever cleanup changed it; open a History item and click *"what you actually said"* to
+  see it — or restore it as the transcript in one click.
 - **The trill.** The mark redesigned as five thick sound-wave bars — rise, crest, dip, crest
   (*war·ble*) — deliberately few and heavy so it's unmistakable at menu-bar size. The app icon is
   cleaned (real transparency — no more white ring in the Dock), the menu-bar glyph draws full-bleed

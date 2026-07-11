@@ -8,7 +8,8 @@ extension Notification.Name {
 }
 
 /// The local store behind warble Insights, all under ~/.warble:
-///   history.json   — append-only JSON-Lines log of dictations (text + metrics)
+///   history.json   — append-only JSON-Lines log of dictations (cleaned text + the verbatim raw
+///                    transcript when cleanup changed it + metrics)
 ///   audio/<id>.m4a — the saved recording for each dictation (when audio-saving is on);
 ///                    16 kHz mono AAC. Pre-0.1.8 installs have raw <id>.wav — still read.
 ///   dictionary.json — the user dictionary (owned by Lexicon)
@@ -84,8 +85,9 @@ public final class InsightStore: ObservableObject {
 
     /// Persist one dictation. `audioSource` is the temp WAV (still on disk); we encode it into the
     /// store when audio-saving is on. The caller deletes the temp WAV as soon as this returns, so the
-    /// encode must complete synchronously here.
-    func record(_ cleaned: String, ctx: DictationContext, audioSource: URL?) {
+    /// encode must complete synchronously here. `raw` is the verbatim transcript — stored (text only)
+    /// when cleanup actually changed it, so "what I actually said" is never lost.
+    func record(_ cleaned: String, raw: String? = nil, ctx: DictationContext, audioSource: URL?) {
         let text = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let id = UUID().uuidString
@@ -102,11 +104,20 @@ public final class InsightStore: ObservableObject {
                 try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: wav.path)
             }
         }
+        let keepText = historyEnabled && !blocked
+        // Keep the raw transcript only when it differs from the cleaned one (identical raw would
+        // just double the storage for nothing) — and never when the text itself isn't kept.
+        let keptRaw: String? = {
+            guard keepText, let r = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !r.isEmpty, r != text else { return nil }
+            return r
+        }()
         let e = DictationEvent(
             id: id,
             ts: Date().timeIntervalSince1970,
             day: Self.dayFormatter.string(from: Date()),
-            text: (historyEnabled && !blocked) ? text : "",
+            text: keepText ? text : "",
+            raw: keptRaw,
             words: Self.wordCount(text),
             durationMs: ctx.durationMs,
             appBundleId: ctx.appBundleId,
@@ -131,6 +142,7 @@ public final class InsightStore: ObservableObject {
             ts: Date().timeIntervalSince1970,
             day: Self.dayFormatter.string(from: Date()),
             text: historyEnabled ? t : "",
+            raw: nil, // read-aloud has no cleanup pass — nothing to undo
             words: Self.wordCount(t),
             durationMs: 0,
             appBundleId: appBundleId,
@@ -157,7 +169,7 @@ public final class InsightStore: ObservableObject {
     func updateText(_ id: String, to newText: String) {
         guard let i = events.firstIndex(where: { $0.id == id }) else { return }
         let o = events[i]
-        events[i] = DictationEvent(id: o.id, ts: o.ts, day: o.day, text: newText,
+        events[i] = DictationEvent(id: o.id, ts: o.ts, day: o.day, text: newText, raw: o.raw,
                                    words: Self.wordCount(newText), durationMs: o.durationMs,
                                    appBundleId: o.appBundleId, appName: o.appName, engine: o.engine, kind: o.kind)
         rewrite()

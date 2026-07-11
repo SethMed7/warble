@@ -134,12 +134,25 @@ public final class DictateController: NSObject {
         }
 
         sub.addItem(.separator())
-        if MLXCleaner.isAvailable() || LLMCleaner.isAvailable() {
-            let ai = NSMenuItem(title: "Polish with AI (on-device)", action: #selector(toggleLLM), keyEquivalent: "")
-            ai.target = self
-            ai.state = Cleaners.llmEnabled ? .on : .off
-            sub.addItem(ai)
+        // Cleanup levels (radio): None/Light are always available; Medium/High need the on-device
+        // polish model, so without it they sit disabled with a pointer to Setup — never a silent no-op.
+        let cleanupMenu = NSMenu()
+        cleanupMenu.autoenablesItems = false
+        let llmReady = Cleaners.llmAvailable
+        for level in CleanupLevel.allCases {
+            let it = NSMenuItem(title: level.menuTitle, action: #selector(setCleanupLevel(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = level.rawValue
+            it.state = Cleaners.level == level ? .on : .off
+            if level.usesLLM, !llmReady {
+                it.isEnabled = false
+                it.toolTip = "Needs the on-device AI — menu → Set up better engines…"
+            }
+            cleanupMenu.addItem(it)
         }
+        let cleanup = NSMenuItem(title: "Cleanup", action: nil, keyEquivalent: "")
+        cleanup.submenu = cleanupMenu
+        sub.addItem(cleanup)
         let hands = NSMenuItem(title: "Hands-free — double-tap Fn", action: #selector(toggleHandsFree), keyEquivalent: "")
         hands.target = self
         hands.state = handsFreeEnabled ? .on : .off
@@ -180,9 +193,11 @@ public final class DictateController: NSObject {
         onMenuRebuild?()
     }
 
-    @objc private func toggleLLM() {
-        Cleaners.llmEnabled.toggle()
-        onMenuRebuild?() // refresh the checkmark in the shared menu
+    @objc private func setCleanupLevel(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let level = CleanupLevel(rawValue: raw) else { return }
+        Cleaners.level = level
+        onMenuRebuild?() // move the radio checkmark in the shared menu
     }
 
     @objc private func toggleHandsFree() {
@@ -265,7 +280,7 @@ public final class DictateController: NSObject {
         // the warm Parakeet ASR server and the LLM polish model.
         DispatchQueue.global(qos: .utility).async {
             WarmASR.shared.ensureRunning()
-            if Cleaners.llmEnabled, MLXCleaner.isAvailable() { WarmLLM.shared.ensureRunning() }
+            if Cleaners.level.usesLLM, MLXCleaner.isAvailable() { WarmLLM.shared.ensureRunning() }
         }
         recorder.onLevel = { Overlay.shared.updateLevel($0) }
         recorder.start(onError: { [weak self] message in
@@ -399,12 +414,13 @@ public final class DictateController: NSObject {
             }
             DispatchQueue.global(qos: .utility).async { // LLM / bun cleaner may block
                 let spell = SpellOut.process(trimmed) // resolve any spoken spelling first
-                let cleaner = Cleaners.best(for: spell.text) // skips the LLM when already clean; off main
+                let cleaner = Cleaners.best(for: spell.text) // the chosen cleanup level; off main
                 let cleaned = Lexicon.shared.apply(cleaner.clean(spell.text)) // cleanup, then your dictionary
                 DispatchQueue.main.async {
                     guard self.workGen == gen else { try? FileManager.default.removeItem(at: wav); return } // cancelled during polish
                     for rule in spell.learned { Lexicon.shared.learnExplicit(from: rule.from, to: rule.to) }
-                    self.deliver(cleaned, ctx: ctx, audio: wav) // record copies the recording (when saving is on)
+                    // `trimmed` is the verbatim transcript — history keeps it so any cleanup is undoable.
+                    self.deliver(cleaned, raw: trimmed, ctx: ctx, audio: wav) // record copies the recording (when saving is on)
                     try? FileManager.default.removeItem(at: wav) // then drop the temp WAV
                     if let word = spell.learned.first?.to { // confirm what spelling was locked in
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -416,7 +432,7 @@ public final class DictateController: NSObject {
         }
     }
 
-    private func deliver(_ cleaned: String, ctx: DictationContext, audio: URL?) {
+    private func deliver(_ cleaned: String, raw: String, ctx: DictationContext, audio: URL?) {
         processingWatchdog?.cancel(); processingWatchdog = nil
         unregisterEsc()
         state = .idle
@@ -425,7 +441,7 @@ public final class DictateController: NSObject {
             return
         }
         remember(cleaned)                                                // in-memory safety net for a mis-targeted paste
-        InsightStore.shared.record(cleaned, ctx: ctx, audioSource: audio) // local stats + history (+ saved recording)
+        InsightStore.shared.record(cleaned, raw: raw, ctx: ctx, audioSource: audio) // local stats + history (+ saved recording)
         if Paster.paste(cleaned) {
             Overlay.shared.showTyped()
             startLearning(pasted: cleaned)

@@ -2,7 +2,8 @@ import AppKit
 import ApplicationServices
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
-/// `--clean`, `--polish`, `--transcribe`, `--engine`, `--apply`, `--selftest`, `--axcheck`, `--learn-test`.
+/// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
+/// `--selftest`, `--axcheck`, `--learn-test`.
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -39,6 +40,34 @@ public enum DictateCLI {
             print(BasicCleaner.cleaned(args[i + 1])) // deterministic pass only
             return true
         }
+        if let i = args.firstIndex(of: "--cleanup"), i + 2 < args.count {
+            // Run the cleanup pipeline at an explicit level: none/light are engine-free and exact;
+            // medium/high use the on-device LLM when installed and otherwise report the fallback
+            // honestly (stderr) while printing the deterministic result — never a hard failure.
+            guard let level = CleanupLevel(rawValue: args[i + 1].lowercased()) else {
+                FileHandle.standardError.write(Data("unknown cleanup level \"\(args[i + 1])\" — use none|light|medium|high\n".utf8))
+                exit(2)
+            }
+            if level.usesLLM, !Cleaners.llmAvailable {
+                FileHandle.standardError.write(Data("note: no on-device LLM installed — \(level.rawValue) falls back to the deterministic result\n".utf8))
+            }
+            print(Cleaners.cleaner(at: level, for: args[i + 2]).clean(args[i + 2]))
+            return true
+        }
+        if let i = args.firstIndex(of: "--cleanup-level") {
+            // Get (no value) or set (with a value) the persisted cleanup level; always prints the
+            // resulting level, so a set in one process and a get in the next proves the
+            // UserDefaults round-trip headlessly.
+            if i + 1 < args.count, !args[i + 1].hasPrefix("--") {
+                guard let level = CleanupLevel(rawValue: args[i + 1].lowercased()) else {
+                    FileHandle.standardError.write(Data("unknown cleanup level \"\(args[i + 1])\" — use none|light|medium|high\n".utf8))
+                    exit(2)
+                }
+                Cleaners.level = level
+            }
+            print(Cleaners.level.rawValue)
+            return true
+        }
         if let i = args.firstIndex(of: "--spell"), i + 1 < args.count {
             let r = SpellOut.process(args[i + 1])
             print("text:  \(r.text)")
@@ -46,8 +75,9 @@ public enum DictateCLI {
             return true
         }
         if let i = args.firstIndex(of: "--polish"), i + 1 < args.count {
-            // Full cleaner chain: the on-device LLM when installed, else deterministic.
-            print(Cleaners.best().clean(args[i + 1]))
+            // Full cleaner chain at Medium (regardless of the persisted level — it's the LLM-path
+            // smoke): the on-device LLM when installed, else deterministic.
+            print(Cleaners.cleaner(at: .medium, for: nil).clean(args[i + 1]))
             return true
         }
         if let i = args.firstIndex(of: "--transcribe"), i + 1 < args.count {
@@ -75,10 +105,22 @@ public enum DictateCLI {
         return false
     }
 
-    /// Verify the learn-from-edits detection logic headlessly.
+    /// Verify the learn-from-edits detection logic and history-event codability headlessly.
     private static func runSelftest() {
         var fails = 0
         func check(_ ok: Bool, _ name: String) { print((ok ? "ok   " : "FAIL ") + name); if !ok { fails += 1 } }
+
+        // History events: a pre-0.3 line (no `raw`) must still decode, and the raw transcript
+        // (undo-polish, ROADMAP 0.3) must survive an encode/decode round-trip.
+        let legacy = #"{"id":"x","ts":1,"day":"2026-07-11","text":"so the report","words":3,"durationMs":900,"engine":"test","kind":"dictate"}"#
+        let decoded = try? JSONDecoder().decode(DictationEvent.self, from: Data(legacy.utf8))
+        check(decoded != nil && decoded?.raw == nil, "pre-0.3 history line decodes (raw nil)")
+        let withRaw = DictationEvent(id: "y", ts: 2, day: "2026-07-11", text: "so the report",
+                                     raw: "um so the the report", words: 3, durationMs: 900,
+                                     appBundleId: nil, appName: nil, engine: "test", kind: "dictate")
+        let rebuilt = (try? JSONEncoder().encode(withRaw))
+            .flatMap { try? JSONDecoder().decode(DictationEvent.self, from: $0) }
+        check(rebuilt?.raw == "um so the the report", "raw transcript round-trips through a history line")
 
         check(CorrectionListener.levenshtein("miele", "myela") == 2, "levenshtein miele/myela == 2")
         check(CorrectionListener.levenshtein("cat", "cat") == 0, "levenshtein identical == 0")

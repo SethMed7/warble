@@ -146,6 +146,8 @@ struct DictationDetailView: View {
     @State private var note = ""
     @State private var backHovered = false
     @State private var deleteHovered = false
+    @State private var rawShown = false
+    @State private var rawHovered = false
 
     init(store: InsightStore, event: DictationEvent, onClose: @escaping () -> Void) {
         self.store = store
@@ -204,6 +206,38 @@ struct DictationDetailView: View {
                     Spacer()
                     Button("Save text") { store.updateText(event.id, to: editedText); note = "Saved." }
                         .disabled(editedText == current.text)
+                }
+
+                // Undo-polish: the verbatim transcript, one quiet disclosure away (product.md §4 —
+                // anything that rewrites must be undoable to the raw words). Mist text, no box.
+                if let raw = current.raw {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button { rawShown.toggle() } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 8, weight: .semibold))
+                                    .rotationEffect(.degrees(rawShown ? 90 : 0))
+                                Text("what you actually said")
+                            }
+                            .font(.system(size: 11))
+                            .foregroundStyle(rawHovered ? WarbleTheme.textHi : WarbleTheme.mist)
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { rawHovered = $0 }
+                        if rawShown {
+                            Text(raw)
+                                .font(.system(size: 13))
+                                .foregroundStyle(WarbleTheme.mist)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button { editedText = raw } label: {
+                                Text("use this as the transcript")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(WarbleTheme.electricText)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
 
                 SectionHeader(title: "Teach the dictionary").padding(.top, 8)

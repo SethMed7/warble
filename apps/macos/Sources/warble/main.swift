@@ -16,7 +16,7 @@ if args.contains("--version") {
     print("warble \((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.2.0")"); exit(0)
 }
 if SpeakCLI.handle(args) { exit(0) }    // --speak "text"
-if DictateCLI.handle(args) { exit(0) }  // --clean / --transcribe / --engine / --apply / --selftest
+if DictateCLI.handle(args) { exit(0) }  // --clean / --cleanup / --cleanup-level / --transcribe / --engine / --apply / --selftest
 
 // Single instance: if warble is already running, surface that one and quit. This is the guard against
 // duplication — you never get two menu-bar icons, or two sets of warm ASR/LLM servers competing over

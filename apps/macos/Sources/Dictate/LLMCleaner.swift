@@ -8,11 +8,16 @@ import Foundation
 /// Same shape as the transcription engines: detect a binary + model on disk,
 /// shell out with a bounded timeout, and fall back (via the shared guard) on any
 /// failure. The model loads per spawn (~1–2s for 1.5B on Metal); prefer the warm
-/// MLX server (no reload) when present — `Cleaners.best()` does on Apple Silicon.
+/// MLX server (no reload) when present — `Cleaners.cleaner(at:for:)` does on Apple Silicon.
 final class LLMCleaner: Cleaner {
     private let fallback: Cleaner
+    private let prompt: String
 
-    init(fallback: Cleaner) { self.fallback = fallback }
+    /// `prompt` picks the polish latitude (Medium vs High — see LLMPolish); the guard is the same.
+    init(fallback: Cleaner, prompt: String = LLMPolish.systemPrompt) {
+        self.fallback = fallback
+        self.prompt = prompt
+    }
 
     // MARK: discovery
 
@@ -52,7 +57,7 @@ final class LLMCleaner: Cleaner {
 
         // ChatML (Qwen2.5). A non-ChatML model swapped in via WARBLE_LLM_MODEL would
         // need its own template; the guard below still keeps a mismatch safe.
-        let prompt = "<|im_start|>system\n\(LLMPolish.systemPrompt)<|im_end|>\n<|im_start|>user\n\(trimmed)<|im_end|>\n<|im_start|>assistant\n"
+        let prompt = "<|im_start|>system\n\(self.prompt)<|im_end|>\n<|im_start|>user\n\(trimmed)<|im_end|>\n<|im_start|>assistant\n"
 
         // Greedy (temp 0) for determinism; GPU-offload for speed; logs to stderr
         // (Subprocess discards them) so stdout is the completion only.

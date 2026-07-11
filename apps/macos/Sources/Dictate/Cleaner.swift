@@ -6,6 +6,12 @@ protocol Cleaner {
     func clean(_ raw: String) -> String
 }
 
+/// Level None: verbatim passthrough. Only whitespace-safe normalization (trim the ends) —
+/// every word, every "um", stays exactly as transcribed.
+struct PassthroughCleaner: Cleaner {
+    func clean(_ raw: String) -> String { raw.trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
 /// The deterministic cleaner: the built-in Swift twin of core/clean.ts. The app runs this port
 /// directly rather than spawning bun over a deployed ~/.warble/clean.ts — the rules ship with the
 /// binary (an app update can't be shadowed by a stale helper from an older setup), and each
@@ -15,32 +21,75 @@ struct BasicSwiftCleaner: Cleaner {
     func clean(_ raw: String) -> String { BasicCleaner.cleaned(raw) }
 }
 
+/// How much rewriting stands between the raw transcript and the paste (ROADMAP 0.3). The default
+/// is verbatim-leaning (product.md §4: the words are the user's; polish is opt-in and undoable).
+enum CleanupLevel: String, CaseIterable {
+    case none    // verbatim passthrough — whitespace trim only
+    case light   // deterministic cleanup (the core/clean.ts twin) — the default
+    case medium  // deterministic + guarded LLM punctuation/filler polish (the old "Polish with AI")
+    case high    // guarded LLM polish with fuller latitude (contextual fillers, structure)
+
+    var usesLLM: Bool { self == .medium || self == .high }
+
+    /// Menu row title: the level plus what it buys, in the menu's existing "name — detail" idiom.
+    var menuTitle: String {
+        switch self {
+        case .none:   return "None — verbatim, exactly as heard"
+        case .light:  return "Light — tidy fillers & stumbles"
+        case .medium: return "Medium — punctuation & fillers (on-device AI)"
+        case .high:   return "High — fuller formatting (on-device AI)"
+        }
+    }
+}
+
 enum Cleaners {
-    /// The on-device "polish with AI" toggle. On by default, but it only does
-    /// anything once an open-weight model is installed (scripts/setup-cleaner.sh);
-    /// until then `best()` returns the deterministic cleaner regardless.
-    static var llmEnabled: Bool {
-        get { UserDefaults.standard.object(forKey: "llmCleanupEnabled") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "llmCleanupEnabled") }
+    /// The persisted cleanup level. Defaults to Light; a pre-0.3 "Polish with AI" toggle the user
+    /// explicitly set migrates so nobody's choice is silently changed (on → Medium, off → Light).
+    static var level: CleanupLevel {
+        get {
+            let d = UserDefaults.standard
+            if let raw = d.string(forKey: "cleanupLevel"), let l = CleanupLevel(rawValue: raw) { return l }
+            if let old = d.object(forKey: "llmCleanupEnabled") as? Bool { return old ? .medium : .light }
+            return .light
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "cleanupLevel") }
     }
 
-    /// Best available cleaner. With the AI layer on, the on-device LLM polishes the
-    /// text (always wrapping the deterministic cleaner as its fallback): warble's own
-    /// warm MLX server (Apple Silicon) is preferred, else a self-contained llama.cpp
-    /// model (Intel/legacy). Otherwise the deterministic Swift twin.
-    ///
-    /// NOTE: probes the network/disk, so call OFF the main thread.
-    static func best() -> Cleaner { select(useLLM: llmEnabled) }
+    /// Is an on-device polish model installed? WARBLE_DISABLE_LLM=1 hides it so the regression
+    /// gate behaves identically with and without the premium engines present.
+    static var llmAvailable: Bool {
+        guard ProcessInfo.processInfo.environment["WARBLE_DISABLE_LLM"] != "1" else { return false }
+        return MLXCleaner.isAvailable() || LLMCleaner.isAvailable()
+    }
 
-    /// Like `best()`, but skips the LLM entirely when `raw` is already clean — saving the polish
-    /// latency on dictations that don't need it. Use this on the live paste path.
-    static func best(for raw: String) -> Cleaner { select(useLLM: llmEnabled && LLMPolish.worthRunning(raw)) }
+    /// The cleaner for the persisted level, tuned to `raw` — use this on the live paste path.
+    /// NOTE: the LLM levels probe the network/disk, so call OFF the main thread.
+    static func best(for raw: String) -> Cleaner { cleaner(at: level, for: raw) }
 
-    private static func select(useLLM: Bool) -> Cleaner {
+    /// The cleaner for a level. Medium skips the LLM when `raw` is already clean (saving the
+    /// polish latency on dictations that don't need it); High always runs it — fuller latitude is
+    /// the point of picking High. Both stay guarded (LLMPolish.accept) and fall back to the
+    /// deterministic cleaner on any failure; without an installed model they ARE the deterministic
+    /// cleaner. Pass `raw: nil` to skip the worth-running probe.
+    static func cleaner(at level: CleanupLevel, for raw: String?) -> Cleaner {
         let base: Cleaner = BasicSwiftCleaner()
-        guard useLLM else { return base }
-        if MLXCleaner.isAvailable() { return MLXCleaner(fallback: base) }  // warble's own warm MLX server (Apple Silicon)
-        if LLMCleaner.isAvailable() { return LLMCleaner(fallback: base) }  // self-contained llama.cpp (Intel/legacy)
-        return base
+        switch level {
+        case .none:  return PassthroughCleaner()
+        case .light: return base
+        case .medium:
+            guard llmAvailable, raw.map(LLMPolish.worthRunning) ?? true else { return base }
+            return llmCleaner(prompt: LLMPolish.systemPrompt, fallback: base) ?? base
+        case .high:
+            guard llmAvailable else { return base }
+            return llmCleaner(prompt: LLMPolish.systemPromptHigh, fallback: base) ?? base
+        }
+    }
+
+    /// Best available LLM backend: warble's own warm MLX server (Apple Silicon) is preferred,
+    /// else the self-contained llama.cpp model (Intel/legacy).
+    private static func llmCleaner(prompt: String, fallback: Cleaner) -> Cleaner? {
+        if MLXCleaner.isAvailable() { return MLXCleaner(fallback: fallback, prompt: prompt) }
+        if LLMCleaner.isAvailable() { return LLMCleaner(fallback: fallback, prompt: prompt) }
+        return nil
     }
 }

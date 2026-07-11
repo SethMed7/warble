@@ -81,6 +81,36 @@ fi
 expect "--clean drops fillers and duplicates" "so the report" \
   "$BIN" --clean "um so the the report"
 
+# Cleanup levels (ROADMAP 0.3). None must be verbatim; light must equal the deterministic --clean
+# result; medium/high must degrade to the deterministic result with no LLM (WARBLE_DISABLE_LLM=1
+# hides an installed one so this check is identical on every machine).
+expect "--cleanup none returns input verbatim" "um so the the report" \
+  "$BIN" --cleanup none "um so the the report"
+
+CLEAN_OUT=$("$BIN" --clean "um so the the report" 2>/dev/null)
+expect "--cleanup light equals --clean" "$CLEAN_OUT" \
+  "$BIN" --cleanup light "um so the the report"
+
+expect "--cleanup medium falls back deterministically (engine-free)" "so the report" \
+  env WARBLE_DISABLE_LLM=1 "$BIN" --cleanup medium "um so the the report"
+
+expect "--cleanup high falls back deterministically (engine-free)" "so the report" \
+  env WARBLE_DISABLE_LLM=1 "$BIN" --cleanup high "um so the the report"
+
+# The cleanup-level setting must round-trip through UserDefaults across processes, and the old
+# "Polish with AI" preference must migrate (on → medium). The unbundled debug binary uses the
+# "warble" defaults domain — NOT the installed app's io.github.sethmed7.voz — so this never
+# touches real preferences; the prior level is still restored after.
+ORIG_LEVEL=$("$BIN" --cleanup-level 2>/dev/null)
+defaults delete warble cleanupLevel >/dev/null 2>&1
+defaults write warble llmCleanupEnabled -bool true
+expect "old polish-on preference migrates to medium" "medium" "$BIN" --cleanup-level
+defaults delete warble llmCleanupEnabled >/dev/null 2>&1
+expect "cleanup level defaults to light" "light" "$BIN" --cleanup-level
+expect "--cleanup-level set prints the new level" "high" "$BIN" --cleanup-level high
+expect "cleanup level round-trips through UserDefaults" "high" "$BIN" --cleanup-level
+"$BIN" --cleanup-level "$ORIG_LEVEL" >/dev/null 2>&1  # restore whatever was set before
+
 # A fixture dictionary makes --apply/--pronounce deterministic on any machine (the env var
 # outranks the user's real dictionary; see Lexicon.fileURL / Pronouncer.fileURL).
 DICT=$(mktemp "${TMPDIR:-/tmp}/warble-regression-dict.XXXXXX")

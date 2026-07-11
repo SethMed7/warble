@@ -45,7 +45,7 @@ on-device engine, so it lands in well under a second — and nothing ever leaves
 ## Highlights
 
 - **100% on-device** — no cloud, no API keys, no accounts; your dictations and recordings are kept **local-only** in `~/.warble` (turn either off, or clear/export, in Dashboard ▸ Data & Privacy), never uploaded. The optional **Insights AI** layer is on-device too and **off by default** — it reads only your local **stats** (never your transcripts) to phrase a weekly recap, and is cached in `~/.warble/insights-ai.json`, cleared when you clear your history.
-- **Genuinely clean output** — an optional on-device LLM removes fillers and false starts, adds punctuation, and formats numbers, currency, and dates (Wispr-class — still no cloud).
+- **Clean output, at the level you choose** — four cleanup levels under **menu → Dictate → Cleanup**: **None** (verbatim), **Light** (deterministic tidy — the default), **Medium** (on-device LLM punctuation + fillers), and **High** (fuller LLM formatting, same safety guard) — Wispr-class polish, still no cloud. And whatever the level, History keeps **what you actually said**: the raw transcript is one quiet click away, never lost.
 - **Near-instant** — a warm NVIDIA Parakeet engine transcribes in ~0.08 s instead of reloading the model every clip.
 - **Learns your words** — correct a name a couple of times, or just spell it out loud (*"Dhaval, that's D H A V A L"*), and it sticks in your dictionary, everywhere — even in terminals.
 - **Hands-free or hold** — double-tap **Fn** to toggle, or hold **Fn**; **Esc** cancels mid-dictation.
@@ -67,6 +67,13 @@ your spellings as you go (`myela` → `Myela`) via a local dictionary you contro
 same dictionary teaches **read aloud** how to pronounce those words. If a paste ever lands in the
 wrong place, the last several dictations are kept (in memory) under **menu → Copy Last Dictation**
 (or **Recent Dictations**), so a mis-targeted paste never means re-saying it.
+
+How much tidying happens is yours to pick, under **menu → Dictate → Cleanup**: **None** keeps it
+verbatim, **Light** (the default) deterministically trims fillers and stumbles, **Medium** adds
+on-device LLM punctuation-and-filler polish, and **High** gives that LLM fuller formatting latitude —
+both AI levels are guarded, so output that changes your words is discarded for the deterministic
+result. Whatever the level, each history item also keeps the **raw transcript**: open it in the
+dashboard and click *"what you actually said"* to see — or restore — your verbatim words.
 
 ### Read aloud (text → voice)
 Press **⌃V** to start watching, then highlight anything — drag-select, double/triple-click, or
@@ -104,7 +111,8 @@ permanent Dock icon — or none, ever? It's a setting.)
 - **Insights** — words-per-day, a speaking-pace (WPM) trend, and a per-app breakdown ("where you
   dictate"), plus the optional on-device **Insights AI** weekly recap.
 - **History** — every dictation, with **search and a per-app filter right in the toolbar**; open one
-  to **replay the recording**, fix the text, or **teach the dictionary** a word — train it as you go.
+  to **replay the recording**, fix the text, see **what you actually said** (the raw transcript,
+  behind a quiet disclosure), or **teach the dictionary** a word — train it as you go.
 - **Dictionary** — your spelling corrections and read-aloud pronunciations, the learn-threshold, and where the file lives.
 - **Data & Privacy** (also the Settings pane, **⌘,**) — toggles for keeping history, saving recordings,
   skipping password fields, automatic updates, and the **Dock icon** (while the dashboard is open /
@@ -162,8 +170,9 @@ These premium layers are all optional and fully on-device. Install them from the
 "Set up better engines…"**, which checks your Mac and asks before each step — Kokoro neural voices
 and the warm read-aloud server, Parakeet dictation and its warm server, and the MLX LLM polish (a
 venv with `mlx-lm` plus the consented model download). The on-device homes install under `~/.warble`, and an existing
-`~/.leelo` / `~/.dictado` install is migrated in place (no model re-download). Toggle the polish
-under **menu → Dictate → "Polish with AI"**; pin a different model with `WARBLE_LLM_MODEL=<mlx repo>`.
+`~/.leelo` / `~/.dictado` install is migrated in place (no model re-download). Pick the cleanup
+level under **menu → Dictate → Cleanup** (None / Light / Medium / High — the AI levels use the
+polish model); pin a different model with `WARBLE_LLM_MODEL=<mlx repo>`.
 
 ## What installs, and where
 
@@ -239,6 +248,8 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --version
 .build/debug/warble --speak "hello"         # read-aloud pipeline
 .build/debug/warble --clean "um so the the report"   # deterministic cleanup
+.build/debug/warble --cleanup none "um so the the report"  # cleanup at a level: none|light|medium|high
+.build/debug/warble --cleanup-level                  # print the saved cleanup level (set: --cleanup-level high)
 .build/debug/warble --polish "um so like the the report"  # full chain (on-device LLM if installed)
 .build/debug/warble --engine                # which transcription engine would run
 .build/debug/warble --apply "ship the miele engine"  # apply your dictionary (dictation)

@@ -11,7 +11,12 @@ import Foundation
 /// deterministic cleaner. Same shape as WarmSherpaTranscriber wrapping WarmASR.
 final class MLXCleaner: Cleaner {
     private let fallback: Cleaner
-    init(fallback: Cleaner) { self.fallback = fallback }
+    private let prompt: String
+    /// `prompt` picks the polish latitude (Medium vs High — see LLMPolish); the guard is the same.
+    init(fallback: Cleaner, prompt: String = LLMPolish.systemPrompt) {
+        self.fallback = fallback
+        self.prompt = prompt
+    }
 
     /// Available once the warm MLX server is installed (venv + script + a consented model download).
     static func isAvailable() -> Bool { WarmLLM.isInstalled() }
@@ -22,7 +27,7 @@ final class MLXCleaner: Cleaner {
         guard !trimmed.isEmpty else { return fallback.clean(raw) }
         // Warm answers in well under a second; scale modestly with length and keep a sane floor (not 30s).
         let secs = max(12, Double(trimmed.count) / 12 + 8)
-        guard let content = WarmLLM.shared.clean(system: LLMPolish.systemPrompt, text: trimmed, timeout: secs) else {
+        guard let content = WarmLLM.shared.clean(system: prompt, text: trimmed, timeout: secs) else {
             return fallback.clean(raw)
         }
         let out = LLMPolish.clip(content)

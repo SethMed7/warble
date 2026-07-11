@@ -10,9 +10,10 @@ import AppKit
 /// Both are drawn fit-and-centered into a fresh canvas so optical balance is identical regardless of the
 /// source viewBox. If a resource ever fails to load, we fall back to an SF Symbol so the bar is never blank.
 public enum WarbleMark {
-    /// The monochrome V glyph sized for the menu bar (square, ~18pt), rendered as a template.
+    /// The monochrome trill glyph sized for the menu bar (square, ~18pt), rendered as a template.
+    /// Full-bleed (no inset): the mark is only five thick bars, so it wants every point of the box.
     public static func menuBarTemplate(height: CGFloat = 18) -> NSImage {
-        let img = fitted(named: "warble_glyph", into: NSSize(width: height, height: height), inset: 0.06)
+        let img = fitted(named: "warble_glyph", into: NSSize(width: height, height: height), inset: 0.0)
             ?? NSImage(systemSymbolName: "waveform", accessibilityDescription: "warble") ?? NSImage()
         img.isTemplate = true
         img.accessibilityDescription = "warble"

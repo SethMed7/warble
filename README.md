@@ -82,8 +82,8 @@ it never steals focus. Or right-click → **Services → Read Aloud with warble*
 One identity across both modes: a **black surface with a single electric-blue accent** (`#2E74FF`),
 SF Pro type, and **motion as the only "live" signal** — the waveform reacts only while the mic is hot
 or audio is playing, never a second hue. The read-along panel and the dictation pill share the same
-dark card, the menu-bar icon is the **songbird mark** (a bird whose wing is the sound wave — it
-flips to a live waveform only while the mic is hot or audio plays), and the loading/preparing states
+dark card, the menu-bar icon is the **trill mark** (five bold sound-wave bars — the envelope
+sings *war-ble*; it flips to a live waveform only while the mic is hot or audio plays), and the loading/preparing states
 stay in the same palette — so the two halves feel like one app. Full tokens in
 [`brand/tokens.md`](brand/tokens.md); the machine-readable design law lives in [`DESIGN.md`](DESIGN.md).
 
@@ -253,9 +253,15 @@ profile name is a holdover from the voz era; no secrets ever live in the repo), 
 
 ## Roadmap
 
-- **Dictate → read-back** proofreading loop (speak it, hear it back to catch errors).
-- Regenerated marketing media (the showcase board still wears the voz-era art).
-- Non-macOS shells over the same `core/`.
+The full staged plan lives in [ROADMAP.md](ROADMAP.md) (and the product definition in
+[docs/product.md](docs/product.md)). The near arc:
+
+- **0.3 — never lose a word:** dictation recovery, cleanup levels with a verbatim-leaning default
+  + raw-transcript reveal, and honest end-to-end benchmarks (latency, WER, idle footprint).
+- **0.4 — the first five minutes:** sequential permission cards, a guaranteed-success first
+  dictation *and* first read-aloud, and a painless premium-engine setup path.
+- **0.5 — cheap parity + the loop:** snippets, "press enter" auto-send, mouse-button push-to-talk,
+  and the **dictate → read-back** proofreading loop only a bidirectional app can offer.
 
 ## License
 

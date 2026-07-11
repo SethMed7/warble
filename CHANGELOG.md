@@ -3,6 +3,18 @@
 All notable changes to **warble** (formerly **voz**). Versions are Sparkle-published; each entry
 is what a user actually gets.
 
+## Unreleased
+
+- **The trill.** The mark redesigned as five thick sound-wave bars — rise, crest, dip, crest
+  (*war·ble*) — deliberately few and heavy so it's unmistakable at menu-bar size. The app icon is
+  cleaned (real transparency — no more white ring in the Dock), the menu-bar glyph draws full-bleed
+  with ~3× thicker bars, and the logo / showcase / brand boards were regenerated — the last
+  voz-era art (stale "VOZ TYPES" copy, wrong hotkey, dead space) is gone.
+- **The plan, written down.** [docs/product.md](docs/product.md) defines what warble is and will
+  never do; [ROADMAP.md](ROADMAP.md) stages 0.3 → 1.0 with an explicit go-public gate; and a
+  verified multi-agent competitive teardown of Wispr Flow lives in
+  [docs/competitive/](docs/competitive/wispr-flow.md).
+
 ## 0.2.0 — 2026-07-10 · the rename release
 
 **voz is now warble** — *to sing with trills, the way a songbird does.* New name, new mark

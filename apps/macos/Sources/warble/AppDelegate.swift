@@ -74,8 +74,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         applyDockPolicy() // honor "always" from a previous run; no key window at launch, so no focus steal
 
-        // First launch: a native welcome so a new user isn't dropped into a bare menu bar.
+        // Post-macOS-update re-verify (ROADMAP 0.4): silently re-check previously-granted
+        // permissions after an OS update; a revocation becomes one quiet menu row (rebuildMenu),
+        // never a dialog.
+        PermissionNotice.checkAtLaunch()
+
+        // First launch: the welcome tour (card flow) so a new user isn't dropped into a bare menu
+        // bar. Shown once, ever — existing installs are gated out by the migrated didShowWelcome key.
         if WelcomeWindow.shouldShow {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { WelcomeWindow.shared.open() }
+        }
+        // QA hook (off by default): WARBLE_FORCE_ONBOARDING=1 reopens the welcome tour on launch,
+        // so the card flow can be walked without resetting the first-run keys.
+        if ProcessInfo.processInfo.environment["WARBLE_FORCE_ONBOARDING"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { WelcomeWindow.shared.open() }
         }
 
@@ -211,6 +222,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(header)
         menu.addItem(.separator())
 
+        // Post-macOS-update re-verify (ROADMAP 0.4): if an OS update silently revoked a granted
+        // permission, ONE quiet notice row — the "Last error" idiom, but clickable: opening the
+        // right Privacy pane is also the acknowledgment, so it never repeats. Never a dialog
+        // (product.md §4.5); it retires by itself if the grant comes back.
+        let revoked = PermissionNotice.pending()
+        if !revoked.isEmpty {
+            let notice = NSMenuItem(title: PermissionNotice.menuTitle(for: revoked),
+                                    action: #selector(fixRevokedPermissions), keyEquivalent: "")
+            notice.target = self
+            notice.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "warning")
+            notice.toolTip = "Open System Settings to grant it again — this notice shows once."
+            menu.addItem(notice)
+            menu.addItem(.separator())
+        }
+
         dictate.menuItems().forEach { menu.addItem($0) }
         speak.menuItems().forEach { menu.addItem($0) }
         menu.addItem(.separator())
@@ -223,6 +249,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let setup = NSMenuItem(title: "Set up better engines…", action: #selector(runBootstrap), keyEquivalent: "")
         setup.target = self
         menu.addItem(setup)
+
+        // Re-run the onboarding card flow anytime — it never reopens itself (product.md §4.5).
+        let tour = NSMenuItem(title: "Welcome tour…", action: #selector(openWelcomeTour), keyEquivalent: "")
+        tour.target = self
+        menu.addItem(tour)
 
         // Sparkle owns this action; it opens the standard update flow (and reports "you're up to date").
         let updates = NSMenuItem(title: "Check for Updates…",
@@ -248,6 +279,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// matching the rest of the app. No Terminal: each engine downloads its model in-process (real %)
     /// and runs only its environment step headlessly. (Replaced the old Terminal `.command` flow.)
     @objc private func runBootstrap() { SetupWindow.shared.open() }
+
+    /// Menu "Welcome tour…" — reopen the onboarding card flow on demand.
+    @objc private func openWelcomeTour() { WelcomeWindow.shared.open() }
+
+    /// The revoked-permission notice row: clicking it opens the right Privacy pane AND retires the
+    /// notice — the click is the acknowledgment, so it never repeats (never a dialog, never a nag).
+    @objc private func fixRevokedPermissions() {
+        let revoked = PermissionNotice.pending()
+        guard !revoked.isEmpty else { return }
+        NSWorkspace.shared.open(PermissionNotice.settingsURL(for: revoked))
+        PermissionNotice.acknowledge()
+        rebuildMenu()
+    }
 }
 
 /// "Show Dock icon" — app-level pref (plain UserDefaults, warble. prefix per convention).

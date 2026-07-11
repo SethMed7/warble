@@ -219,7 +219,9 @@ private struct EngineCard: View {
 /// The filled primary act (Install, Retry, Done, "Set up better engines"): white on electric-deep —
 /// 5.26:1, passes AA — lifting to electric on hover, dimming while pressed. Custom button styles
 /// suppress the system focus ring, so the 2px electric-bright ring (the crest's one in-app role)
-/// is drawn here. Shared with WelcomeWindow so the two setup surfaces stay one button.
+/// is drawn here. Shared with WelcomeWindow so the setup surfaces stay one button. Disabled
+/// (the tour's grant-one-reveal-next Next button): neutral line fill + mist label — the electric
+/// fill IS the reveal, so a card never shows two lit primaries at once.
 struct FilledButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration) }
 
@@ -228,15 +230,18 @@ struct FilledButton: ButtonStyle {
         let configuration: ButtonStyleConfiguration
         @State private var hovered = false
         @Environment(\.isFocused) private var focused
+        @Environment(\.isEnabled) private var enabled
 
         var body: some View {
             configuration.label
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundColor(enabled ? .white : Theme.mist.color)
                 .padding(.horizontal, 16).padding(.vertical, 7)
                 .background(RoundedRectangle(cornerRadius: 8)
-                    .fill((hovered ? Theme.electric.color : Theme.electricDeep.color)
-                        .opacity(configuration.isPressed ? 0.7 : 1)))
+                    .fill(enabled
+                        ? (hovered ? Theme.electric.color : Theme.electricDeep.color)
+                            .opacity(configuration.isPressed ? 0.7 : 1)
+                        : Theme.line.color))
                 .overlay(RoundedRectangle(cornerRadius: 11)
                     .strokeBorder(Theme.electricBright.color, lineWidth: 2)
                     .padding(-4)

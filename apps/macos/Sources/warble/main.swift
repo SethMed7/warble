@@ -20,6 +20,7 @@ if args.contains("--errors") { // the cause-naming taxonomy of both flows, asser
 }
 if SpeakCLI.handle(args) { exit(0) }    // --speak "text"
 if DictateCLI.handle(args) { exit(0) }  // --clean / --cleanup / --cleanup-level / --transcribe / --engine / --apply / --selftest
+if OnboardingCLI.handle(args) { exit(0) } // --onboarding-state / --render-onboarding (DEBUG)
 
 // Single instance: if warble is already running, surface that one and quit. This is the guard against
 // duplication — you never get two menu-bar icons, or two sets of warm ASR/LLM servers competing over

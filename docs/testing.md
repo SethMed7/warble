@@ -31,7 +31,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | --- | --- | --- |
 | `core` | the canonical TS cleaner's acceptance suite (`core/clean.test.ts`, via `bun test`) | cleanup foundation |
 | `build` | a debug `swift build` succeeds and produces the CLI binary | — |
-| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, and the hallucination filter | cleanup / cap logic |
+| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, and the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify) | cleanup / cap logic / 0.4 onboarding |
 | `version` | `--version` matches `Info.plist` | — |
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
@@ -44,13 +44,16 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `retranscribe` | a FAILED event resolves **in place** when the pipeline re-runs over its kept recording (`--retranscribe`, stub engine), raw transcript persisted | recovery + undo-polish |
 | `recover-raw` | the happy recovery path persists **both** the cleaned text and the verbatim raw transcript through the real store | undo-polish |
 | `bench` | the benchmark harness itself: WER/stats math (`bun test` + an exact `wer.ts` check), the latency harness end-to-end over the committed fixture WAV through the stub engine, the footprint sampler's `ps` parsing | honest numbers |
+| `onboarding` | `--onboarding-state` declares the welcome tour's steps in order, every step parseable and skippable; every declared card (plus the granted look of both permission cards) renders offscreen to a real 920×1080 @2x PNG via `--render-onboarding` (DEBUG seam — no window, no permissions) | 0.4 permission cards |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
-`apps/macos/Tests/DictateTests` for Swift — `swift test` shares `swift build`'s artifacts, so it
-adds seconds, not a second build); **flows** live in headless CLI checks against the debug binary
-(the same code paths the app runs, minus UI); the **harness** that produces public numbers gets
-its own smoke so a broken script can't quietly stop the benchmarks being reproducible.
+`apps/macos/Tests/` for Swift — DictateTests plus SharedTests for the onboarding machine;
+`swift test` shares `swift build`'s artifacts, so it adds seconds, not a second build);
+**flows** live in headless CLI checks against the debug binary (the same code paths the app
+runs, minus UI — for onboarding that includes rendering every card to a PNG); the **harness**
+that produces public numbers gets its own smoke so a broken script can't quietly stop the
+benchmarks being reproducible.
 
 ## The env seams
 
@@ -91,6 +94,18 @@ the binary directly (no flags = the full app): `cd apps/macos && WARBLE_FAULT=mi
 - **The paste itself** (+ Copy Last Dictation, Recent Dictations) into real apps — editor,
   terminal, Slack.
 - **Read-aloud**: ⌃V watch → selection queue → follow-along highlighting → collapse → Esc.
+- **The welcome tour, end to end**: `WARBLE_FORCE_ONBOARDING=1 .build/debug/warble` (or, for the
+  true first-run path, clear the debug domain's keys first: `defaults delete warble
+  didShowOnboarding; defaults delete warble didShowWelcome`) — walk the cards: the mic card's
+  button raises the real system prompt and the status flips to the checkmark while the card is
+  up; the Accessibility card deep-links to the right Settings pane and flips live on grant;
+  "Skip for now" moves on without it; "Skip tour" closes in one click; the tour never reopens by
+  itself, and **menu → Welcome tour…** brings it back. (The machine logic itself — order, gating,
+  skip paths, migration — is already covered by `swift test` and `--onboarding-state`.)
+- **Post-macOS-update re-verify**: needs a real OS update (the stored `kern.osversion` must
+  change) with a permission revoked behind warble's back — the menu must show the one quiet
+  notice row, clicking it must open the right Privacy pane and retire it, and it must not
+  reappear. The decision logic is unit-tested; this by-hand pass is about the row itself.
 - **The real benchmark numbers**: `scripts/bench/` against real engines on real hardware —
   method, caveats, and reproduction commands in [benchmarks.md](benchmarks.md). The suite only
   smokes the harness; the published numbers are gathered by hand, per the constitution

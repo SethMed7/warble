@@ -22,13 +22,13 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding warm"
 
 describe() {
   case "$1" in
     core)          echo "core/ acceptance suite (bun install + bun test)" ;;
     build)         echo "swift build (debug) — the binary every CLI check runs" ;;
-    unit)          echo "swift test — Dictate pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter)" ;;
+    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine)" ;;
     version)       echo "--version matches Info.plist" ;;
     cleanup)       echo "cleanup levels: --clean + all four --cleanup levels, engine-free" ;;
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
@@ -41,6 +41,7 @@ describe() {
     retranscribe)  echo "FAILED event resolves in place on --retranscribe (stub engine)" ;;
     recover-raw)   echo "happy-path recovery persists the raw transcript (undo-polish in the store)" ;;
     bench)         echo "benchmark harness smoke: wer/stats tests, latency over the stub engine, footprint" ;;
+    onboarding)    echo "onboarding flow: --onboarding-state declares the card flow; every card renders a real @2x PNG" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -142,9 +143,11 @@ check_build() {
   [ -x "$BIN" ] || bad "debug binary present at apps/macos/.build/debug/warble"
 }
 
-# Pure-logic unit tests (apps/macos/Tests/DictateTests): the BasicCleaner twin runs the SAME
-# acceptance cases as core/clean.test.ts so the Swift/TS cleaners can't drift, plus SpellOut,
-# HoldCap math, and the hallucination filter. Engine-free; shares swift build's artifacts.
+# Pure-logic unit tests (apps/macos/Tests/): the BasicCleaner twin runs the SAME acceptance
+# cases as core/clean.test.ts so the Swift/TS cleaners can't drift, plus SpellOut, HoldCap math,
+# the hallucination filter, and the onboarding state machine (SharedTests: step gating, skip
+# paths, first-run gate migration, post-update re-verify). Engine-free; shares swift build's
+# artifacts.
 # Judged on swift test's own exit code (never a pipeline's), and the XCTest summary line must
 # exist — so an emptied test target can't pass silently.
 check_unit() {
@@ -445,6 +448,52 @@ check_bench() {
   else
     bad "footprint sampler smoke (got \"$FOOT_OUT\")"
   fi
+}
+
+# Onboarding (ROADMAP 0.4 "sequential permission cards"). The flow is a pure state machine
+# (unit-tested in swift test); this check proves its two headless seams. --onboarding-state must
+# declare the card flow in order; the mic/ax completion values are the machine's real permission
+# state, so those assertions are structural (parseable line, yes|no) while welcome/finish are
+# constant-complete and asserted exactly. Then EVERY declared step must render offscreen to a
+# real @2x PNG (--render-onboarding, a DEBUG seam; no window is shown, no permission is touched),
+# plus the granted look of both permission cards — sips confirms real 920×1080 pixels, so a blank
+# or 1x render can't pass. Skip paths/migration live in swift test; the by-hand walkthrough is in
+# docs/testing.md.
+check_onboarding() {
+  require_bin || return
+  OB_STATE=$("$BIN" --onboarding-state 2>/dev/null)
+  OB_IDS=$(printf '%s\n' "$OB_STATE" | awk '{printf "%s ", $2}')
+  if [ "$OB_IDS" = "welcome mic ax finish " ]; then
+    ok "--onboarding-state declares the 0.4 flow in order (welcome mic ax finish)"
+  else
+    bad "--onboarding-state declares the 0.4 flow in order (got \"$OB_STATE\")"
+  fi
+  if [ -z "$(printf '%s\n' "$OB_STATE" | grep -v -E '^step [a-z-]+ complete=(yes|no) skippable=yes$')" ]; then
+    ok "every step is parseable and skippable (the product law: every step skippable)"
+  else
+    bad "every step is parseable and skippable (got \"$OB_STATE\")"
+  fi
+  if printf '%s\n' "$OB_STATE" | grep -q '^step welcome complete=yes' \
+    && printf '%s\n' "$OB_STATE" | grep -q '^step finish complete=yes'; then
+    ok "welcome and finish are constant-complete (Next never gates on them)"
+  else
+    bad "welcome and finish are constant-complete (got \"$OB_STATE\")"
+  fi
+  OB_DIR="$REGTMP/onboarding"
+  mkdir -p "$OB_DIR"
+  for id in $(printf '%s\n' "$OB_STATE" | awk '{print $2}') mic+granted ax+granted; do
+    OB_PNG="$OB_DIR/$id.png"
+    if "$BIN" --render-onboarding "$id" "$OB_PNG" >/dev/null 2>&1 && [ -s "$OB_PNG" ]; then
+      OB_DIMS=$(sips -g pixelWidth -g pixelHeight "$OB_PNG" 2>/dev/null | awk '/pixel/ {printf "%s ", $2}')
+      if [ "$OB_DIMS" = "920 1080 " ]; then
+        ok "card '$id' renders offscreen at 2x (920x1080 PNG)"
+      else
+        bad "card '$id' renders offscreen at 2x (dims: ${OB_DIMS:-none})"
+      fi
+    else
+      bad "card '$id' renders a nonzero PNG"
+    fi
+  done
 }
 
 # Warm-engine extras — the only checks that need the premium engines installed. Gated behind

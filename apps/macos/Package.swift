@@ -26,5 +26,9 @@ let package = Package(
         // filter) — engine-free, no UI, no permissions. `swift test` runs inside
         // scripts/regression.sh; flow-level behavior stays proven by the headless CLI checks.
         .testTarget(name: "DictateTests", dependencies: ["Dictate"], path: "Tests/DictateTests"),
+        // Shared's pure logic: the onboarding state machine (step gating, skip paths, the
+        // first-launch gate migration, post-macOS-update permission re-verify). Same bar as
+        // DictateTests: engine-free, no UI, no permissions.
+        .testTarget(name: "SharedTests", dependencies: ["Shared"], path: "Tests/SharedTests"),
     ]
 )

@@ -144,6 +144,14 @@ its hotkey or asks for anything at all. When on, each mode lights up exactly the
 
 If you only ever read aloud, warble never touches your microphone.
 
+A first-launch **welcome tour** walks the permissions one card at a time — a one-line why per
+permission, a button that asks (or deep-links to the exact System Settings pane), and a live
+checkmark the moment the grant lands. Every card is skippable, the whole tour is one click to
+skip, and it never reopens itself; **menu → Welcome tour…** brings it back anytime. After a macOS
+update, warble quietly re-checks what you'd granted — updates are known to silently revoke
+Accessibility — and if something was revoked, the menu shows one quiet notice row (click it to
+fix; it never repeats and it's never a dialog).
+
 ## Engines — on-device and pluggable
 
 warble uses the best engine present and falls through if one isn't installed. All run
@@ -274,6 +282,8 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --recover-scan          # dictation recovery: recover an orphaned in-flight clip
 .build/debug/warble --retranscribe          # re-run the pipeline over the newest failed history item
 .build/debug/warble --bench-e2e <wav> [N]   # time the paste-path pipeline over a WAV, N runs
+.build/debug/warble --onboarding-state      # the welcome tour's step machine, one line per step
+.build/debug/warble --render-onboarding mic /tmp/mic.png  # (DEBUG) render a tour card offscreen at 2x
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the

@@ -8,8 +8,25 @@ is what a user actually gets.
 *The 0.3 reliability core — "never lose a word": dictations survive crashes and failed pastes,
 failures name their cause, long sessions cap cleanly instead of truncating silently, cleanup is a
 level you choose (verbatim-leaning by default, raw transcript always kept), every performance
-claim is measured — and all of it is provable by one deterministic command.*
+claim is measured — and all of it is provable by one deterministic command. Plus the start of
+0.4, "the first five minutes": the welcome tour.*
 
+- **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
+  flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
+  one permission per card with a one-line plain why ("to hear you — audio never leaves your
+  Mac"), a button that triggers the real system prompt where the API allows (mic) or deep-links
+  straight to the exact System Settings pane, and a live status that flips to a checkmark the
+  moment the grant lands — Next enables on grant or skip. Every card is skippable, skipping the
+  whole tour is always one click, and it never reappears uninvited: existing installs never see
+  it (the old first-run flag is honored), and **menu → Welcome tour…** reopens it anytime.
+  Speech Recognition is deliberately not a card — only the Apple-fallback engine needs it, and it
+  prompts contextually. After a macOS update, warble now silently re-verifies previously-granted
+  permissions; if the update revoked one (macOS is known to do this to Accessibility), the menu
+  shows **one quiet notice row** — click it to fix in System Settings; never a dialog, never
+  repeated once acknowledged, auto-retired if the grant comes back. Under the hood the flow is a
+  pure, unit-tested state machine the rest of the 0.4 onboarding steps will plug into; headless
+  proof: `--onboarding-state` prints the machine, a DEBUG `--render-onboarding` seam renders
+  every card to a real @2x PNG offscreen, and `scripts/regression.sh` asserts both.
 - **Honest numbers, measured.** The benchmark harness lands in `scripts/bench/` and the first
   real numbers in [docs/benchmarks.md](docs/benchmarks.md) — method, caveats, and a reproduction
   command for every figure, per the product constitution (product.md §4.9: measured end-to-end,

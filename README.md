@@ -272,14 +272,17 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --selftest              # learn-from-edits logic
 .build/debug/warble --errors                # the cause-naming error taxonomy (a copy contract)
 .build/debug/warble --recover-scan          # dictation recovery: recover an orphaned in-flight clip
+.build/debug/warble --retranscribe          # re-run the pipeline over the newest failed history item
 .build/debug/warble --bench-e2e <wav> [N]   # time the paste-path pipeline over a WAV, N runs
 ```
 
-**Regression:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — it
-runs the `core/` acceptance suite, a debug `swift build`, the headless smokes above with
-exact-output assertions, and a smoke of the benchmark harness, and exits non-zero on any failure.
-It needs no premium engines installed; set `WARBLE_REGRESSION_FULL=1` to also exercise the
-warm-engine paths (a real `--speak` render).
+**Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the
+`core/` acceptance suite, a debug `swift build`, the Swift unit tests (`swift test`), the headless
+CLI checks above with exact-output assertions, and a smoke of the benchmark harness; it exits
+non-zero on any failure and needs **no premium engines installed** (`WARBLE_REGRESSION_FULL=1`
+adds the warm-engine extras; `--list` names every check, `--only <check>` runs one). The full
+guide — coverage map, the env seams (`WARBLE_FAULT`, `WARBLE_MAX_HOLD_SECS`, `WARBLE_HOME`…), and
+what still needs a human — is [docs/testing.md](docs/testing.md).
 
 **Benchmarks:** every public performance claim is measured, dated, and reproducible — method,
 caveats, and this machine's actual numbers live in [docs/benchmarks.md](docs/benchmarks.md); the

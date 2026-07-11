@@ -4,8 +4,8 @@ import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--hold-cap`, `--hold-cap-sim`,
-/// `--bench-e2e`.
+/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
+/// `--hold-cap-sim`, `--bench-e2e`.
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -185,6 +185,33 @@ public enum DictateCLI {
                 CFRunLoopStop(CFRunLoopGetMain())
             }
             // Completions hop the main queue; pump the run loop until recovery finishes.
+            while !done { CFRunLoopRunInMode(.defaultMode, 120, false) }
+            return true
+        }
+        if args.contains("--retranscribe") {
+            // The History "Re-transcribe" action, headless (ROADMAP 0.3 recovery; asserted by
+            // regression.sh): run the pipeline again over the newest FAILED event's kept recording
+            // and resolve it in place. WARBLE_HOME sandboxes the store; WARBLE_FORCE_ENGINE=stub
+            // makes it engine-free. Exits non-zero when the event stays failed.
+            guard let failed = InsightStore.shared.events.last(where: { $0.isFailed }) else {
+                print("no failed dictation found")
+                return true
+            }
+            var done = false
+            Recovery.retranscribe(failed) { outcome in
+                switch outcome {
+                case .text(let cleaned, _):
+                    print("re-transcribed (\(InsightStore.wordCount(cleaned)) words) — resolved in place")
+                case .silence:
+                    print("nothing heard — still marked failed")
+                    exit(1)
+                case .failed:
+                    FileHandle.standardError.write(Data("\(DictateError.transcribeFailed.message)\n".utf8))
+                    exit(1)
+                }
+                done = true
+                CFRunLoopStop(CFRunLoopGetMain())
+            }
             while !done { CFRunLoopRunInMode(.defaultMode, 120, false) }
             return true
         }

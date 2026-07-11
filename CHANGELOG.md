@@ -5,6 +5,11 @@ is what a user actually gets.
 
 ## Unreleased
 
+*The 0.3 reliability core — "never lose a word": dictations survive crashes and failed pastes,
+failures name their cause, long sessions cap cleanly instead of truncating silently, cleanup is a
+level you choose (verbatim-leaning by default, raw transcript always kept), every performance
+claim is measured — and all of it is provable by one deterministic command.*
+
 - **Honest numbers, measured.** The benchmark harness lands in `scripts/bench/` and the first
   real numbers in [docs/benchmarks.md](docs/benchmarks.md) — method, caveats, and a reproduction
   command for every figure, per the product constitution (product.md §4.9: measured end-to-end,
@@ -73,10 +78,18 @@ is what a user actually gets.
   never do; [ROADMAP.md](ROADMAP.md) stages 0.3 → 1.0 with an explicit go-public gate; and a
   verified multi-agent competitive teardown of Wispr Flow lives in
   [docs/competitive/](docs/competitive/wispr-flow.md).
-- **One regression gate.** `scripts/regression.sh` runs the whole deterministic check in one
-  command — the core acceptance suite, a debug build, and the headless CLI smokes with
-  exact-output assertions — engine-free by default (`WARBLE_REGRESSION_FULL=1` adds the
-  warm-engine paths). Milestone 0.3's reliability checks extend it.
+- **One regression gate, now a durable suite.** `scripts/regression.sh` proves everything above
+  in one deterministic command: named checks (`--list` to see them, `--only <check>` for fast
+  iteration) covering the core acceptance suite, a debug build, all four cleanup levels, the
+  cause-naming seams, recovery end-to-end — including a new headless `--retranscribe` that
+  resolves a FAILED history item in place, and a raw-transcript-persistence check for
+  undo-polish — the session cap, and a smoke of the benchmark harness. Dictate's pure logic
+  (the BasicCleaner twin runs the *same* cases as `core/clean.test.ts`, plus spell-out, cap math,
+  and the hallucination filter) moved into a real SwiftPM test target run via `swift test`.
+  Engine-free by default (`WARBLE_REGRESSION_FULL=1` adds the warm-engine extras); every check is
+  sandboxed, so a run never touches your real `~/.warble`, dictionary, or preferences. The full
+  guide — coverage map, env seams, what still needs a human — is
+  [docs/testing.md](docs/testing.md).
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

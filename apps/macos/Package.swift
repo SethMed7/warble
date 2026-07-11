@@ -22,5 +22,9 @@ let package = Package(
             dependencies: ["Speak", "Dictate", .product(name: "Sparkle", package: "Sparkle")],
             path: "Sources/warble"
         ),
+        // Unit tests for Dictate's pure logic (cleaner, spell-out, hold-cap math, hallucination
+        // filter) — engine-free, no UI, no permissions. `swift test` runs inside
+        // scripts/regression.sh; flow-level behavior stays proven by the headless CLI checks.
+        .testTarget(name: "DictateTests", dependencies: ["Dictate"], path: "Tests/DictateTests"),
     ]
 )

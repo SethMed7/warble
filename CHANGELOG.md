@@ -9,7 +9,7 @@ is what a user actually gets.
 failures name their cause, long sessions cap cleanly instead of truncating silently, cleanup is a
 level you choose (verbatim-leaning by default, raw transcript always kept), every performance
 claim is measured — and all of it is provable by one deterministic command. Plus the start of
-0.4, "the first five minutes": the welcome tour.*
+0.4, "the first five minutes": the welcome tour, now a full guaranteed-first-success flow.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -27,6 +27,30 @@ claim is measured — and all of it is provable by one deterministic command. Pl
   pure, unit-tested state machine the rest of the 0.4 onboarding steps will plug into; headless
   proof: `--onboarding-state` prints the machine, a DEBUG `--render-onboarding` seam renders
   every card to a real @2x PNG offscreen, and `scripts/regression.sh` asserts both.
+- **Guaranteed first success — the tour's second half (0.4 continues).** After the permission
+  cards, the tour now proves both verbs before you leave, and ends in your own app:
+  - **"It hears you"** — a live mic-level meter (the pill's electric waveform idiom) moving with
+    your voice before any dictation is asked for. Nothing is recorded or transcribed — buffers
+    reduce to one level and vanish — and the tap runs only while the card is visible. If the mic
+    was skipped, the card says so plainly and offers **Back to Microphone** — never a dead end.
+  - **"Try a dictation"** — a practice dictation inside the card with the real gesture: hold
+    **Fn**, say the deliberately messy prompt (*"Umm, let's meet Friday at 3 — no, actually
+    4pm"*), release. The cleaned result lands in the card with the raw transcript struck through
+    beneath it — the cleanup visibly working. It's a true rehearsal: the result is routed into
+    the card (never pasted into whatever app focus wandered to) and **never touches History,
+    stats, or the recent-dictations menu**.
+  - **"Hear it back"** — a paragraph in the card + select it and press **⌃V**: the REAL read-aloud
+    fires, follow-along panel and all, and a read while the card is up lights Next. Accessibility
+    skipped → the plain notice + **Back to Accessibility**.
+  - **"Now do it in your own app"** — the finish card opens **Mail, Notes, or Messages** (apps
+    every Mac has) with the one line that matters: hold **Fn** and talk wherever the cursor is.
+    **Done** ends the tour permanently; only **menu → Welcome tour…** brings it back.
+
+  Every new card is still skippable and Next gates on the practice/read cards actually firing (or
+  a skip). Headless proof, extended: every card and preview-state variant renders to a real @2x
+  PNG (`--render-onboarding meter` / `practice+done` / `read+noax`…), the state machine's new
+  steps + jump-back are unit-tested, and a new `--practice-sim` flag + regression check prove the
+  sandbox invariant on disk: a rehearsal records nothing while a control dictation still lands.
 - **Honest numbers, measured.** The benchmark harness lands in `scripts/bench/` and the first
   real numbers in [docs/benchmarks.md](docs/benchmarks.md) — method, caveats, and a reproduction
   command for every figure, per the product constitution (product.md §4.9: measured end-to-end,

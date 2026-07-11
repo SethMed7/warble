@@ -35,4 +35,5 @@ struct DictationContext {
     let appBundleId: String?
     let appName: String?
     let secure: Bool   // a secure (password) field was focused while recording — keep metrics only
+    var sandbox = false // an onboarding rehearsal (PracticeSandbox) — History/stats must not move
 }

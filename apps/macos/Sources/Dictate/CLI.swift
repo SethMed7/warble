@@ -5,7 +5,7 @@ import AVFoundation
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
 /// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
-/// `--hold-cap-sim`, `--bench-e2e`.
+/// `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`.
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -159,6 +159,9 @@ public enum DictateCLI {
             benchE2E(wav: URL(fileURLWithPath: args[i + 1]),
                      runs: (i + 2 < args.count ? Int(args[i + 2]) : nil).map { max(1, $0) } ?? 1)
         }
+        if let i = args.firstIndex(of: "--practice-sim"), i + 1 < args.count {
+            practiceSim(wav: URL(fileURLWithPath: args[i + 1]))
+        }
         if args.contains("--recover-scan") {
             // Dictation recovery, headless (ROADMAP 0.3; asserted by regression.sh): exactly what
             // the app does — the launch scan plus the menu's Recover action — minus the UI.
@@ -222,6 +225,41 @@ public enum DictateCLI {
     /// line per taxonomy case. regression.sh asserts the table verbatim — copy drift is deliberate.
     public static func printErrors() {
         for e in DictateError.allCases { print("dictate/\(e.reason): \(e.message)") }
+    }
+
+    /// `--practice-sim <wav>` — the onboarding practice card's sandbox invariant, headless
+    /// (asserted by regression.sh under WARBLE_HOME): run the real pipeline over a fixture WAV,
+    /// then push the result through the store's record gate twice — first tagged `sandbox`
+    /// (History/stats must not move), then as the control dictation (must land, so a store that's
+    /// simply broken can't fake a pass). Prints the raw → cleaned transformation the card shows.
+    private static func practiceSim(wav: URL) -> Never {
+        Lexicon.shared.load() // honors WARBLE_DICTIONARY, like the app
+        var outcome = Transcribers.Outcome.failed
+        var done = false
+        Transcribers.run(wav, clipDuration: 10) { o in
+            outcome = o; done = true; CFRunLoopStop(CFRunLoopGetMain())
+        }
+        while !done { CFRunLoopRunInMode(.defaultMode, 120, false) }
+        guard case .text(let raw) = outcome else {
+            FileHandle.standardError.write(Data("\(DictateError.transcribeFailed.message)\n".utf8))
+            exit(1)
+        }
+        let spell = SpellOut.process(raw)
+        let cleaned = Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text))
+        print("raw: \(raw)")
+        print("cleaned: \(cleaned)")
+        func ctx(sandbox: Bool) -> DictationContext {
+            DictationContext(durationMs: 1000, engine: Transcribers.activeEngineName(),
+                             appBundleId: nil, appName: nil, secure: false, sandbox: sandbox)
+        }
+        let before = InsightStore.shared.events.count
+        InsightStore.shared.record(cleaned, raw: raw, ctx: ctx(sandbox: true), audioSource: nil)
+        let sandboxed = InsightStore.shared.events.count == before
+        print(sandboxed ? "sandbox: nothing recorded" : "sandbox: LEAKED into history")
+        InsightStore.shared.record(cleaned, raw: raw, ctx: ctx(sandbox: false), audioSource: nil)
+        let control = InsightStore.shared.events.count == before + 1
+        print(control ? "control: recorded" : "control: record failed")
+        exit(sandboxed && control ? 0 : 1)
     }
 
     /// `--bench-e2e <wav> [N]` — per-run "run=<n> ms=<ms>" lines, then a summary

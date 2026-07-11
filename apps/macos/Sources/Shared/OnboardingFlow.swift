@@ -60,6 +60,18 @@ public struct OnboardingFlow {
         step()
     }
 
+    /// Jump BACK to an earlier step — the never-a-dead-end affordance: the meter card (mic
+    /// skipped) and the read card (accessibility skipped) offer the permission card again in one
+    /// click. Backward only, so a jump can never bypass grant-one-reveal-next gating; the
+    /// target's recorded skip is cleared — revisiting a card is deliberately re-asking.
+    @discardableResult
+    public mutating func jump(to id: String) -> Bool {
+        guard !finished, let i = steps.firstIndex(where: { $0.id == id }), i < index else { return false }
+        index = i
+        skipped.remove(id)
+        return true
+    }
+
     /// The one-click whole-flow skip ("Skip tour"): everything not already complete is skipped.
     public mutating func skipAll() {
         guard !finished else { return }
@@ -71,17 +83,25 @@ public struct OnboardingFlow {
         if isLast { finished = true } else { index += 1 }
     }
 
-    /// The 0.4 flow, in order: welcome → mic → accessibility → […the rest of the milestone plugs
-    /// in here: mic-meter → practice → read-aloud…] → finish. Speech Recognition is deliberately
-    /// NOT a card — only the Apple-fallback engine needs it, and it prompts contextually (the
-    /// README's permission contract).
+    /// The 0.4 flow, in order: welcome → one permission per card (mic, accessibility) → the
+    /// guaranteed-first-success arc (live meter → sandboxed practice dictation → read-aloud demo)
+    /// → finish in the user's own app. Speech Recognition is deliberately NOT a card — only the
+    /// Apple-fallback engine needs it, and it prompts contextually (the README's permission
+    /// contract). meter/finish are demonstrations (constant-complete: Next never gates on them);
+    /// practice/read complete when their real feature actually fired — the injected predicates
+    /// are the UI's live "a rehearsal landed" / "a read happened while the card was up" state.
     public static func standard(micGranted: @escaping () -> Bool,
-                                axGranted: @escaping () -> Bool) -> OnboardingFlow {
+                                axGranted: @escaping () -> Bool,
+                                practiceDone: @escaping () -> Bool = { false },
+                                readDone: @escaping () -> Bool = { false }) -> OnboardingFlow {
         OnboardingFlow(steps: [
             OnboardingStep(id: "welcome", title: "Welcome to warble") { true },
             OnboardingStep(id: "mic", title: "Microphone", isComplete: micGranted),
             OnboardingStep(id: "ax", title: "Accessibility", isComplete: axGranted),
-            OnboardingStep(id: "finish", title: "You're set") { true },
+            OnboardingStep(id: "meter", title: "It hears you") { true },
+            OnboardingStep(id: "practice", title: "Try a dictation", isComplete: practiceDone),
+            OnboardingStep(id: "read", title: "Hear it back", isComplete: readDone),
+            OnboardingStep(id: "finish", title: "Your own apps") { true },
         ])
     }
 }

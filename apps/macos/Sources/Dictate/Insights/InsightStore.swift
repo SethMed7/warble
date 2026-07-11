@@ -96,6 +96,7 @@ public final class InsightStore: ObservableObject {
     /// encode must complete synchronously here. `raw` is the verbatim transcript — stored (text only)
     /// when cleanup actually changed it, so "what I actually said" is never lost.
     func record(_ cleaned: String, raw: String? = nil, ctx: DictationContext, audioSource: URL?) {
+        guard !ctx.sandbox else { return } // an onboarding rehearsal — nothing lands, ever
         let text = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let id = UUID().uuidString
@@ -145,7 +146,7 @@ public final class InsightStore: ObservableObject {
     /// event, or nil when nothing was kept.
     @discardableResult
     func recordFailed(audioSource: URL, ctx: DictationContext) -> DictationEvent? {
-        guard saveAudio, !(ctx.secure && excludeSecureFields) else { return nil }
+        guard !ctx.sandbox, saveAudio, !(ctx.secure && excludeSecureFields) else { return nil }
         let id = UUID().uuidString
         let dest = audioDir.appendingPathComponent("\(id).m4a")
         if AudioConvert.to16kMonoAAC(input: audioSource, output: dest) {

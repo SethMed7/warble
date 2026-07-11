@@ -31,7 +31,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | --- | --- | --- |
 | `core` | the canonical TS cleaner's acceptance suite (`core/clean.test.ts`, via `bun test`) | cleanup foundation |
 | `build` | a debug `swift build` succeeds and produces the CLI binary | — |
-| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, and the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify) | cleanup / cap logic / 0.4 onboarding |
+| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, and the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back) | cleanup / cap logic / 0.4 onboarding |
 | `version` | `--version` matches `Info.plist` | — |
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
@@ -44,7 +44,8 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `retranscribe` | a FAILED event resolves **in place** when the pipeline re-runs over its kept recording (`--retranscribe`, stub engine), raw transcript persisted | recovery + undo-polish |
 | `recover-raw` | the happy recovery path persists **both** the cleaned text and the verbatim raw transcript through the real store | undo-polish |
 | `bench` | the benchmark harness itself: WER/stats math (`bun test` + an exact `wer.ts` check), the latency harness end-to-end over the committed fixture WAV through the stub engine, the footprint sampler's `ps` parsing | honest numbers |
-| `onboarding` | `--onboarding-state` declares the welcome tour's steps in order, every step parseable and skippable; every declared card (plus the granted look of both permission cards) renders offscreen to a real 920×1080 @2x PNG via `--render-onboarding` (DEBUG seam — no window, no permissions) | 0.4 permission cards |
+| `onboarding` | `--onboarding-state` declares the welcome tour's steps in order (welcome → mic → ax → meter → practice → read → finish), every step parseable and skippable, the demonstrations constant-complete and practice/read constant-incomplete headlessly; every declared card **plus every preview-state variant** (granted permissions, the meter/practice skipped-mic looks, the practice card's landed raw→cleaned transformation, the read card's done/no-accessibility looks) renders offscreen to a real 920×1080 @2x PNG via `--render-onboarding` (DEBUG seam — no window, no permissions, fixture states injected) | 0.4 permission cards + first success |
+| `practice` | the practice card's sandbox invariant: `--practice-sim` runs the real pipeline (stub engine) and pushes the result through the store's record gate tagged `sandbox` — History/stats must not move — then as the control dictation, which must land; the on-disk `history.json` (under `WARBLE_HOME`) holds exactly the control event | 0.4 guaranteed first success |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
@@ -101,7 +102,24 @@ the binary directly (no flags = the full app): `cd apps/macos && WARBLE_FAULT=mi
   up; the Accessibility card deep-links to the right Settings pane and flips live on grant;
   "Skip for now" moves on without it; "Skip tour" closes in one click; the tour never reopens by
   itself, and **menu → Welcome tour…** brings it back. (The machine logic itself — order, gating,
-  skip paths, migration — is already covered by `swift test` and `--onboarding-state`.)
+  skip paths, migration, jump-back — is already covered by `swift test` and `--onboarding-state`.)
+- **The meter card, with a real mic**: on the "It hears you" card the bars must move with your
+  voice and settle in silence; they must be **still before the card appears and after it goes**
+  (Next, jump back, window close — motion only while the card is visible). With the mic skipped,
+  the card must say so and **Back to Microphone** must land on the mic card with Next gated again.
+- **The practice card, real gesture end to end**: on "Try a dictation", hold **Fn**, say the messy
+  prompt line, release — the pill runs (waveform → spinner), the cleaned sentence lands in the
+  card's field with the raw transcript struck through beneath, and Next lights. Then verify the
+  sandbox: dashboard History gains **no** row, Home stats don't move, and **Copy Last Dictation**
+  does not offer the rehearsal. A dictation made with another app frontmost while the card is up
+  is real (pasted + recorded) — the sandbox only owns dictations aimed at the card.
+- **The read demo card**: select the in-card paragraph, press **⌃V** — the REAL read fires
+  (follow-along panel, voice, Esc all normal), and the card's status flips to the checkmark,
+  lighting Next while it's up. With Accessibility skipped, the card says so and **Back to
+  Accessibility** returns to that card.
+- **The finish card**: **Mail / Notes / Messages** buttons each open the real app; do the "own
+  app" dictation there within the minute. **Done** ends the tour for good (it never reopens
+  itself; only the menu brings it back).
 - **Post-macOS-update re-verify**: needs a real OS update (the stored `kern.osversion` must
   change) with a permission revoked behind warble's back — the menu must show the one quiet
   notice row, clicking it must open the right Privacy pane and retire it, and it must not

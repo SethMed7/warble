@@ -42,9 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictate.onIcon = { [weak self] p, symbol in self?.dictateIcon = (p, symbol); self?.applyIcon() }
         speak.onMenuRebuild = { [weak self] in self?.rebuildMenu() }
         dictate.onMenuRebuild = { [weak self] in self?.rebuildMenu() }
-        // Log read-aloud usage to Insights (the store lives in the Dictate module; route reads to it).
+        // Log read-aloud usage to Insights (the store lives in the Dictate module; route reads to
+        // it), and tell the welcome tour's read card a real read happened (it listens while up).
         speak.onRead = { text, bid, name, voice in
             InsightStore.shared.recordRead(text: text, appBundleId: bid, appName: name, voice: voice)
+            NotificationCenter.default.post(name: .warbleDidRead, object: nil)
         }
 
         speak.start()

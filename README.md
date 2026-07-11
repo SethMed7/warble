@@ -146,8 +146,15 @@ If you only ever read aloud, warble never touches your microphone.
 
 A first-launch **welcome tour** walks the permissions one card at a time — a one-line why per
 permission, a button that asks (or deep-links to the exact System Settings pane), and a live
-checkmark the moment the grant lands. Every card is skippable, the whole tour is one click to
-skip, and it never reopens itself; **menu → Welcome tour…** brings it back anytime. After a macOS
+checkmark the moment the grant lands — then proves both verbs before you leave: a live **mic
+meter** ("it hears you" — just the level, nothing recorded), a **practice dictation** right in
+the card (hold Fn, say the deliberately messy prompt, and watch the raw transcript get struck
+through under the cleaned result — a rehearsal that never touches History or stats), a
+**read-aloud demo** (select the card's paragraph, press ⌃V — the real follow-along panel), and a
+finish card that opens **Mail, Notes, or Messages** so your first real dictation happens in your
+own app within the first minute. Every card is skippable, a skipped permission is never a dead
+end (each dependent card offers the one-click jump back), the whole tour is one click to skip,
+and it never reopens itself; **menu → Welcome tour…** brings it back anytime. After a macOS
 update, warble quietly re-checks what you'd granted — updates are known to silently revoke
 Accessibility — and if something was revoked, the menu shows one quiet notice row (click it to
 fix; it never repeats and it's never a dialog).
@@ -284,6 +291,9 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --bench-e2e <wav> [N]   # time the paste-path pipeline over a WAV, N runs
 .build/debug/warble --onboarding-state      # the welcome tour's step machine, one line per step
 .build/debug/warble --render-onboarding mic /tmp/mic.png  # (DEBUG) render a tour card offscreen at 2x
+                                            #   variants inject preview state: mic+granted, meter+nomic,
+                                            #   practice+done, read+done, read+noax…
+.build/debug/warble --practice-sim <wav>    # the practice card's sandbox invariant: rehearsals never land in History
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the

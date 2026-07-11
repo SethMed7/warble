@@ -46,6 +46,9 @@ public final class DictateController: NSObject {
     private var dictationApp: (bundleId: String?, name: String?)?
     /// Whether a secure (password) field was focused at recording start — so Insights can keep metrics only.
     private var dictationSecure = false
+    /// Whether this session is an onboarding rehearsal (the practice card is up and warble itself
+    /// was frontmost at recording start) — the result goes to the card, never to paste/History.
+    private var dictationSandbox = false
     private static let passwordManagerBundleIDs: Set<String> = [
         "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword",
         "com.bitwarden.desktop", "org.keepassxc.keepassxc", "com.lastpass.LastPass", "com.apple.keychainaccess",
@@ -328,6 +331,10 @@ public final class DictateController: NSObject {
         dictationApp = isSelf ? (nil, nil) : (app?.bundleIdentifier, app?.localizedName)
         dictationSecure = IsSecureEventInputEnabled()
             || ((app?.bundleIdentifier).map(Self.passwordManagerBundleIDs.contains) ?? false)
+        // The onboarding practice card: a dictation that starts while the rehearsal card is up AND
+        // warble itself is frontmost belongs to the card. Frontmost anywhere else = a real
+        // dictation (the user left the tour mid-card) — recorded and pasted normally.
+        dictationSandbox = PracticeSandbox.shared.isActive && isSelf
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt
         workGen &+= 1 // a fresh session; any straggler completion from before is now stale
         sessionCapped = false
@@ -499,7 +506,8 @@ public final class DictateController: NSObject {
                                    engine: Transcribers.activeEngineName(),
                                    appBundleId: dictationApp?.bundleId,
                                    appName: dictationApp?.name,
-                                   secure: dictationSecure)
+                                   secure: dictationSecure,
+                                   sandbox: dictationSandbox)
         let wav = clip.url
         Transcribers.run(wav, clipDuration: clip.duration) { [weak self] outcome in
             guard let self else { try? FileManager.default.removeItem(at: wav); return }
@@ -550,6 +558,15 @@ public final class DictateController: NSObject {
             return
         }
         lastError = nil // this dictation landed — the menu's "Last error" row retires
+        if ctx.sandbox {
+            // An onboarding rehearsal: the practice card shows the raw → cleaned transformation.
+            // Nothing is pasted (focus may have wandered mid-hold — never type into an app the
+            // user didn't aim at), nothing remembered or learned; InsightStore.record
+            // double-guards on ctx.sandbox so History/stats can't move either.
+            PracticeSandbox.shared.deliver(raw: raw, cleaned: cleaned)
+            Overlay.shared.showTyped()
+            return
+        }
         remember(cleaned)                                                // in-memory safety net for a mis-targeted paste
         InsightStore.shared.record(cleaned, raw: raw, ctx: ctx, audioSource: audio) // local stats + history (+ saved recording)
         if Paster.paste(cleaned) {

@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice warm"
 
 describe() {
   case "$1" in
@@ -41,7 +41,8 @@ describe() {
     retranscribe)  echo "FAILED event resolves in place on --retranscribe (stub engine)" ;;
     recover-raw)   echo "happy-path recovery persists the raw transcript (undo-polish in the store)" ;;
     bench)         echo "benchmark harness smoke: wer/stats tests, latency over the stub engine, footprint" ;;
-    onboarding)    echo "onboarding flow: --onboarding-state declares the card flow; every card renders a real @2x PNG" ;;
+    onboarding)    echo "onboarding flow: --onboarding-state declares the card flow; every card (+ variants) renders a real @2x PNG" ;;
+    practice)      echo "practice sandbox: a rehearsal dictation shows raw -> cleaned but never lands in History/stats" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -450,21 +451,24 @@ check_bench() {
   fi
 }
 
-# Onboarding (ROADMAP 0.4 "sequential permission cards"). The flow is a pure state machine
-# (unit-tested in swift test); this check proves its two headless seams. --onboarding-state must
-# declare the card flow in order; the mic/ax completion values are the machine's real permission
-# state, so those assertions are structural (parseable line, yes|no) while welcome/finish are
-# constant-complete and asserted exactly. Then EVERY declared step must render offscreen to a
-# real @2x PNG (--render-onboarding, a DEBUG seam; no window is shown, no permission is touched),
-# plus the granted look of both permission cards — sips confirms real 920×1080 pixels, so a blank
-# or 1x render can't pass. Skip paths/migration live in swift test; the by-hand walkthrough is in
-# docs/testing.md.
+# Onboarding (ROADMAP 0.4: permission cards + the guaranteed-first-success arc). The flow is a
+# pure state machine (unit-tested in swift test); this check proves its two headless seams.
+# --onboarding-state must declare the card flow in order; the mic/ax completion values are the
+# machine's real permission state, so those assertions are structural (parseable line, yes|no)
+# while the demonstrations (welcome/meter/finish) are constant-complete and asserted exactly —
+# and practice/read must be constant-INCOMPLETE headlessly (their features only fire live). Then
+# EVERY declared step must render offscreen to a real @2x PNG (--render-onboarding, a DEBUG seam;
+# no window is shown, no permission is touched), plus every preview-state variant: the granted
+# look of both permission cards, the meter/practice cards' skipped-mic look, the practice card's
+# landed raw→cleaned transformation, and the read card's done/no-accessibility looks — sips
+# confirms real 920×1080 pixels, so a blank or 1x render can't pass. Skip paths/migration/jump-
+# back live in swift test; the by-hand walkthrough is in docs/testing.md.
 check_onboarding() {
   require_bin || return
   OB_STATE=$("$BIN" --onboarding-state 2>/dev/null)
   OB_IDS=$(printf '%s\n' "$OB_STATE" | awk '{printf "%s ", $2}')
-  if [ "$OB_IDS" = "welcome mic ax finish " ]; then
-    ok "--onboarding-state declares the 0.4 flow in order (welcome mic ax finish)"
+  if [ "$OB_IDS" = "welcome mic ax meter practice read finish " ]; then
+    ok "--onboarding-state declares the 0.4 flow in order (welcome mic ax meter practice read finish)"
   else
     bad "--onboarding-state declares the 0.4 flow in order (got \"$OB_STATE\")"
   fi
@@ -474,14 +478,22 @@ check_onboarding() {
     bad "every step is parseable and skippable (got \"$OB_STATE\")"
   fi
   if printf '%s\n' "$OB_STATE" | grep -q '^step welcome complete=yes' \
+    && printf '%s\n' "$OB_STATE" | grep -q '^step meter complete=yes' \
     && printf '%s\n' "$OB_STATE" | grep -q '^step finish complete=yes'; then
-    ok "welcome and finish are constant-complete (Next never gates on them)"
+    ok "the demonstrations (welcome meter finish) are constant-complete (Next never gates on them)"
   else
-    bad "welcome and finish are constant-complete (got \"$OB_STATE\")"
+    bad "the demonstrations are constant-complete (got \"$OB_STATE\")"
+  fi
+  if printf '%s\n' "$OB_STATE" | grep -q '^step practice complete=no' \
+    && printf '%s\n' "$OB_STATE" | grep -q '^step read complete=no'; then
+    ok "practice and read are incomplete headlessly (they complete only when the feature fires)"
+  else
+    bad "practice and read are incomplete headlessly (got \"$OB_STATE\")"
   fi
   OB_DIR="$REGTMP/onboarding"
   mkdir -p "$OB_DIR"
-  for id in $(printf '%s\n' "$OB_STATE" | awk '{print $2}') mic+granted ax+granted; do
+  for id in $(printf '%s\n' "$OB_STATE" | awk '{print $2}') \
+    mic+granted ax+granted meter+nomic practice+done practice+nomic read+done read+noax; do
     OB_PNG="$OB_DIR/$id.png"
     if "$BIN" --render-onboarding "$id" "$OB_PNG" >/dev/null 2>&1 && [ -s "$OB_PNG" ]; then
       OB_DIMS=$(sips -g pixelWidth -g pixelHeight "$OB_PNG" 2>/dev/null | awk '/pixel/ {printf "%s ", $2}')
@@ -494,6 +506,40 @@ check_onboarding() {
       bad "card '$id' renders a nonzero PNG"
     fi
   done
+}
+
+# The practice card's sandbox invariant (ROADMAP 0.4 "guaranteed first success"): a rehearsal
+# dictation runs the REAL pipeline but must never land in History/stats. --practice-sim pushes a
+# stub-engine transcription through the store's record gate twice — tagged sandbox first (nothing
+# may move), then as the control dictation (must land, so a store that's simply broken can't fake
+# a pass). WARBLE_HOME sandboxes the store; the final grep proves the invariant on disk, not just
+# in memory. The flag-through-the-controller wiring (begin/deliver) is by-hand: docs/testing.md.
+check_practice() {
+  require_bin || return
+  PHOME="$REGTMP/practice-home"
+  rm -rf "$PHOME"
+  pin_store_defaults
+  pin_cleanup_level light
+  PRACTICE_OUT=$(env WARBLE_HOME="$PHOME" WARBLE_FORCE_ENGINE=stub WARBLE_DISABLE_LLM=1 \
+    "$BIN" --practice-sim "$ROOT/scripts/bench/fixtures/e2e-fixture.wav" 2>&1)
+  PRACTICE_STATUS=$?
+  restore_cleanup_level
+  restore_store_defaults
+  if [ "$PRACTICE_STATUS" -eq 0 ] \
+    && printf '%s\n' "$PRACTICE_OUT" | grep -q "^raw: um so the the quick brown fox$" \
+    && printf '%s\n' "$PRACTICE_OUT" | grep -q "^cleaned: so the quick brown fox$" \
+    && printf '%s\n' "$PRACTICE_OUT" | grep -q "^sandbox: nothing recorded$" \
+    && printf '%s\n' "$PRACTICE_OUT" | grep -q "^control: recorded$"; then
+    ok "rehearsal shows raw → cleaned; sandbox records nothing, control records"
+  else
+    bad "rehearsal sandbox invariant (exit $PRACTICE_STATUS; got \"$PRACTICE_OUT\")"
+  fi
+  PRACTICE_COUNT=$(grep -c '"kind":"dictate"' "$PHOME/history.json" 2>/dev/null)
+  if [ "$PRACTICE_COUNT" = "1" ]; then
+    ok "history.json holds exactly the control event (the rehearsal left no line)"
+  else
+    bad "history.json holds exactly the control event (got ${PRACTICE_COUNT:-none})"
+  fi
 }
 
 # Warm-engine extras — the only checks that need the premium engines installed. Gated behind

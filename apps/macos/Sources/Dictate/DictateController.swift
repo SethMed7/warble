@@ -20,7 +20,8 @@ public final class DictateController: NSObject {
     private let recorder = Recorder()
     private let learner = KeystrokeLearner() // learns corrections from keystrokes — works in terminals too
     private var handsFree = false // true while a double-tap-⌃ (no-hold) session is recording
-    private var recordingWatchdog: DispatchWorkItem? // force-finishes a stuck session if a key-up is dropped
+    private var capClock: HoldCapClock? // counts down to, then cleanly enforces, the long-session cap
+    private var sessionCapped = false   // this session was stopped by the cap — deliver() names why
     /// Bumped whenever a session ends or is cancelled, so a late transcribe/polish completion from a
     /// superseded run is ignored — both Esc-to-cancel and the processing watchdog rely on this.
     private var workGen = 0
@@ -214,7 +215,7 @@ public final class DictateController: NSObject {
         } else {
             HotKey.shared.unregister()
             workGen &+= 1 // invalidate any in-flight transcribe/polish
-            recordingWatchdog?.cancel(); recordingWatchdog = nil
+            capClock?.cancel(); capClock = nil
             processingWatchdog?.cancel(); processingWatchdog = nil
             unregisterEsc() // and don't leave Esc consumed if we were recording
             if let clip = recorder.stop() { try? FileManager.default.removeItem(at: clip.url) }
@@ -329,6 +330,7 @@ public final class DictateController: NSObject {
             || ((app?.bundleIdentifier).map(Self.passwordManagerBundleIDs.contains) ?? false)
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt
         workGen &+= 1 // a fresh session; any straggler completion from before is now stale
+        sessionCapped = false
         registerEsc() // Esc cancels — while recording, and through processing
         state = .listening
         Overlay.shared.showListening()
@@ -340,28 +342,37 @@ public final class DictateController: NSObject {
         }
         recorder.onLevel = { Overlay.shared.updateLevel($0) }
         recorder.start(onError: { [weak self] err in
-            self?.recordingWatchdog?.cancel()
+            self?.capClock?.cancel(); self?.capClock = nil
             self?.unregisterEsc() // don't leave Esc globally consumed if the mic couldn't start
             self?.state = .idle
             self?.noteError(err)
         })
-        // Safety net: if a Fn key-up is ever dropped, force-finish so Esc + the mic can't wedge forever.
-        let watchdog = DispatchWorkItem { [weak self] in
+        // Long-session hardening (ROADMAP 0.3): the pill counts down the final minute, then the
+        // session stops CLEANLY at the cap — everything captured is transcribed and lands
+        // normally, and deliver() names why it stopped. Never a silent truncation. This is also
+        // the safety net for a dropped Fn key-up (a known Carbon hot-key failure mode).
+        capClock = HoldCapClock(onTick: { [weak self] secs in
             guard let self, self.state == .listening else { return }
+            Overlay.shared.showCapCountdown(secondsLeft: secs)
+        }, onCap: { [weak self] in
+            guard let self, self.state == .listening else { return }
+            self.sessionCapped = true
+            Log.dictate.notice("reason=hold-cap — stopping cleanly at the \(Int(HoldCap.maxSeconds), privacy: .public)s cap")
             self.finishRecording()
-        }
-        recordingWatchdog = watchdog
-        DispatchQueue.main.asyncAfter(deadline: .now() + 305, execute: watchdog)
+        })
     }
 
     private func finishRecording() {
-        recordingWatchdog?.cancel(); recordingWatchdog = nil
+        capClock?.cancel(); capClock = nil
         state = .finishing // Esc stays claimed → it now cancels the transcribe/polish (see escapePressed)
         guard let clip = recorder.stop() else { // nothing captured
             unregisterEsc(); state = .idle
             Log.dictate.info("reason=no-clip — recorder had nothing")
             Overlay.shared.close()
             return
+        }
+        if clip.capped { // the runaway ceiling engaged — the cap clock should have stopped us 30s earlier
+            Log.dictate.error("reason=runaway-ceiling — audio past the ceiling was not written")
         }
         // Too short, or silent: drop it silently rather than paste a phantom.
         if clip.duration < minClipSeconds {
@@ -407,7 +418,7 @@ public final class DictateController: NSObject {
     fileprivate func cancelRecording() {
         guard state == .listening else { return }
         workGen &+= 1
-        recordingWatchdog?.cancel(); recordingWatchdog = nil
+        capClock?.cancel(); capClock = nil
         unregisterEsc()
         handsFree = false
         recorder.onLevel = nil
@@ -542,7 +553,12 @@ public final class DictateController: NSObject {
         remember(cleaned)                                                // in-memory safety net for a mis-targeted paste
         InsightStore.shared.record(cleaned, raw: raw, ctx: ctx, audioSource: audio) // local stats + history (+ saved recording)
         if Paster.paste(cleaned) {
-            if shouldNoteAppleFloor(ctx) {
+            if sessionCapped {
+                sessionCapped = false
+                // The stop was warble's doing, not the user's — say why (warn + glyph so it can't
+                // be missed after a 20-minute session), and keep the cause in the menu row too.
+                noteError(.holdCapReached)
+            } else if shouldNoteAppleFloor(ctx) {
                 Overlay.shared.flash(message: DictateError.engineMissing.message) // notice, not a failure
             } else {
                 Overlay.shared.showTyped()

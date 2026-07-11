@@ -11,6 +11,7 @@ final class Overlay {
     private var panel: NSPanel?
     private var waveformView: MicWaveformView?
     private var spinner: Spinner?
+    private var warnLabel: NSTextField? // the hold-cap countdown, updated in place each second
     private var autoCloseWork: DispatchWorkItem?
 
     // Tokens from Shared/Theme — one canon (brand/tokens.md), no local literals.
@@ -35,6 +36,16 @@ final class Overlay {
 
     /// Released — the waveform goes flat and a spinner spins on the right while we transcribe + polish.
     func showThinking() { mountWave(processing: true) }
+
+    /// Long-session warning (ROADMAP 0.3): the countdown to the hold cap. The mic is still hot, so
+    /// the waveform keeps reacting (motion stays honest) — the pill just widens to carry a warn
+    /// glyph + countdown so the coming stop is never a surprise. Repeated ticks update the label
+    /// in place (monospaced digits — no width wobble).
+    func showCapCountdown(secondsLeft: Int) {
+        let text = String(format: "stops in %d:%02d", secondsLeft / 60, secondsLeft % 60)
+        if let warnLabel { warnLabel.stringValue = text; return }
+        mountWave(processing: false, warnText: text)
+    }
 
     /// Pasted — the text in your app is its own confirmation, so just dismiss.
     func showTyped() { autoClose(after: 0.2) }
@@ -61,20 +72,22 @@ final class Overlay {
     func close() {
         autoCloseWork?.cancel(); autoCloseWork = nil
         spinner = nil
+        warnLabel = nil
         panel?.orderOut(nil); panel = nil
         waveformView = nil
     }
 
-    // MARK: waveform pill (recording → processing)
+    // MARK: waveform pill (recording → cap warning → processing)
 
-    private func mountWave(processing: Bool) {
+    private func mountWave(processing: Bool, warnText: String? = nil) {
         autoCloseWork?.cancel(); autoCloseWork = nil
 
-        // Recording starts a fresh waveform; processing reuses it so it eases flat with continuity.
+        // Recording starts a fresh waveform; the cap warning and processing reuse it so the bars
+        // carry over with continuity (still live under the warning, easing flat for processing).
         let wf: MicWaveformView
-        if processing, let existing = waveformView {
+        if let existing = waveformView, processing || warnText != nil {
             wf = existing
-            wf.goFlat()
+            if processing { wf.goFlat() }
         } else {
             wf = MicWaveformView(bars: 7)
             wf.barColor = blue
@@ -84,6 +97,24 @@ final class Overlay {
         waveformView = wf
 
         var views: [NSView] = [wf]
+        var warnIcon: NSImageView?
+        var warnWidth: CGFloat = 0
+        if let warnText, !processing {
+            // Warn + glyph (DESIGN.md: color is never the only signal) beside the live waveform.
+            let icon = NSImageView()
+            icon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "warning")?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
+            icon.contentTintColor = warn
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            warnIcon = icon
+            let l = label(warnText, size: 12, weight: .medium, color: warn)
+            l.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+            warnLabel = l
+            views += [icon, l]
+            warnWidth = 8 + 14 + 8 + l.intrinsicContentSize.width
+        } else {
+            warnLabel = nil
+        }
         if processing {
             let s = Spinner(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
             s.color = blue
@@ -102,7 +133,7 @@ final class Overlay {
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: rightInset)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let width = 12 + waveSize.width + (processing ? 8 + 16 : 0) + rightInset
+        let width = 12 + waveSize.width + warnWidth + (processing ? 8 + 16 : 0) + rightInset
         let content = makeCapsule(width: width, height: pillHeight)
         content.addSubview(stack)
         var cons = [
@@ -115,6 +146,9 @@ final class Overlay {
         ]
         if let s = spinner {
             cons += [s.widthAnchor.constraint(equalToConstant: 16), s.heightAnchor.constraint(equalToConstant: 16)]
+        }
+        if let icon = warnIcon {
+            cons += [icon.widthAnchor.constraint(equalToConstant: 14), icon.heightAnchor.constraint(equalToConstant: 14)]
         }
         NSLayoutConstraint.activate(cons)
         install(content: content, width: width, height: pillHeight)

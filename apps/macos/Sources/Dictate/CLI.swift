@@ -3,7 +3,7 @@ import ApplicationServices
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`.
+/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--hold-cap`, `--hold-cap-sim`.
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -112,6 +112,38 @@ public enum DictateCLI {
         }
         if args.contains("--selftest") {
             runSelftest()
+            return true
+        }
+        if args.contains("--hold-cap") {
+            // Long-session hardening (ROADMAP 0.3): print the resolved cap story — the cap, when
+            // the pill's countdown starts, and the named stop cause. WARBLE_MAX_HOLD_SECS (debug
+            // builds only) compresses it; regression.sh asserts both forms exactly.
+            let cap = HoldCap.maxSeconds
+            let warnAt = Int(cap - HoldCap.warnWindow(for: cap))
+            print("cap \(Int(cap))s · warn at \(warnAt)s · on stop: \(DictateError.holdCapReached.message)")
+            return true
+        }
+        if args.contains("--hold-cap-sim") {
+            // Drive the REAL session clock (HoldCapClock — the machine the pill countdown and the
+            // clean cap-stop hang off) at a compressed cap and print its events. Proves headlessly
+            // that the warning ticks before the cap and that the cap actually fires; exits
+            // non-zero if the cap arrives with no warning tick.
+            let cap = HoldCap.maxSeconds
+            guard cap <= 60 else {
+                FileHandle.standardError.write(Data("--hold-cap-sim needs a compressed cap — set WARBLE_MAX_HOLD_SECS (≤60)\n".utf8))
+                exit(2)
+            }
+            var ticks = 0
+            var done = false
+            let clock = HoldCapClock(onTick: { secs in ticks += 1; print("warn \(secs)") },
+                                     onCap: { done = true; CFRunLoopStop(CFRunLoopGetMain()) })
+            defer { clock.cancel() }
+            while !done { CFRunLoopRunInMode(.defaultMode, 120, false) }
+            guard ticks > 0 else {
+                FileHandle.standardError.write(Data("capped with no warning tick\n".utf8))
+                exit(1)
+            }
+            print("capped")
             return true
         }
         if args.contains("--recover-scan") {

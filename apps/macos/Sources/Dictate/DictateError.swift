@@ -15,6 +15,7 @@ enum DictateError: CaseIterable {
     case transcribeFailed     // every engine errored and the recording could NOT be kept (saving off / secure field)
     case transcribeFailedKept // every engine errored; the recording is kept under ~/.warble/audio
     case engineMissing        // a notice, not a failure (plain pill, no warn): dictation ran on the Apple floor
+    case holdCapReached       // the long-session cap stopped the recording CLEANLY — the words landed; this names why
 
     /// Stable log/test slug — never shown to the user.
     var reason: String {
@@ -29,6 +30,7 @@ enum DictateError: CaseIterable {
         case .transcribeFailed: return "transcribe-failed"
         case .transcribeFailedKept: return "transcribe-failed-kept"
         case .engineMissing: return "engine-missing"
+        case .holdCapReached: return "hold-cap"
         }
     }
 
@@ -45,6 +47,7 @@ enum DictateError: CaseIterable {
         case .transcribeFailed: return "transcription failed"
         case .transcribeFailedKept: return "transcription failed — recording kept"
         case .engineMissing: return "premium engine not installed — using Apple engine"
+        case .holdCapReached: return "hit the \(HoldCap.label) cap"
         }
     }
 }

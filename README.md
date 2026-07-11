@@ -72,6 +72,12 @@ mid-dictation the next launch quietly offers **menu → Dictate → Recover Last
 transcribes it into History (never auto-pasted). If transcription itself fails, the dictation lands
 in History as a *failed* item with its recording kept — open it and hit **Re-transcribe**.
 
+One honest limit: a single dictation is capped at **20 minutes** (the category norm; it also keeps
+a maxed-out clip inside the premium engine's single-pass window). With one minute left the pill
+adds an orange countdown ("stops in 0:59"), and at the cap warble stops **cleanly** — everything
+captured is transcribed and lands normally, with the pill naming why ("hit the 20-minute cap").
+Nothing is ever silently truncated.
+
 How much tidying happens is yours to pick, under **menu → Dictate → Cleanup**: **None** keeps it
 verbatim, **Light** (the default) deterministically trims fillers and stumbles, **Medium** adds
 on-device LLM punctuation-and-filler polish, and **High** gives that LLM fuller formatting latitude —

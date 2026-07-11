@@ -2,9 +2,11 @@ import AVFoundation
 import Shared
 
 /// Records raw mic audio for the whole hotkey hold into an in-flight WAV — no
-/// recognizer, no endpointer, no silence cutoff. The finger is the only
-/// endpoint: while the key is held we just keep writing, through any number of
-/// thinking pauses. Transcription happens once, after release (see Transcriber).
+/// recognizer, no endpointer, no silence cutoff. The finger is the endpoint:
+/// while the key is held we just keep writing, through any number of thinking
+/// pauses, up to the long-session cap (HoldCap — the controller warns, then
+/// ends the session cleanly). Transcription happens once, after release
+/// (see Transcriber).
 ///
 /// The in-flight WAV is warble's crash buffer (product.md §4.10): written
 /// incrementally under ~/.warble/inflight — regardless of the Save-recordings
@@ -21,10 +23,11 @@ final class Recorder {
         let capped: Bool        // hit the runaway safety ceiling (stuck key)
     }
 
-    /// Runaway protection only — NOT an endpointer. A missed key-up (a known
-    /// Carbon hot-key failure mode) shouldn't grow a file forever. We stop
-    /// writing past this; the user still gets the first MAX_SECONDS.
-    private static let maxSeconds: Double = 5 * 60
+    /// Runaway protection only — NOT the session cap. HoldCap owns the cap: the controller's
+    /// HoldCapClock warns, then stops the session cleanly at HoldCap.maxSeconds. This ceiling
+    /// sits a margin ABOVE it so no audio is ever dropped before that clean stop; it only
+    /// engages if the clock somehow never fires (a wedged main thread).
+    private static var maxSeconds: Double { HoldCap.maxSeconds + 30 }
 
     private var engine: AVAudioEngine?
     private var file: AVAudioFile?

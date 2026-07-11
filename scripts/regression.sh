@@ -154,6 +154,7 @@ dictate/processing-timeout: took too long — press Fn to retry
 dictate/transcribe-failed: transcription failed
 dictate/transcribe-failed-kept: transcription failed — recording kept
 dictate/engine-missing: premium engine not installed — using Apple engine
+dictate/hold-cap: hit the 20-minute cap
 speak/render-failed: voice engine failed
 speak/read-cut-off: read cut off
 speak/voice-missing: premium voice not installed — using Apple voice
@@ -176,6 +177,30 @@ if [ "$TF_STATUS" -ne 0 ] && [ "$TF_MSG" = "transcription failed" ]; then
   ok "transcribe-fail fault names its cause and exits non-zero"
 else
   bad "transcribe-fail fault names its cause (exit $TF_STATUS; got \"$TF_MSG\")"
+fi
+
+# Long-session hardening (ROADMAP 0.3). The 20-minute cap and its warn-then-stop story resolve
+# through HoldCap; --hold-cap prints the resolved numbers + the named stop cause exactly, and
+# WARBLE_MAX_HOLD_SECS (a debug-build seam — this script runs the debug binary) compresses the
+# cap so the machine runs in seconds. --hold-cap-sim then drives the REAL session clock
+# (HoldCapClock) at a 4s cap: the countdown must tick before the cap fires (the binary exits
+# non-zero if it didn't) and the run must end capped. Timing jitter only shifts the countdown
+# values, so the assertion is structural (some warn tick + a final "capped"), not exact.
+# What remains manual: holding Fn for 20 real minutes (the pill's visuals + the actual paste).
+expect "--hold-cap resolves the default 20-minute cap" \
+  "cap 1200s · warn at 1140s · on stop: hit the 20-minute cap" "$BIN" --hold-cap
+
+expect "WARBLE_MAX_HOLD_SECS compresses the cap (debug seam)" \
+  "cap 6s · warn at 3s · on stop: hit the 6-second cap" \
+  env WARBLE_MAX_HOLD_SECS=6 "$BIN" --hold-cap
+
+SIM_OUT=$(env WARBLE_MAX_HOLD_SECS=4 "$BIN" --hold-cap-sim 2>&1)
+SIM_STATUS=$?
+SIM_LAST=$(printf '%s\n' "$SIM_OUT" | tail -n 1)
+if [ "$SIM_STATUS" -eq 0 ] && printf '%s\n' "$SIM_OUT" | grep -q "^warn " && [ "$SIM_LAST" = "capped" ]; then
+  ok "hold-cap clock warns then stops cleanly (4s compressed run)"
+else
+  bad "hold-cap clock warns then stops cleanly (exit $SIM_STATUS; got \"$SIM_OUT\")"
 fi
 
 # Dictation recovery (ROADMAP 0.3 — "never lose a word"). Simulate an interrupted dictation

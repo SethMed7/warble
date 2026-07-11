@@ -16,6 +16,18 @@ is what a user actually gets.
   else. Headless proof: `--recover-scan` (plus the `WARBLE_HOME` sandbox seam), wired into
   `scripts/regression.sh` — an orphaned in-flight WAV with the stale header a crash leaves is
   repaired, recovered, and asserted to land in history with its audio intact.
+- **Long-session hardening — a 20-minute cap, never a silent cut.** Very long holds used to be
+  silently truncated: the recorder stopped writing at 5 minutes and a hidden watchdog force-ended
+  the session mid-hold with no warning and no explanation. Now one number owns the story: a
+  dictation is capped at **20 minutes** (the category norm — Wispr Flow's cap — and inside
+  Parakeet's ~24-minute single-pass window), the pill shifts to a visible warning for the final
+  minute (warn glyph + a live "stops in 0:59" countdown while the waveform keeps reacting — the
+  mic is still hot), and at the cap the session stops **cleanly**: everything captured is
+  transcribed, lands normally, and the pill + menu name why ("hit the 20-minute cap"). The
+  recorder's runaway ceiling now sits a margin *above* the cap, so audio is never dropped before
+  the clean stop. Headless proof: `WARBLE_MAX_HOLD_SECS` (debug builds) compresses the cap;
+  `--hold-cap` prints the resolved cap/warn/stop-copy story and `--hold-cap-sim` drives the real
+  session clock in seconds — both asserted in `scripts/regression.sh`.
 - **Cause-naming errors.** Every failure in the dictate and read-aloud flows now names its cause —
   "mic is in use by another app", "mic disconnected mid-dictation", "engine still warming up — try
   again in a moment", "premium engine not installed — using Apple engine" (a one-time notice, never

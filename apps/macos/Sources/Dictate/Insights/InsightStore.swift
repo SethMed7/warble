@@ -12,6 +12,8 @@ extension Notification.Name {
 ///                    transcript when cleanup changed it + metrics)
 ///   audio/<id>.m4a — the saved recording for each dictation (when audio-saving is on);
 ///                    16 kHz mono AAC. Pre-0.1.8 installs have raw <id>.wav — still read.
+///   inflight/      — the dictation crash buffer (owned by Recovery): the clip being recorded,
+///                    written incrementally so a crash mid-dictation never loses the words
 ///   dictionary.json — the user dictionary (owned by Lexicon)
 /// Loaded into memory; mirrors the dependency-free on-disk pattern Lexicon already uses. Everything
 /// is local — never uploaded.
@@ -71,7 +73,13 @@ public final class InsightStore: ObservableObject {
     }()
 
     private init() {
-        dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".warble")
+        // WARBLE_HOME relocates the whole store — the hermetic seam regression.sh uses so the
+        // recovery checks never touch a real ~/.warble (same idea as WARBLE_DICTIONARY).
+        if let override = ProcessInfo.processInfo.environment["WARBLE_HOME"] {
+            dir = URL(fileURLWithPath: override, isDirectory: true)
+        } else {
+            dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".warble")
+        }
         fileURL = dir.appendingPathComponent("history.json")
         audioDir = dir.appendingPathComponent("audio")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
@@ -123,28 +131,66 @@ public final class InsightStore: ObservableObject {
             appBundleId: ctx.appBundleId,
             appName: ctx.appName,
             engine: ctx.engine,
-            kind: "dictate")
+            kind: "dictate",
+            status: nil)
         events.append(e)
         appendLine(e)
     }
 
-    /// A failed transcription must not cost the words (product.md §4.10): keep the clip in the same
-    /// audio store as a saved dictation's recording — named failed-<id> so the next milestone's
-    /// explicit Recover affordance can surface it — under the same user gates as record(): audio
-    /// saving on, never from a secure field. Returns whether the recording was kept, so the failure
-    /// copy can say so honestly.
-    func keepFailedAudio(_ src: URL, secure: Bool) -> Bool {
-        guard saveAudio, !(secure && excludeSecureFields) else { return false }
-        let id = "failed-\(UUID().uuidString)"
+    /// A failed transcription must not cost the words (product.md §4.10): it lands as a real
+    /// FAILED history event — audio kept beside the saved dictations' recordings, the row visible
+    /// in History with replay + a Re-transcribe action — under the same user gates as record():
+    /// audio saving on, never from a secure field. When the gates say no there is nothing
+    /// recoverable to show, so no event is written (the pill still names the failure). Returns the
+    /// event, or nil when nothing was kept.
+    @discardableResult
+    func recordFailed(audioSource: URL, ctx: DictationContext) -> DictationEvent? {
+        guard saveAudio, !(ctx.secure && excludeSecureFields) else { return nil }
+        let id = UUID().uuidString
         let dest = audioDir.appendingPathComponent("\(id).m4a")
-        if AudioConvert.to16kMonoAAC(input: src, output: dest) {
+        if AudioConvert.to16kMonoAAC(input: audioSource, output: dest) {
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
-            return true
+        } else {
+            let wav = audioDir.appendingPathComponent("\(id).wav") // encoder failure — keep the raw copy
+            guard (try? FileManager.default.copyItem(at: audioSource, to: wav)) != nil else { return nil }
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: wav.path)
         }
-        let wav = audioDir.appendingPathComponent("\(id).wav") // encoder failure — keep the raw copy
-        guard (try? FileManager.default.copyItem(at: src, to: wav)) != nil else { return false }
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: wav.path)
-        return true
+        let e = DictationEvent(
+            id: id,
+            ts: Date().timeIntervalSince1970,
+            day: Self.dayFormatter.string(from: Date()),
+            text: "",   // no transcript yet — Re-transcribe fills it in
+            raw: nil,
+            words: 0,
+            durationMs: ctx.durationMs,
+            appBundleId: ctx.appBundleId,
+            appName: ctx.appName,
+            engine: ctx.engine,
+            kind: "dictate",
+            status: "failed")
+        events.append(e)
+        appendLine(e)
+        return e
+    }
+
+    /// A successful Re-transcribe resolves a FAILED event in place: the words land, the failure
+    /// mark clears, the kept recording stays. Text honors the history toggle, like record().
+    func resolveFailed(_ id: String, cleaned: String, raw: String?, engine: String) {
+        guard let i = events.firstIndex(where: { $0.id == id }) else { return }
+        let o = events[i]
+        let text = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        let keptRaw: String? = {
+            guard historyEnabled, let r = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !r.isEmpty, r != text else { return nil }
+            return r
+        }()
+        events[i] = DictationEvent(id: o.id, ts: o.ts, day: o.day,
+                                   text: historyEnabled ? text : "", raw: keptRaw,
+                                   words: Self.wordCount(text), durationMs: o.durationMs,
+                                   appBundleId: o.appBundleId, appName: o.appName,
+                                   engine: engine, kind: o.kind, status: nil)
+        rewrite()
     }
 
     static func wordCount(_ s: String) -> Int {
@@ -167,7 +213,8 @@ public final class InsightStore: ObservableObject {
             appBundleId: appBundleId,
             appName: appName,
             engine: voice,
-            kind: "read")
+            kind: "read",
+            status: nil)
         events.append(e)
         appendLine(e)
     }
@@ -190,7 +237,8 @@ public final class InsightStore: ObservableObject {
         let o = events[i]
         events[i] = DictationEvent(id: o.id, ts: o.ts, day: o.day, text: newText, raw: o.raw,
                                    words: Self.wordCount(newText), durationMs: o.durationMs,
-                                   appBundleId: o.appBundleId, appName: o.appName, engine: o.engine, kind: o.kind)
+                                   appBundleId: o.appBundleId, appName: o.appName, engine: o.engine,
+                                   kind: o.kind, status: o.status)
         rewrite()
     }
 
@@ -209,6 +257,7 @@ public final class InsightStore: ObservableObject {
         events.removeAll()
         try? FileManager.default.removeItem(at: fileURL)
         try? FileManager.default.removeItem(at: audioDir)
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent("inflight")) // the crash buffer too
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("insights-ai.json"))
         try? FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true,
                                                  attributes: [.posixPermissions: 0o700])
@@ -233,7 +282,9 @@ public final class InsightStore: ObservableObject {
 
     // MARK: derived stats
 
-    var dictations: [DictationEvent] { events.filter { $0.kind == "dictate" } }
+    // FAILED events sit in History (for recovery) but aren't dictated words yet — keep them out of
+    // the derived stats so a failure can't skew WPM/word counts (resolving one brings it in).
+    var dictations: [DictationEvent] { events.filter { $0.kind == "dictate" && !$0.isFailed } }
     var reads: [DictationEvent] { events.filter { $0.kind == "read" } }
     var totalWords: Int { dictations.reduce(0) { $0 + $1.words } }   // words you dictated
     var wordsRead: Int { reads.reduce(0) { $0 + $1.words } }         // words read aloud

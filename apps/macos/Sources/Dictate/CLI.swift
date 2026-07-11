@@ -3,7 +3,7 @@ import ApplicationServices
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--selftest`, `--axcheck`, `--learn-test`.
+/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`.
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -114,6 +114,35 @@ public enum DictateCLI {
             runSelftest()
             return true
         }
+        if args.contains("--recover-scan") {
+            // Dictation recovery, headless (ROADMAP 0.3; asserted by regression.sh): exactly what
+            // the app does — the launch scan plus the menu's Recover action — minus the UI.
+            // WARBLE_HOME sandboxes the store; WARBLE_FAULT=transcribe-fail forces the FAILED-event
+            // path so the check needs no engines. Output is stable lines the script matches.
+            guard let orphan = Recovery.scan() else {
+                print("no in-flight dictation found")
+                return true
+            }
+            var done = false
+            Recovery.recover(orphan) { outcome in
+                switch outcome {
+                case .recovered(let text):
+                    print("recovered (\(InsightStore.wordCount(text)) words) — it's in History")
+                case .failedKept(let duration, let audio):
+                    print("recovered as failed event — audio kept (\(String(format: "%.1f", duration))s)")
+                    print("audio: \(audio.path)")
+                case .failedLost:
+                    print("transcription failed — audio not kept (saving off / secure)")
+                case .nothingHeard:
+                    print("nothing heard — in-flight clip discarded")
+                }
+                done = true
+                CFRunLoopStop(CFRunLoopGetMain())
+            }
+            // Completions hop the main queue; pump the run loop until recovery finishes.
+            while !done { CFRunLoopRunInMode(.defaultMode, 120, false) }
+            return true
+        }
         return false
     }
 
@@ -135,10 +164,20 @@ public enum DictateCLI {
         check(decoded != nil && decoded?.raw == nil, "pre-0.3 history line decodes (raw nil)")
         let withRaw = DictationEvent(id: "y", ts: 2, day: "2026-07-11", text: "so the report",
                                      raw: "um so the the report", words: 3, durationMs: 900,
-                                     appBundleId: nil, appName: nil, engine: "test", kind: "dictate")
+                                     appBundleId: nil, appName: nil, engine: "test", kind: "dictate",
+                                     status: nil)
         let rebuilt = (try? JSONEncoder().encode(withRaw))
             .flatMap { try? JSONDecoder().decode(DictationEvent.self, from: $0) }
         check(rebuilt?.raw == "um so the the report", "raw transcript round-trips through a history line")
+        check(decoded?.isFailed == false, "pre-recovery history line decodes as not-failed")
+
+        // A FAILED event (dictation recovery, ROADMAP 0.3) must round-trip its status.
+        let failed = DictationEvent(id: "z", ts: 3, day: "2026-07-11", text: "", raw: nil, words: 0,
+                                    durationMs: 1200, appBundleId: nil, appName: nil, engine: "test",
+                                    kind: "dictate", status: "failed")
+        let failedBack = (try? JSONEncoder().encode(failed))
+            .flatMap { try? JSONDecoder().decode(DictationEvent.self, from: $0) }
+        check(failedBack?.isFailed == true, "failed status round-trips through a history line")
 
         check(CorrectionListener.levenshtein("miele", "myela") == 2, "levenshtein miele/myela == 2")
         check(CorrectionListener.levenshtein("cat", "cat") == 0, "levenshtein identical == 0")

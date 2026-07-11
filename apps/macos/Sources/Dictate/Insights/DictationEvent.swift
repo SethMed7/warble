@@ -1,9 +1,9 @@
 import Foundation
 
-/// One recorded dictation, persisted as a single JSON line in ~/.warble/history.json. Audio is never
-/// saved; this is the cleaned text (empty in stats-only mode) plus the metrics that power the
-/// dashboard. `day` is precomputed in the user's LOCAL timezone so streak math is a plain calendar
-/// walk that can't drift at midnight/DST.
+/// One recorded dictation, persisted as a single JSON line in ~/.warble/history.json: the cleaned
+/// text (empty in stats-only mode) plus the metrics that power the dashboard (the audio, when
+/// saved, lives separately under ~/.warble/audio). `day` is precomputed in the user's LOCAL
+/// timezone so streak math is a plain calendar walk that can't drift at midnight/DST.
 struct DictationEvent: Codable, Identifiable, Hashable {
     let id: String
     let ts: Double            // Unix epoch seconds, UTC — the source of truth for time
@@ -18,7 +18,11 @@ struct DictationEvent: Codable, Identifiable, Hashable {
     let appName: String?
     let engine: String
     let kind: String          // "dictate" now; "read" reserved so read-aloud can share the log later
+    let status: String?       // nil = delivered; "failed" = transcription failed and the recording
+                              // is kept for recovery (replay + Re-transcribe in History).
+                              // Optional so pre-recovery history lines still decode.
 
+    var isFailed: Bool { status == "failed" }
     var date: Date { Date(timeIntervalSince1970: ts) }
     var wpm: Int { durationMs > 0 ? Int((Double(words) / (Double(durationMs) / 60_000.0)).rounded()) : 0 }
 }

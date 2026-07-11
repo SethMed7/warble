@@ -66,7 +66,11 @@ double-tap again to stop. (If Fn opens emoji or Apple Dictation, set **System Se
 your spellings as you go (`myela` → `Myela`) via a local dictionary you control — and the
 same dictionary teaches **read aloud** how to pronounce those words. If a paste ever lands in the
 wrong place, the last several dictations are kept (in memory) under **menu → Copy Last Dictation**
-(or **Recent Dictations**), so a mis-targeted paste never means re-saying it.
+(or **Recent Dictations**), so a mis-targeted paste never means re-saying it. And your words survive
+worse: while you speak, the audio is buffered incrementally to disk, so if warble (or your Mac) dies
+mid-dictation the next launch quietly offers **menu → Dictate → Recover Last Dictation** — one click
+transcribes it into History (never auto-pasted). If transcription itself fails, the dictation lands
+in History as a *failed* item with its recording kept — open it and hit **Re-transcribe**.
 
 How much tidying happens is yours to pick, under **menu → Dictate → Cleanup**: **None** keeps it
 verbatim, **Light** (the default) deterministically trims fillers and stumbles, **Medium** adds
@@ -112,7 +116,8 @@ permanent Dock icon — or none, ever? It's a setting.)
   dictate"), plus the optional on-device **Insights AI** weekly recap.
 - **History** — every dictation, with **search and a per-app filter right in the toolbar**; open one
   to **replay the recording**, fix the text, see **what you actually said** (the raw transcript,
-  behind a quiet disclosure), or **teach the dictionary** a word — train it as you go.
+  behind a quiet disclosure), or **teach the dictionary** a word — train it as you go. A failed
+  transcription shows up here too — recording kept, one **Re-transcribe** click runs it again.
 - **Dictionary** — your spelling corrections and read-aloud pronunciations, the learn-threshold, and where the file lives.
 - **Data & Privacy** (also the Settings pane, **⌘,**) — toggles for keeping history, saving recordings,
   skipping password fields, automatic updates, and the **Dock icon** (while the dashboard is open /
@@ -201,10 +206,14 @@ resolution (shared → app/legacy); the standard itself lives in the [memex proj
 No cloud, no API keys, no accounts, no telemetry — **everything stays on your Mac.** warble keeps a
 **local** history of your dictations (and, when **Save recordings** is on, the audio) under `~/.warble`
 (owner-only), so the Insights dashboard can show your stats, let you replay a clip, and learn your
-words. You're in control in **Dashboard ▸ Data & Privacy**: turn **Keep history** off for stats-only
+words. While you dictate, the in-flight audio is also written incrementally to `~/.warble/inflight`
+(owner-only) — a small **crash buffer**, not history: it exists regardless of the Save-recordings
+setting so a crash can never lose your words, it's promoted or deleted the moment a dictation ends
+cleanly, and it's bounded (a handful of clips at most; stale ones are cleaned at launch). You're in
+control in **Dashboard ▸ Data & Privacy**: turn **Keep history** off for stats-only
 (no transcript text stored), turn **Save recordings** off to delete audio after transcription as it
 always did, keep **Skip password fields** on so a spoken password is never written, and **Clear** or
-**Export** anytime. Nothing is ever uploaded. warble reaches the network in only two ways, both benign and
+**Export** anytime — Clear removes the crash buffer too. Nothing is ever uploaded. warble reaches the network in only two ways, both benign and
 disclosed: a one-time, explicit model download when you opt into a premium engine, and a periodic **check
 for app updates** — a signed update feed (version info only, no accounts, no telemetry) that powers the
 in-app *Check for Updates*. The portable `core/` contains no networking code.
@@ -256,6 +265,7 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --pronounce "read Myela aloud"   # apply your pronunciations (read-aloud)
 .build/debug/warble --selftest              # learn-from-edits logic
 .build/debug/warble --errors                # the cause-naming error taxonomy (a copy contract)
+.build/debug/warble --recover-scan          # dictation recovery: recover an orphaned in-flight clip
 ```
 
 **Regression:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — it

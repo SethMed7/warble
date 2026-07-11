@@ -1,10 +1,15 @@
 import AVFoundation
 import Shared
 
-/// Records raw mic audio for the whole hotkey hold into a temp WAV — no
+/// Records raw mic audio for the whole hotkey hold into an in-flight WAV — no
 /// recognizer, no endpointer, no silence cutoff. The finger is the only
 /// endpoint: while the key is held we just keep writing, through any number of
 /// thinking pauses. Transcription happens once, after release (see Transcriber).
+///
+/// The in-flight WAV is warble's crash buffer (product.md §4.10): written
+/// incrementally under ~/.warble/inflight — regardless of the Save-recordings
+/// setting — so a crash/force-quit mid-dictation leaves the words recoverable
+/// (see Recovery). Every clean end of a session promotes or deletes it.
 ///
 /// Replaces the old streaming SFSpeechRecognizer, whose silence-finalize was the
 /// "stop talking then start again and it forgets things" bug.
@@ -63,16 +68,16 @@ final class Recorder {
         sampleRate = format.sampleRate
         let maxFrames = AVAudioFramePosition(Self.maxSeconds * sampleRate)
 
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("warble-\(ProcessInfo.processInfo.globallyUniqueString).wav")
+        let tmp = Recovery.newInflightURL()
         do {
             file = try AVAudioFile(forWriting: tmp, settings: format.settings)
         } catch {
             active = false
-            Log.dictate.error("temp WAV create failed: \(error.localizedDescription, privacy: .public)")
+            Log.dictate.error("in-flight WAV create failed: \(error.localizedDescription, privacy: .public)")
             onError(.recordFailed)
             return
         }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tmp.path)
         url = tmp
 
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in

@@ -37,6 +37,10 @@ public final class DictateController: NSObject {
     /// Dictate submenu until the next successful dictation, so a missed pill is still explained.
     private var lastError: DictateError?
 
+    /// An orphaned in-flight clip found at launch — evidence of an unclean exit mid-dictation.
+    /// Surfaced as one quiet "Recover Last Dictation" menu item (never a dialog — product.md §4.5).
+    private var pendingRecovery: URL?
+
     /// The app being dictated INTO, captured at recording start (before focus can change) for per-app stats.
     private var dictationApp: (bundleId: String?, name: String?)?
     /// Whether a secure (password) field was focused at recording start — so Insights can keep metrics only.
@@ -86,6 +90,7 @@ public final class DictateController: NSObject {
         HotKey.shared.onDoubleTap = { [weak self] in self?.handsFreeToggle() }
         recorder.onDisconnect = { [weak self] in self?.micDisconnected() }
         if dictateEnabled { HotKey.shared.register() } // off → no monitor, no permission prompt
+        pendingRecovery = Recovery.scan() // an unclean exit mid-dictation? offer the quiet Recover row
     }
 
     /// Tear down background helpers (the warm ASR + LLM servers) when the app quits.
@@ -125,6 +130,16 @@ public final class DictateController: NSObject {
             item.isEnabled = false
             item.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "error")
             sub.addItem(item)
+        }
+
+        // Recovery: an in-flight clip survived an unclean exit. One quiet affordance — recovering
+        // transcribes it into History, never a paste into whatever happens to be focused now.
+        if pendingRecovery != nil {
+            let recover = NSMenuItem(title: "Recover Last Dictation",
+                                     action: #selector(recoverLastDictation), keyEquivalent: "")
+            recover.target = self
+            recover.toolTip = "A dictation was interrupted — transcribe it into History"
+            sub.addItem(recover)
         }
 
         // Recovery: if a dictation pasted somewhere wrong, grab it here instead of re-saying it.
@@ -237,6 +252,30 @@ public final class DictateController: NSObject {
         recentTranscripts.insert(text, at: 0)
         if recentTranscripts.count > maxRecent { recentTranscripts.removeLast() }
         onMenuRebuild?() // keep "Copy Last Dictation" / the submenu current
+    }
+
+    /// Transcribe the orphaned in-flight clip into History — never auto-paste (the field those
+    /// words were meant for is long gone). The pill shows processing; the outcome is named either
+    /// way, and a transcription failure keeps the audio as a FAILED history item.
+    @objc private func recoverLastDictation() {
+        guard let orphan = pendingRecovery else { return }
+        pendingRecovery = nil
+        onMenuRebuild?()
+        Overlay.shared.showThinking()
+        Recovery.recover(orphan) { [weak self] outcome in
+            guard let self, self.state == .idle else { return } // a live dictation owns the pill now
+            switch outcome {
+            case .recovered(let text):
+                self.remember(text) // recoverable from the menu too, like any dictation
+                Overlay.shared.flash(message: "recovered — it's in History")
+            case .failedKept:
+                self.noteError(.transcribeFailedKept)
+            case .failedLost:
+                self.noteError(.transcribeFailed)
+            case .nothingHeard:
+                Overlay.shared.flash(message: "nothing heard in the recovered clip")
+            }
+        }
     }
 
     @objc private func copyLastTranscript() {
@@ -457,9 +496,9 @@ public final class DictateController: NSObject {
             switch outcome {
             case .failed:
                 // Every engine errored on a clip that HAD voice (the silence gate passed it).
-                // Keep the recording beside the saved dictation clips — the explicit Recover
-                // affordance lands next milestone — and say so.
-                let kept = InsightStore.shared.keepFailedAudio(wav, secure: ctx.secure)
+                // Land a FAILED history event that keeps the recording — replay + Re-transcribe
+                // live in the dashboard's History — and say so.
+                let kept = InsightStore.shared.recordFailed(audioSource: wav, ctx: ctx) != nil
                 try? FileManager.default.removeItem(at: wav)
                 self.endProcessing(gen: gen)
                 self.noteError(kept ? .transcribeFailedKept : .transcribeFailed)

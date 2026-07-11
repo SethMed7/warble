@@ -114,7 +114,7 @@ expect "cleanup level round-trips through UserDefaults" "high" "$BIN" --cleanup-
 # A fixture dictionary makes --apply/--pronounce deterministic on any machine (the env var
 # outranks the user's real dictionary; see Lexicon.fileURL / Pronouncer.fileURL).
 DICT=$(mktemp "${TMPDIR:-/tmp}/warble-regression-dict.XXXXXX")
-trap 'rm -f "$DICT"' EXIT
+trap 'rm -f "$DICT"; rm -rf "$RHOME"' EXIT
 printf '%s\n' '{"corrections":{"miele":"Myela"},"pronunciations":{"myela":"my-ell-uh"}}' > "$DICT"
 
 expect "--apply uses the dictionary" "ship the Myela engine" \
@@ -177,6 +177,60 @@ if [ "$TF_STATUS" -ne 0 ] && [ "$TF_MSG" = "transcription failed" ]; then
 else
   bad "transcribe-fail fault names its cause (exit $TF_STATUS; got \"$TF_MSG\")"
 fi
+
+# Dictation recovery (ROADMAP 0.3 — "never lose a word"). Simulate an interrupted dictation
+# headlessly: a sandbox store (WARBLE_HOME — the real ~/.warble is never touched) holding one
+# orphaned in-flight WAV whose RIFF/data sizes are ZERO — exactly what a crash leaves, since
+# AVAudioFile finalizes the header only on close. The scan must repair the header (or the clip
+# reads as empty: 0.0s), and with WARBLE_FAULT=transcribe-fail forcing every engine to fail, the
+# clip must land as a FAILED history event with the audio intact — engine-free and deterministic.
+RHOME=$(mktemp -d "${TMPDIR:-/tmp}/warble-regression-home.XXXXXX")
+mkdir -p "$RHOME/inflight"
+ORPHAN="$RHOME/inflight/inflight-regression.wav"
+{
+  # 44-byte WAV header (16 kHz mono 16-bit PCM) with stale zero sizes + 32000 bytes = 1.0s audio.
+  printf 'RIFF\0\0\0\0WAVEfmt '
+  printf '\020\0\0\0\001\0\001\0\200\076\0\0\0\175\0\0\002\0\020\0'
+  printf 'data\0\0\0\0'
+  dd if=/dev/zero bs=8000 count=4 2>/dev/null
+} > "$ORPHAN"
+# Backdate it: files fresher than a few seconds are skipped as possibly-live recordings.
+touch -t "$(date -v-5M +%Y%m%d%H%M.%S)" "$ORPHAN"
+
+# The kept-audio gate reads the Save-recordings default; pin it to its default (on) for the check.
+SAVE_AUDIO_ORIG=$(defaults read warble insightsSaveAudio 2>/dev/null)
+defaults delete warble insightsSaveAudio >/dev/null 2>&1
+
+RECOVER_OUT=$(env WARBLE_HOME="$RHOME" WARBLE_FAULT=transcribe-fail "$BIN" --recover-scan 2>/dev/null)
+if printf '%s\n' "$RECOVER_OUT" | grep -q "recovered as failed event — audio kept (1.0s)"; then
+  ok "interrupted dictation recovers as a FAILED history event (header repaired: 1.0s)"
+else
+  bad "interrupted dictation recovers as a FAILED history event (got \"$RECOVER_OUT\")"
+fi
+
+if grep -q '"status":"failed"' "$RHOME/history.json" 2>/dev/null; then
+  ok "FAILED event persisted in history.json"
+else
+  bad "FAILED event persisted in history.json"
+fi
+
+KEPT_AUDIO=$(printf '%s\n' "$RECOVER_OUT" | sed -n 's/^audio: //p')
+if [ -n "$KEPT_AUDIO" ] && [ -s "$KEPT_AUDIO" ]; then
+  ok "recovered audio kept intact in the audio store"
+else
+  bad "recovered audio kept intact in the audio store (path \"$KEPT_AUDIO\")"
+fi
+
+if [ ! -e "$ORPHAN" ]; then
+  ok "in-flight clip consumed after recovery"
+else
+  bad "in-flight clip consumed after recovery"
+fi
+
+expect "recovery scan is idempotent (no orphan left)" "no in-flight dictation found" \
+  env WARBLE_HOME="$RHOME" "$BIN" --recover-scan
+
+[ -n "$SAVE_AUDIO_ORIG" ] && defaults write warble insightsSaveAudio -int "$SAVE_AUDIO_ORIG" >/dev/null 2>&1
 
 # --- 4. warm-engine paths (opt-in: needs the premium engines installed) ---------------------
 if [ "${WARBLE_REGRESSION_FULL:-}" = "1" ]; then

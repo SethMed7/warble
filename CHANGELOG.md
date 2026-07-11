@@ -5,6 +5,17 @@ is what a user actually gets.
 
 ## Unreleased
 
+- **Dictation recovery — never lose a word.** While you dictate, the audio is now written
+  incrementally to a crash buffer under `~/.warble/inflight` (owner-only, bounded, independent of
+  the Save-recordings setting), so a crash or force-quit mid-dictation can't cost the words: the
+  next launch quietly offers **menu → Dictate → Recover Last Dictation**, which transcribes the
+  clip through the normal pipeline into History — never auto-pasted. A **failed transcription now
+  lands as a FAILED History item** (recording kept, warn glyph) with replay and a **Re-transcribe**
+  button that runs the pipeline again and resolves it in place. Clean endings promote or delete the
+  buffer as before; stale clips are cleaned at launch; **Clear** removes the buffer with everything
+  else. Headless proof: `--recover-scan` (plus the `WARBLE_HOME` sandbox seam), wired into
+  `scripts/regression.sh` — an orphaned in-flight WAV with the stale header a crash leaves is
+  repaired, recovered, and asserted to land in history with its audio intact.
 - **Cause-naming errors.** Every failure in the dictate and read-aloud flows now names its cause —
   "mic is in use by another app", "mic disconnected mid-dictation", "engine still warming up — try
   again in a moment", "premium engine not installed — using Apple engine" (a one-time notice, never
@@ -13,7 +24,8 @@ is what a user actually gets.
   dictation), and in the unified log with a stable `reason=` slug per branch
   (`log stream --predicate 'subsystem == "io.github.sethmed7.voz"'`). A **failed transcription now
   keeps the recording** under `~/.warble/audio` (honoring the Save-recordings and secure-field
-  settings) instead of discarding it — the explicit Recover affordance lands next. A mic that
+  settings) instead of discarding it — surfaced as a FAILED History item (see *Dictation
+  recovery* above). A mic that
   disconnects mid-dictation delivers everything captured up to the drop. Debug builds accept
   `WARBLE_FAULT=mic-busy|mic-disconnected|engine-warming|engine-missing|transcribe-fail` to force
   each path; `--errors` prints the whole taxonomy, asserted verbatim in `scripts/regression.sh`.

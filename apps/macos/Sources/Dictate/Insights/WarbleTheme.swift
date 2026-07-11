@@ -13,4 +13,5 @@ enum WarbleTheme {
     static let electricText = Theme.electricText.color     // AA-safe small-text tint of the accent
     static let mist = Theme.mist.color                     // secondary text
     static let textHi = Theme.textHi.color                 // primary text
+    static let warn = Theme.warn.color                     // failure states only, always with a glyph
 }

@@ -107,29 +107,36 @@ struct HistoryRow: View {
                 .frame(width: 56, alignment: .trailing)
                 .padding(.top, 2) // optical align with the 13pt first line
             VStack(alignment: .leading, spacing: 3) {
-                Text(event.text.isEmpty ? "\(event.words) words" : event.text)
+                Text(event.isFailed ? "transcription failed — recording kept"
+                     : event.text.isEmpty ? "\(event.words) words" : event.text)
                     .font(.system(size: 13))
-                    .foregroundStyle(WarbleTheme.textHi)
+                    .foregroundStyle(event.isFailed ? WarbleTheme.mist : WarbleTheme.textHi)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 4) {
                     if let app = event.appName {
                         Text(app).foregroundStyle(WarbleTheme.electricText)
                     }
-                    Text(event.kind == "read" ? "· \(event.words) words"
-                                              : "· \(event.words) words · \(event.wpm) wpm")
-                        .foregroundStyle(WarbleTheme.mist)
+                    Text(meta).foregroundStyle(WarbleTheme.mist)
                 }
                 .font(.system(size: 11))
             }
             Spacer(minLength: 0)
-            Image(systemName: event.kind == "read" ? "speaker.wave.2.fill"
-                                                    : (store.audioURL(for: event) != nil ? "waveform" : "mic.fill"))
-                .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
+            // Failure is warn + a glyph (never color alone); otherwise the glyph says what's replayable.
+            Image(systemName: event.isFailed ? "exclamationmark.triangle"
+                  : event.kind == "read" ? "speaker.wave.2.fill"
+                  : (store.audioURL(for: event) != nil ? "waveform" : "mic.fill"))
+                .font(.system(size: 12))
+                .foregroundStyle(event.isFailed ? WarbleTheme.warn : WarbleTheme.mist)
                 .padding(.top, 2)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+    }
+    private var meta: String {
+        if event.isFailed { return "· open to re-transcribe" }
+        if event.kind == "read" { return "· \(event.words) words" }
+        return "· \(event.words) words · \(event.wpm) wpm"
     }
 }
 
@@ -148,6 +155,8 @@ struct DictationDetailView: View {
     @State private var deleteHovered = false
     @State private var rawShown = false
     @State private var rawHovered = false
+    @State private var retranscribing = false
+    @State private var recoverNote = ""
 
     init(store: InsightStore, event: DictationEvent, onClose: @escaping () -> Void) {
         self.store = store
@@ -190,6 +199,24 @@ struct DictationDetailView: View {
                     }
                 } else if event.kind == "dictate" {
                     Text("No saved recording for this one.").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                }
+
+                // A FAILED dictation: the words aren't transcribed yet, but the recording is kept.
+                // Re-transcribe runs the normal pipeline again and resolves this item in place —
+                // History only, never a paste. Warn + glyph per the failure styling (DESIGN.md).
+                if current.isFailed {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 12)).foregroundStyle(WarbleTheme.warn)
+                        Text("transcription failed — the recording is kept")
+                            .font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
+                        Spacer()
+                        Button(retranscribing ? "Re-transcribing…" : "Re-transcribe") { retranscribe() }
+                            .disabled(retranscribing || store.audioURL(for: current) == nil)
+                    }
+                    if !recoverNote.isEmpty {
+                        Text(recoverNote).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                    }
                 }
 
                 SectionHeader(title: "Transcript").padding(.top, 8)
@@ -275,6 +302,25 @@ struct DictationDetailView: View {
         .onDisappear { audio.stop() }
     }
 
+    /// Run the normal pipeline over the kept recording; success resolves the FAILED mark in place
+    /// and fills the transcript editor. Never pastes anywhere.
+    private func retranscribe() {
+        retranscribing = true
+        recoverNote = ""
+        Recovery.retranscribe(current) { outcome in
+            retranscribing = false
+            switch outcome {
+            case .text(let cleaned, _):
+                editedText = cleaned
+                recoverNote = "Recovered."
+            case .silence:
+                recoverNote = "Nothing heard in this recording."
+            case .failed:
+                recoverNote = "Still failing — every engine errored. The recording stays."
+            }
+        }
+    }
+
     private func addCorrection() {
         let from = heard.trimmingCharacters(in: .whitespacesAndNewlines)
         let to = correct.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -289,6 +335,10 @@ struct DictationDetailView: View {
     private var current: DictationEvent { store.events.first { $0.id == event.id } ?? event }
 
     private var metaLine: String {
+        if current.isFailed {
+            let secs = String(format: "%.0f", Double(current.durationMs) / 1000)
+            return "\(RelTime.string(current.date)) · failed · \(secs)s recording · \(current.engine)"
+        }
         if current.kind == "read" {
             return "\(RelTime.string(current.date)) · read aloud · \(current.words) words · \(current.engine)"
         }

@@ -27,7 +27,7 @@ public final class InsightsWindow: NSObject {
     func open(section: InsightsSection = .home) { openImpl(section: section, tutorial: false) }
     /// Public entry points (callable from the app target, which can't see InsightsSection).
     /// QA sibling of WARBLE_FORCE_INSIGHTS: WARBLE_SECTION=history (etc.) lands the forced open on
-    /// any section, so headless screenshots can cover all five panes.
+    /// any section, so headless screenshots can cover every pane.
     public func openHome() {
         if let raw = ProcessInfo.processInfo.environment["WARBLE_SECTION"],
            let s = InsightsSection.allCases.first(where: { $0.rawValue.lowercased().hasPrefix(raw.lowercased()) }) {

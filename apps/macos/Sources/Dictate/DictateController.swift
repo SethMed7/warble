@@ -92,7 +92,7 @@ public final class DictateController: NSObject {
 
         HotKey.shared.onPress = { [weak self] in self?.hotKeyPressed() }
         HotKey.shared.onRelease = { [weak self] in self?.hotKeyReleased() }
-        HotKey.shared.onDoubleTap = { [weak self] in self?.handsFreeToggle() }
+        HotKey.shared.onDoubleTap = { [weak self] viaBinding in self?.handsFreeToggle(viaBinding: viaBinding) }
         recorder.onDisconnect = { [weak self] in self?.micDisconnected() }
         // The listening contract's start ping (ROADMAP 0.4): tied to the mic ACTUALLY opening —
         // a session whose mic fails stays silent (its error state speaks instead).
@@ -218,6 +218,10 @@ public final class DictateController: NSObject {
         let dash = NSMenuItem(title: "Dictionary…", action: #selector(openDictionary), keyEquivalent: "d")
         dash.target = self
         sub.addItem(dash)
+        // The bindings editor (ROADMAP 0.5): extra triggers besides Fn, managed in the dashboard.
+        let keys = NSMenuItem(title: "Shortcuts…", action: #selector(openShortcuts), keyEquivalent: "")
+        keys.target = self
+        sub.addItem(keys)
 
         let subItem = NSMenuItem(title: "Dictate", action: nil, keyEquivalent: "")
         subItem.submenu = sub
@@ -280,6 +284,8 @@ public final class DictateController: NSObject {
     }
 
     @objc private func openDictionary() { InsightsWindow.shared.open(section: .dictionary) }
+
+    @objc private func openShortcuts() { InsightsWindow.shared.open(section: .shortcuts) }
 
     // MARK: recent dictations — a safety net for a mis-targeted paste
 
@@ -347,10 +353,13 @@ public final class DictateController: NSObject {
         finishRecording()
     }
 
-    /// Double-tap Fn — hands-free mode: the first toggle starts recording (no need to hold), the next
-    /// stops and delivers. Lets you dictate without keeping the key down.
-    private func handsFreeToggle() {
-        guard dictateEnabled, handsFreeEnabled else { return }
+    /// Double-tap — hands-free mode: the first toggle starts recording (no need to hold), the next
+    /// stops and delivers. Lets you dictate without keeping the key down. The menu's Hands-free
+    /// toggle governs Fn's double-tap only; a BINDING with the double-tap gesture was added
+    /// deliberately in the Shortcuts editor, so removing it — not that toggle — is how it's
+    /// turned off (product.md §4.5: the user's explicit intent wins).
+    private func handsFreeToggle(viaBinding: Bool) {
+        guard dictateEnabled, viaBinding || handsFreeEnabled else { return }
         if state == .idle { handsFree = true; beginRecording() }
         else if state == .listening, handsFree { finishRecording() }
     }

@@ -12,8 +12,9 @@ claim is measured — and all of it is provable by one deterministic command. Pl
 first five minutes" — in full: the welcome tour with permission cards that never dead-end and a
 guaranteed first success for both verbs, engine setup without the wait trap, the listening
 contract, and the whole milestone folded into the same regression suite. And 0.5 — "cheap
-parity" — continues: Snippets (spoken trigger phrases that expand into saved text) and "press
-enter" auto-send (end a dictation with the phrase and warble sends it, off by default).*
+parity" — continues: Snippets (spoken trigger phrases that expand into saved text), "press
+enter" auto-send (end a dictation with the phrase and warble sends it, off by default), and
+multi-shortcut + mouse bindings (put push-to-talk on a thumb button).*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -237,6 +238,26 @@ enter" auto-send (end a dictation with the phrase and warble sends it, off by de
   `--autosend "text"` CLI flag reading the persisted toggle, a `--render-pill landed+sent` seam for
   the pill's new feedback state, and a `scripts/regression.sh` check covering the toggle gate, the
   strip, and the render.
+- **Multi-shortcut + mouse bindings (0.5 continues).** Fn isn't the only trigger anymore: bind up
+  to three more — **right ⌘**, **right ⌥**, an F-key (**F13–F19**), or a **mouse button (3–10)**,
+  thumb buttons included — each as hold-to-talk or a double-tap hands-free toggle, in a new
+  **Shortcuts** dashboard section (also **Dictate ▸ Shortcuts…** in the menu). Built for the RSI /
+  accessibility case where dictation lives on a mouse thumb button. Bindings are **aliases of Fn,
+  not modes**: identical hold and double-tap timing, the same pill, the same Esc cancel, the same
+  everything — and Fn itself stays, shown locked in the editor as the built-in default. Changes
+  apply live (the tap re-registers, no relaunch; a dictation mid-flight is delivered first, never
+  dropped), and like everything per-mode, **nothing registers while Dictate is off**. The picker
+  offers only keys and buttons macOS leaves free — Esc, ⌃V, the click buttons, and the system's
+  own F-keys can't even be picked — and a duplicate or fourth binding is rejected inline with a
+  plain reason. Honest by construction: warble only *listens* for a binding (the monitor observes,
+  never consumes), so the key or click still does whatever it normally does — pick one your apps
+  don't use. Headless proof: the binding model's pure halves (spec parse/format, conflict
+  rejection with reasons, load-time hygiene, event-matching key codes, monitor teardown) are
+  unit-tested in `swift test`; a new `--bindings [add|remove]` CLI flag prints the active trigger
+  table and runs the dashboard's exact validation; and a `scripts/regression.sh` check proves the
+  default (Fn only), the defaults-seam and add/remove round-trips across processes, every
+  rejection reason, and that a hand-planted invalid array degrades to Fn-only instead of wedging
+  the tap.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

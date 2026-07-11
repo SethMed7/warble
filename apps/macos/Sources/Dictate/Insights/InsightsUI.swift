@@ -6,7 +6,8 @@ import Shared
 /// Data & Privacy) over a detail pane. Pure content — the window chrome (toolbar, section title,
 /// contextual search/filter/export) lives in InsightsWindow.
 enum InsightsSection: String, CaseIterable, Identifiable, Hashable {
-    case home = "Home", insights = "Insights", dictionary = "Dictionary", snippets = "Snippets", history = "History", data = "Data & Privacy"
+    case home = "Home", insights = "Insights", dictionary = "Dictionary", snippets = "Snippets",
+         shortcuts = "Shortcuts", history = "History", data = "Data & Privacy"
     var id: String { rawValue }
     var icon: String {
         switch self {
@@ -14,6 +15,7 @@ enum InsightsSection: String, CaseIterable, Identifiable, Hashable {
         case .insights: return "chart.bar"
         case .dictionary: return "character.book.closed"
         case .snippets: return "text.insert"
+        case .shortcuts: return "keyboard"
         case .history: return "clock.arrow.circlepath"
         case .data: return "lock.shield"
         }
@@ -124,6 +126,7 @@ struct InsightsRootView: View {
         case .insights: InsightsView(store: store, ai: ai)
         case .dictionary: DictionaryView()
         case .snippets: SnippetsView()
+        case .shortcuts: ShortcutsView()
         case .history: HistoryView(store: store, nav: nav)
         case .data: DataPrivacyView(store: store)
         }

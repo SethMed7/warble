@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
@@ -35,6 +35,7 @@ describe() {
     dictionary)    echo "--apply/--pronounce over a fixture dictionary + learn-threshold promotion" ;;
     snippets)      echo "--expand over a fixture WARBLE_HOME: trigger-alone, in-sentence, no-snippets passthrough, dictionary+snippet order, 0600 storage" ;;
     autosend)      echo "--autosend: toggle off -> verbatim passthrough; toggle on -> final-position strip + send, mid-sentence untouched; the landed+sent pill renders" ;;
+    bindings)      echo "--bindings: default = Fn only; adds persist via the defaults seam + add/remove; conflicts/reserved rejected with a plain reason; invalid entries dropped on load" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -349,6 +350,77 @@ check_autosend() {
     fi
   else
     bad "pill state 'landed+sent' renders a nonzero PNG"
+  fi
+}
+
+# Multi-shortcut + mouse bindings (ROADMAP 0.5): --bindings prints the active trigger table —
+# the built-in Fn row (law, not storage) plus each persisted binding. The default is Fn only; a
+# binding seeded with a plain `defaults write` (the seam the check uses) shows up in the next
+# process's table; `add`/`remove` are the dashboard editor's headless twins (same validation
+# path); a duplicate, a reserved key (Esc), a click button (mouse-2), and the 4th-slot add are
+# each rejected with their plain reason and a non-zero exit; a hand-planted invalid array is
+# dropped entry-by-entry on load, so the defaults seam can never wedge the tap. The model's pure
+# halves (parse/validate/decode, event-matching key codes) are unit-tested in `swift test`
+# (BindingsTests, incl. the monitor-teardown assertion); real key/mouse events are by-hand
+# (docs/testing.md). Uses the "warble" defaults domain like --cleanup-level; pinned and restored.
+check_bindings() {
+  require_bin || return
+  PIN_BINDINGS=$(defaults read warble dictateBindings 2>/dev/null || true)
+  defaults delete warble dictateBindings >/dev/null 2>&1
+
+  FN_ROW="fn hold+double-tap (built in)"
+  expect "default binding table is Fn only (built in, not stored)" "$FN_ROW" "$BIN" --bindings
+
+  defaults write warble dictateBindings -array "right-command:hold"
+  expect "a binding seeded via the defaults seam shows in the next process's table" \
+    "$(printf '%s\nright-command hold' "$FN_ROW")" "$BIN" --bindings
+
+  expect "--bindings add persists a second binding (the dashboard's Add, headless)" \
+    "added mouse-4 double-tap" "$BIN" --bindings add "mouse-4:double-tap"
+  expect "the added binding round-trips across processes" \
+    "$(printf '%s\nright-command hold\nmouse-4 double-tap' "$FN_ROW")" "$BIN" --bindings
+
+  BIND_DUP=$("$BIN" --bindings add "right-command:hold" 2>/dev/null)
+  if [ $? -ne 0 ] && printf '%s\n' "$BIND_DUP" | grep -q "^rejected: .*already bound"; then
+    ok "a duplicate add is rejected with a plain reason"
+  else
+    bad "duplicate add rejected (got \"$BIND_DUP\")"
+  fi
+
+  BIND_ESC=$("$BIN" --bindings add "esc:hold" 2>/dev/null)
+  if [ $? -ne 0 ] && printf '%s\n' "$BIND_ESC" | grep -q "^rejected: Esc cancels a dictation"; then
+    ok "Esc is rejected as a trigger (it's the cancel key) with a plain reason"
+  else
+    bad "Esc rejected as a trigger (got \"$BIND_ESC\")"
+  fi
+
+  BIND_CLICK=$("$BIN" --bindings add "mouse-2:hold" 2>/dev/null)
+  if [ $? -ne 0 ] && printf '%s\n' "$BIND_CLICK" | grep -q "^rejected: mouse buttons 1 and 2"; then
+    ok "the Mac's own click buttons are rejected with a plain reason"
+  else
+    bad "click buttons rejected (got \"$BIND_CLICK\")"
+  fi
+
+  "$BIN" --bindings add "f13:hold" >/dev/null 2>&1 # the third and last slot
+  BIND_CAP=$("$BIN" --bindings add "f14:hold" 2>/dev/null)
+  if [ $? -ne 0 ] && printf '%s\n' "$BIND_CAP" | grep -q "^rejected: up to 3 bindings besides Fn"; then
+    ok "a fourth binding is rejected at the cap with a plain reason"
+  else
+    bad "fourth binding rejected at the cap (got \"$BIND_CAP\")"
+  fi
+
+  expect "--bindings remove retires a binding" "removed f13 hold" "$BIN" --bindings remove "f13:hold"
+  expect "the removal round-trips across processes" \
+    "$(printf '%s\nright-command hold\nmouse-4 double-tap' "$FN_ROW")" "$BIN" --bindings
+
+  defaults write warble dictateBindings -array "garbage" "mouse-2:hold" "f5:hold" "esc:hold"
+  expect "invalid entries planted in defaults are dropped on load (table degrades to Fn only)" \
+    "$FN_ROW" "$BIN" --bindings
+
+  if [ -n "$PIN_BINDINGS" ]; then
+    defaults write warble dictateBindings "$PIN_BINDINGS" >/dev/null 2>&1
+  else
+    defaults delete warble dictateBindings >/dev/null 2>&1
   fi
 }
 

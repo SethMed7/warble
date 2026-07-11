@@ -50,7 +50,7 @@ on-device engine, so it lands in well under a second — and nothing ever leaves
 - **Clean output, at the level you choose** — four cleanup levels under **menu → Dictate → Cleanup**: **None** (verbatim), **Light** (deterministic tidy — the default), **Medium** (on-device LLM punctuation + fillers), and **High** (fuller LLM formatting, same safety guard) — Wispr-class polish, still no cloud. And whatever the level, History keeps **what you actually said**: the raw transcript is one quiet click away, never lost.
 - **Near-instant** — a warm NVIDIA Parakeet engine transcribes in ~0.08 s instead of reloading the model every clip.
 - **Learns your words** — correct a name a couple of times, or just spell it out loud (*"Dhaval, that's D H A V A L"*), and it sticks in your dictionary, everywhere — even in terminals.
-- **Hands-free or hold** — double-tap **Fn** to toggle, or hold **Fn**; **Esc** cancels mid-dictation.
+- **Hands-free, hold — or a thumb button** — double-tap **Fn** to toggle, or hold **Fn**; **Esc** cancels mid-dictation. And Fn needn't be alone: bind up to three more triggers (right ⌘ / right ⌥ / F13–F19 / mouse buttons 3–10) as push-to-talk or double-tap under **Dashboard ▸ Shortcuts** — dictation on a mouse thumb button, built for RSI-friendly setups.
 - **Reads back, too** — select any text + **⌃V** for warm, on-device neural read-aloud that follows along word by word.
 - **A real dashboard, a real app** — a proper dashboard window (toolbar search, per-app filters, Export), a **Dock icon while it's open** (or always/never — your call), a full menu bar with the shortcuts you expect (⌘W, ⌘,, copy/paste), and a menu bar kept short: mode toggles up top, details tucked into **Dictate ▸** / **Read Aloud ▸** submenus.
 - **Stays current** — a built-in *Check for Updates* (plus a quiet daily check) installs new versions in place, each verified by signature. No App Store, no manual re-download, no visiting GitHub.
@@ -73,6 +73,15 @@ worse: while you speak, the audio is buffered incrementally to disk, so if warbl
 mid-dictation the next launch quietly offers **menu → Dictate → Recover Last Dictation** — one click
 transcribes it into History (never auto-pasted). If transcription itself fails, the dictation lands
 in History as a *failed* item with its recording kept — open it and hit **Re-transcribe**.
+
+Fn isn't the only trigger: add up to three more in the dashboard's **Shortcuts** section (or
+**menu → Dictate → Shortcuts…**) — **right ⌘**, **right ⌥**, an F-key (**F13–F19**), or a **mouse
+button** (3–10; thumb buttons are usually 4 and 5) — each as hold-to-talk or a double-tap
+hands-free toggle. Every binding is an alias of Fn, not a mode: same pill, same Esc to cancel,
+same everything, and changes apply immediately, no relaunch. Fn itself stays (shown locked in the
+editor), and — like everything per-mode — no binding registers anything while Dictate is off. One
+honest note: warble only *listens* for a binding, it never swallows the key or click itself, so
+pick one your apps don't already use.
 
 You always know it heard you: a soft ping sounds the moment the mic actually opens, and a quieter,
 lower one on a clean stop (toggle under **menu → Dictate → Sounds** — off stays off). The pill's

@@ -4,9 +4,9 @@ import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--expand`, `--snippet-set`, `--autosend`, `--selftest`, `--axcheck`, `--learn-test`,
-/// `--recover-scan`, `--retranscribe`, `--hold-cap`, `--hold-cap-sim`, `--bench-e2e`,
-/// `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
+/// `--expand`, `--snippet-set`, `--autosend`, `--bindings`, `--selftest`, `--axcheck`,
+/// `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`, `--hold-cap-sim`,
+/// `--bench-e2e`, `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -161,6 +161,48 @@ public enum DictateCLI {
             Snippets.shared.load()
             Snippets.shared.set(trigger: args[i + 1], expansion: args[i + 2])
             print("saved '\(args[i + 1].lowercased())' -> \(Snippets.shared.fileURL.path)")
+            return true
+        }
+        if let i = args.firstIndex(of: "--bindings") {
+            // Multi-shortcut + mouse bindings (ROADMAP 0.5), headless. Bare `--bindings` prints
+            // the active trigger table — the built-in Fn row first (it's law, not storage), then
+            // each persisted binding. `add`/`remove <trigger:gesture>` run the dashboard editor's
+            // exact validation path and persist through the same "warble" defaults domain the app
+            // reads (the --cleanup-level idiom), so a set in one process and a table in the next
+            // proves the round-trip; a rejected add prints the same plain reason the dashboard
+            // shows and exits non-zero. No monitor is ever installed here — CLI modes are UI-free
+            // by construction, and bindings only register while Dictate is on (HotKey.register).
+            if i + 1 < args.count, !args[i + 1].hasPrefix("--") {
+                guard i + 2 < args.count else {
+                    FileHandle.standardError.write(Data("usage: --bindings [add|remove <trigger:gesture>]\n".utf8))
+                    exit(2)
+                }
+                let spec = args[i + 2]
+                switch args[i + 1] {
+                case "add":
+                    switch Bindings.shared.add(spec) {
+                    case .added(let b): print("added \(b.trigger.spec) \(b.gesture.rawValue)")
+                    case .rejected(let reason): print("rejected: \(reason)"); exit(1)
+                    }
+                case "remove":
+                    guard case .ok(let b) = Bindings.parse(spec) else {
+                        FileHandle.standardError.write(Data("unknown binding \"\(spec)\" — use trigger:gesture\n".utf8))
+                        exit(2)
+                    }
+                    if Bindings.shared.remove(b) {
+                        print("removed \(b.trigger.spec) \(b.gesture.rawValue)")
+                    } else {
+                        print("not bound")
+                        exit(1)
+                    }
+                default:
+                    FileHandle.standardError.write(Data("unknown --bindings verb \"\(args[i + 1])\" — use add|remove\n".utf8))
+                    exit(2)
+                }
+                return true
+            }
+            print("fn hold+double-tap (built in)")
+            for b in Bindings.shared.list { print("\(b.trigger.spec) \(b.gesture.rawValue)") }
             return true
         }
         if let i = args.firstIndex(of: "--autosend"), i + 1 < args.count {

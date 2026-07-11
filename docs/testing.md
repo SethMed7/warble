@@ -39,6 +39,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `dictionary` | `--apply` / `--pronounce` over a fixture dictionary; repeated corrections promote at the learn threshold | dictionary |
 | `snippets` | `--expand` over a fixture `WARBLE_HOME`: trigger-alone replaces the whole dictation, trigger-in-sentence replaces only its span, no snippets defined is verbatim passthrough, a dictionary correction can still trigger a snippet (order proof + negative control), and `--snippet-set` writes an owner-only (0600) file a later process reads back | 0.5 snippets |
 | `autosend` | `--autosend` over the persisted toggle: off is verbatim passthrough even with the phrase, on strips a FINAL-position "press enter"/"press return" and reports `send: yes`, trailing punctuation is tolerated, a mid-sentence occurrence never fires — plus the `landed+sent` pill renders wider than the textless `landed` base | 0.5 auto-send |
+| `bindings` | `--bindings` prints the active trigger table: the default is Fn only (built in, never stored); a binding seeded with a plain `defaults write warble dictateBindings -array "right-command:hold"` shows in the next process's table; `add`/`remove` (the dashboard editor's headless twins — same validation path) round-trip across processes; a duplicate, Esc, a click button (mouse-2), and a fourth binding are each rejected with their plain reason and a non-zero exit; a hand-planted invalid array degrades to Fn-only on load. The model's pure halves — parse/format round-trips, conflict reasons, load hygiene, the event-matching key codes/device bits, and HotKey's monitor teardown — are unit-tested (`swift test`, BindingsTests) | 0.5 multi-shortcut + mouse bindings |
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
@@ -187,6 +188,16 @@ the tour must not reappear (only **menu → Welcome tour…** brings it back).
   keystroke must NOT fire (the field must not submit) even with the toggle on — the detection/strip
   logic itself and the toggle's default are the scripted twins (`swift test` `AutoSendTests` +
   `--autosend`); this by-hand pass is the actual keystroke landing in a real app.
+- **Bindings, with real keys and buttons**: in **Dashboard ▸ Shortcuts**, add a binding (say,
+  right ⌘ as hold-to-talk and a mouse thumb button as double-tap) — no relaunch: hold right ⌘ and
+  speak → the normal pill session, release delivers; a quick right ⌘ TAP must do nothing, and a
+  real right-⌘ shortcut (right ⌘ + C) must copy without ever starting a dictation (the taint
+  discipline). Double-tap the mouse button → a hands-free session; double-tap again (or double-tap
+  Fn — aliases) stops it. Esc cancels either, exactly like Fn. Remove the binding → the trigger
+  goes dead immediately. Toggle **Dictate** off → every binding (and Fn) is inert, and nothing is
+  registered at all. Also verify honesty: the bound key/click still performs its normal action in
+  apps — warble listens, never swallows. (The model, persistence, conflicts, and teardown are the
+  scripted twins — `swift test` BindingsTests + `--bindings`; this pass is the live tap.)
 - **Read-aloud**: ⌃V watch → selection queue → follow-along highlighting → collapse → Esc.
 - **The welcome tour, end to end**: `WARBLE_FORCE_ONBOARDING=1 .build/debug/warble` (or, for the
   true first-run path, clear the debug domain's keys first: `defaults delete warble

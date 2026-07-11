@@ -3,7 +3,8 @@ import AppKit
 import UniformTypeIdentifiers
 
 /// Data & Privacy: what's kept, the toggles that control it, and clear/export. Everything is local to
-/// ~/.warble and never uploaded.
+/// ~/.warble and never uploaded. Settings sit directly on the background — 13pt section headers,
+/// hairline-divided rows, no boxes.
 struct DataPrivacyView: View {
     @ObservedObject var store: InsightStore
     @State private var confirmClear = false
@@ -14,57 +15,49 @@ struct DataPrivacyView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                PageHeader(title: "Data & Privacy",
-                           subtitle: "Everything lives on your Mac, in ~/.warble — never uploaded. Audio is deleted unless you keep it.")
-
-                VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 32) {
+                VStack(alignment: .leading, spacing: 4) {
+                    SectionHeader(title: "Privacy")
                     toggleRow("Keep dictation history",
                               "Store the transcript text so you can search & re-read it. Off = stats only, no text.",
                               get: { store.historyEnabled }, set: { store.historyEnabled = $0 })
-                    Divider().overlay(WarbleTheme.line).padding(.vertical, 12)
+                    Hairline()
                     toggleRow("Save recordings",
                               "Keep the audio so you can replay a dictation. Off = audio is deleted after transcription.",
                               get: { store.saveAudio }, set: { store.saveAudio = $0 })
-                    Divider().overlay(WarbleTheme.line).padding(.vertical, 12)
+                    Hairline()
                     toggleRow("Skip password fields",
                               "Never store text or audio when a secure (password) field is focused.",
                               get: { store.excludeSecureFields }, set: { store.excludeSecureFields = $0 })
                 }
-                .cardStyle()
 
                 // Insights AI: the optional, default-off generative layer. The master toggle gates the
                 // whole feature; the auto-refresh control below it is dimmed/disabled while it's off.
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-                        .padding(.bottom, 12)
+                VStack(alignment: .leading, spacing: 4) {
+                    SectionHeader(title: "Insights AI")
                     toggleRow("Insights AI",
                               "Optional on-device summaries, suggested words, and nudges. Default off; reads only your local stats.",
                               get: { store.aiInsightsEnabled }, set: { store.aiInsightsEnabled = $0 })
-                    Divider().overlay(WarbleTheme.line).padding(.vertical, 12)
+                    Hairline()
                     toggleRow("Refresh automatically (weekly)",
                               "On: auto-refresh when you open Insights. Off: only when you tap Regenerate.",
                               get: { store.aiInsightsAutoRefresh }, set: { store.aiInsightsAutoRefresh = $0 })
                         .disabled(!store.aiInsightsEnabled)
                         .opacity(store.aiInsightsEnabled ? 1 : 0.45)
                 }
-                .cardStyle()
 
                 // Updates: the "Check for Updates…" menu item is always available; this toggle controls
                 // only the quiet automatic (≈daily) background check, so the choice stays transparent.
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Updates").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-                        .padding(.bottom, 12)
+                VStack(alignment: .leading, spacing: 4) {
+                    SectionHeader(title: "Updates")
                     toggleRow("Install updates automatically",
                               "On: warble quietly checks about once a day and offers new versions. Off: manual only — use \u{201C}Check for Updates…\u{201D} in the menu. Either way, updates are signed and stay on your Mac.",
                               get: { store.autoUpdateEnabled }, set: { store.autoUpdateEnabled = $0 })
                 }
-                .cardStyle()
 
                 // App: warble is a menu-bar app first — this picks when it also shows in the Dock.
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("App").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-                        .padding(.bottom, 12)
+                VStack(alignment: .leading, spacing: 4) {
+                    SectionHeader(title: "App")
                     HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Show Dock icon").font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
@@ -83,13 +76,13 @@ struct DataPrivacyView: View {
                             NotificationCenter.default.post(name: Notification.Name("warble.dockIconModeChanged"), object: nil)
                         }
                     }
+                    .padding(.vertical, 8)
                 }
-                .cardStyle()
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Your data").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+                VStack(alignment: .leading, spacing: 4) {
+                    SectionHeader(title: "Your data")
                     Text("\(store.dictations.count) dictations · \(store.reads.count) reads · \(store.audioSummary)")
-                        .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
+                        .font(.system(size: 11)).monospacedDigit().foregroundStyle(WarbleTheme.mist)
                     HStack(spacing: 8) {
                         Button("Export…") { HistoryExport.run(store) }
                         Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([store.dir]) }
@@ -104,10 +97,12 @@ struct DataPrivacyView: View {
                         .onHover { clearHovered = $0 }
                     }
                     .font(.system(size: 12))
+                    .padding(.top, 8)
                 }
-                .cardStyle()
             }
-            .padding(28)
+            .padding(.horizontal, 28)
+            .padding(.top, 20)
+            .padding(.bottom, 28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WarbleTheme.black)
@@ -128,6 +123,7 @@ struct DataPrivacyView: View {
             }
         }
         .tint(WarbleTheme.electric)
+        .padding(.vertical, 10)
     }
 }
 

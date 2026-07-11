@@ -55,7 +55,7 @@ struct InsightsRootView: View {
         ZStack(alignment: .topLeading) {
             HStack(spacing: 0) {
                 sidebar
-                    .frame(width: 212)
+                    .frame(width: 200)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .background(WarbleTheme.ink)
                 // A Divider stops at the safe-area edge; the toolbar strip above would show a gap.
@@ -76,21 +76,30 @@ struct InsightsRootView: View {
         .onPreferenceChange(RowFrameKey.self) { rowFrames = $0 }
     }
 
-    /// The fixed sidebar: brand header + the section rows. The toolbar's safe-area inset already
-    /// clears the titlebar; the small top padding is just breathing room.
+    /// The build the user is running — same read as `--version`; the fallback matches main.swift.
+    private static let version =
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.2.0"
+
+    /// The fixed sidebar: brand header, the section rows, and a version footer. The toolbar's
+    /// safe-area inset already clears the titlebar; the small top padding is just breathing room.
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Image(nsImage: WarbleMark.coloredMark(height: 22))
-                Text("warble").font(.headline).foregroundStyle(WarbleTheme.textHi)
-                Text("Dashboard").font(.headline).foregroundStyle(WarbleTheme.mist)
+                Image(nsImage: WarbleMark.coloredMark(height: 18))
+                Text("warble").font(.system(size: 13, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
 
             ForEach(InsightsSection.allCases) { s in sidebarRow(s) }
             Spacer(minLength: 0)
+
+            Text(Self.version)
+                .font(.system(size: 11)).monospacedDigit()
+                .foregroundStyle(WarbleTheme.mist)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
         }
     }
 
@@ -110,7 +119,7 @@ struct InsightsRootView: View {
     /// The detail pane for the selected section.
     @ViewBuilder private var detail: some View {
         switch nav.section {
-        case .home: HomeView(store: store)
+        case .home: HomeView(store: store, nav: nav)
         case .insights: InsightsView(store: store, ai: ai)
         case .dictionary: DictionaryView()
         case .history: HistoryView(store: store, nav: nav)
@@ -132,16 +141,19 @@ private struct SidebarRow: View {
 
     var body: some View {
         Button(action: activate) {
-            HStack(spacing: 10) {
-                Image(systemName: section.icon).frame(width: 20)
+            HStack(spacing: 8) {
+                Image(systemName: section.icon)
+                    .font(.system(size: 13))
+                    .frame(width: 16)
                 Text(section.rawValue)
                 Spacer(minLength: 0)
             }
             .font(.system(size: 13, weight: selected ? .semibold : .regular))
             .foregroundStyle(selected ? WarbleTheme.textHi : WarbleTheme.mist)
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(fill, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 10)
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(fill, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(WarbleTheme.electricBright, lineWidth: 2)
                 .padding(-2)
                 .opacity(focused ? 1 : 0))
@@ -152,7 +164,7 @@ private struct SidebarRow: View {
     }
 
     private var fill: Color {
-        if selected { return WarbleTheme.electric.opacity(0.18) }
+        if selected { return WarbleTheme.electric.opacity(0.15) }
         if hovered { return Color.white.opacity(0.04) }
         return .clear
     }
@@ -203,7 +215,7 @@ struct TutorialOverlay: View {
                 ZStack {
                     Rectangle().fill(Color.white)
                     if let h = hole {
-                        RoundedRectangle(cornerRadius: 7).fill(Color.black)
+                        RoundedRectangle(cornerRadius: 6).fill(Color.black)
                             .frame(width: h.width, height: h.height)
                             .position(x: h.midX, y: h.midY)
                             .blendMode(.destinationOut)
@@ -213,7 +225,7 @@ struct TutorialOverlay: View {
             .overlay(
                 Group {
                     if let h = hole {
-                        RoundedRectangle(cornerRadius: 7)
+                        RoundedRectangle(cornerRadius: 6)
                             .stroke(WarbleTheme.electric.opacity(0.85), lineWidth: 1.5)
                             .frame(width: h.width, height: h.height)
                             .position(x: h.midX, y: h.midY)
@@ -303,66 +315,157 @@ private struct TutorialButton: ButtonStyle {
     }
 }
 
-/// Home: the locked must-have stat cards + a recent feed.
+// MARK: - Shared dashboard primitives (content on the window background, no decorative boxes)
+
+/// A 1px `line` hairline — the dashboard's only grouping chrome besides spacing and alignment.
+struct Hairline: View {
+    var body: some View { Rectangle().fill(WarbleTheme.line).frame(height: 1) }
+}
+
+/// An in-content section header: 13pt semibold, optionally with a small trailing accent action
+/// ("See all →"). Never a hero headline, never an ALL-CAPS eyebrow.
+struct SectionHeader: View {
+    let title: String
+    var actionLabel: String? = nil
+    var action: (() -> Void)? = nil
+    @State private var hovered = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+            Spacer(minLength: 0)
+            if let label = actionLabel, let run = action {
+                Button(action: run) {
+                    Text(label)
+                        .font(.system(size: 11))
+                        .foregroundStyle(WarbleTheme.electricText)
+                        .underline(hovered)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovered = $0 }
+            }
+        }
+    }
+}
+
+/// The list rows' fixed time gutter: clock time today, a short day otherwise — both fit ~56pt at 11pt.
+enum RowTime {
+    private static let clock: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .none; f.timeStyle = .short; return f
+    }()
+    private static let day: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("MMMd"); return f
+    }()
+    static func string(_ date: Date) -> String {
+        Calendar.current.isDateInToday(date) ? clock.string(from: date) : day.string(from: date)
+    }
+}
+
+/// A first-run empty state: one plain line plus a one-line hint that starts filling it.
+/// No "coming soon" — the feature is here, the data isn't yet.
+struct EmptyState: View {
+    let title: String
+    let hint: String
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title).font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
+            Text(hint).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.vertical, 64)
+        .padding(.horizontal, 40)
+    }
+}
+
+// MARK: - Home
+
+/// Home: the four locked stats in one hairline-divided row, the recent feed, and the per-app bars —
+/// all sitting directly on the window background.
 struct HomeView: View {
     @ObservedObject var store: InsightStore
-
-    private var firstName: String {
-        NSFullUserName().split(separator: " ").first.map(String.init) ?? "there"
-    }
+    @ObservedObject var nav: InsightsNav
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                PageHeader(title: "Welcome back, \(firstName)",
-                           subtitle: "Your dictation at a glance — words, pace, streak, and recent activity.")
-
-                HStack(spacing: 14) {
-                    StatCard(value: store.totalWordsCompact, label: "words dictated")
-                    StatCard(value: "\(store.avgWPM)", label: "wpm")
-                    StatCard(value: "\(store.dayStreak)", label: "day streak")
-                    StatCard(value: store.wordsReadCompact, label: "words read")
-                }
+            VStack(alignment: .leading, spacing: 0) {
+                StatRow(stats: [
+                    (store.totalWordsCompact, "words dictated"),
+                    ("\(store.avgWPM)", "wpm"),
+                    ("\(store.dayStreak)", "day streak"),
+                    (store.wordsReadCompact, "words read"),
+                ])
+                .padding(.horizontal, 28)
 
                 if store.events.isEmpty {
-                    EmptyHome()
+                    EmptyState(title: "Nothing here yet",
+                               hint: "Hold Fn and speak — your words, streak, and pace build up here.")
+                        .padding(.top, 24)
                 } else {
-                    Text("Recent")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(WarbleTheme.mist)
-                        .textCase(.uppercase)
-                    VStack(spacing: 0) {
-                        ForEach(store.events.suffix(8).reversed()) { e in
-                            RecentRow(event: e)
-                            if e.id != store.events.suffix(8).reversed().last?.id {
-                                Divider().overlay(WarbleTheme.line)
-                            }
-                        }
-                    }
-                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
+                    SectionHeader(title: "Recent", actionLabel: "See all →") { nav.section = .history }
+                        .padding(.horizontal, 28)
+                        .padding(.top, 32)
+                        .padding(.bottom, 4)
+                    recentRows
+                        .padding(.horizontal, 20)
 
                     if !store.perApp.isEmpty {
-                        Text("Where you dictate")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(WarbleTheme.mist).textCase(.uppercase)
-                            .padding(.top, 8)
+                        SectionHeader(title: "Where you dictate")
+                            .padding(.horizontal, 28)
+                            .padding(.top, 32)
+                            .padding(.bottom, 12)
                         let maxWords = store.perApp.first?.words ?? 1
-                        VStack(spacing: 12) {
+                        VStack(spacing: 10) {
                             ForEach(store.perApp.prefix(5)) { app in
                                 PerAppRow(app: app, maxWords: maxWords)
                             }
                         }
-                        .padding(16)
-                        .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
+                        .padding(.horizontal, 28)
                     }
                 }
             }
-            .padding(28)
+            .padding(.top, 20)
+            .padding(.bottom, 28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WarbleTheme.black)
+    }
+
+    /// The last 8 events, newest first, as full-bleed rows with inset hairlines. Each row jumps to
+    /// History — that's where replay/fix/teach live.
+    private var recentRows: some View {
+        let recent = Array(store.events.suffix(8).reversed())
+        return VStack(spacing: 0) {
+            ForEach(recent) { e in
+                RecentRow(event: e) { nav.section = .history }
+                if e.id != recent.last?.id {
+                    // Inset both ends to the text column so the hairline sits on the 28pt page grid.
+                    Hairline().padding(.leading, 76).padding(.trailing, 8)
+                }
+            }
+        }
+    }
+}
+
+/// The stat row: no boxes — numerals over labels, columns split by 1px vertical hairlines.
+private struct StatRow: View {
+    let stats: [(value: String, label: String)]
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            ForEach(Array(stats.enumerated()), id: \.offset) { i, s in
+                if i > 0 { Rectangle().fill(WarbleTheme.line).frame(width: 1, height: 40) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(s.value)
+                        .font(.system(size: 28, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(WarbleTheme.textHi)
+                    Text(s.label)
+                        .font(.system(size: 11))
+                        .foregroundStyle(WarbleTheme.mist)
+                }
+                .padding(.leading, i == 0 ? 0 : 20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 }
 
@@ -372,7 +475,7 @@ struct PerAppRow: View {
     var body: some View {
         HStack(spacing: 10) {
             AppIconView(bundleId: app.id, size: 18)
-            Text(app.name).font(.system(size: 12)).foregroundStyle(WarbleTheme.textHi)
+            Text(app.name).font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
                 .frame(width: 120, alignment: .leading).lineLimit(1)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -382,110 +485,51 @@ struct PerAppRow: View {
                 }
             }
             .frame(height: 8)
-            Text("\(app.words)").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+            Text("\(app.words)").font(.system(size: 11)).monospacedDigit().foregroundStyle(WarbleTheme.mist)
                 .frame(width: 52, alignment: .trailing)
         }
     }
 }
 
-struct StatCard: View {
-    let value: String
-    let label: String
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(value)
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(WarbleTheme.textHi)
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundStyle(WarbleTheme.mist)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(WarbleTheme.line, lineWidth: 1))
-    }
-}
-
+/// One recent-feed row: time gutter, two-line text, app + counts metadata. Hover is a subtle ink
+/// fill — the row is a real button that jumps to History.
 private struct RecentRow: View {
     let event: DictationEvent
-    private static let time: DateFormatter = {
-        let f = DateFormatter(); f.dateStyle = .none; f.timeStyle = .short; return f
-    }()
+    let open: () -> Void
+    @State private var hovered = false
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(Self.time.string(from: event.date))
-                .font(.system(size: 12))
-                .foregroundStyle(WarbleTheme.mist)
-                .frame(width: 64, alignment: .leading)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.text.isEmpty ? "\(event.words) words" : event.text)
-                    .font(.system(size: 13))
-                    .foregroundStyle(WarbleTheme.textHi)
-                    .lineLimit(2)
-                HStack(spacing: 8) {
-                    if let app = event.appName {
-                        Text(app).font(.system(size: 11)).foregroundStyle(WarbleTheme.electricText)
+        Button(action: open) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(RowTime.string(event.date))
+                    .font(.system(size: 11)).monospacedDigit()
+                    .foregroundStyle(WarbleTheme.mist)
+                    .frame(width: 56, alignment: .trailing)
+                    .padding(.top, 2) // optical align with the 13pt first line
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(event.text.isEmpty ? "\(event.words) words" : event.text)
+                        .font(.system(size: 13))
+                        .foregroundStyle(WarbleTheme.textHi)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    HStack(spacing: 4) {
+                        if let app = event.appName {
+                            Text(app).foregroundStyle(WarbleTheme.electricText)
+                        }
+                        Text(event.kind == "read" ? "· \(event.words) words"
+                                                  : "· \(event.words) words · \(event.wpm) wpm")
+                            .foregroundStyle(WarbleTheme.mist)
                     }
-                    Text("· \(event.words) words · \(event.wpm) wpm")
-                        .font(.system(size: 11))
-                        .foregroundStyle(WarbleTheme.mist)
+                    .font(.system(size: 11))
                 }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-}
-
-private struct EmptyHome: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "mic").font(.system(size: 28)).foregroundStyle(WarbleTheme.electric)
-            Text("**Hold Fn and speak** — your words, streak, and pace build up here. Select text and press ⌃V to hear it read aloud.")
-                .font(.system(size: 13))
-                .foregroundStyle(WarbleTheme.mist)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
-    }
-}
-
-/// Every section opens with the same header: the section name and one plain line saying what
-/// this page is for — same scale everywhere so switching sections doesn't jump.
-struct PageHeader: View {
-    let title: String
-    let subtitle: String
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.system(size: 26, weight: .bold)).foregroundStyle(WarbleTheme.textHi)
-            Text(subtitle).font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
-        }
-    }
-}
-
-/// A first-run empty state: what this page will show and the one action that starts filling it.
-/// No "coming soon" — the feature is here, the data isn't yet.
-struct EmptyState: View {
-    let icon: String
-    let title: String
-    let message: String // ends with the action, e.g. "Hold Fn and speak."
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 28)).foregroundStyle(WarbleTheme.electric)
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-            Text(message)
-                .font(.system(size: 13))
-                .foregroundStyle(WarbleTheme.mist)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 380)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
+        .buttonStyle(.plain)
+        .background(hovered ? WarbleTheme.ink : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .onHover { hovered = $0 }
     }
 }

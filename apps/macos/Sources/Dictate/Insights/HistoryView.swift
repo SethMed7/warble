@@ -37,37 +37,40 @@ struct HistoryView: View {
     }
 
     @ViewBuilder private var feed: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PageHeader(title: "History",
-                       subtitle: "Every dictation and read-aloud, newest first — open one to replay or fix it.")
-                .padding(.horizontal, 28).padding(.top, 28)
-            if store.events.isEmpty {
-                EmptyState(icon: "clock.arrow.circlepath", title: "No dictations yet",
-                           message: "Hold Fn and speak. Every dictation lands here with its recording, so you can replay it or fix a word.")
-            } else if rows.isEmpty {
-                // Filtered to nothing — say so plainly, so it doesn't read as lost history.
-                Text("No matches.")
-                    .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(rows) { e in
+        if store.events.isEmpty {
+            EmptyState(title: "No dictations yet",
+                       hint: "Hold Fn and speak — every dictation lands here with its recording.")
+        } else if rows.isEmpty {
+            // Filtered to nothing — say so plainly, so it doesn't read as lost history.
+            Text("No matches.")
+                .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            // Full-bleed rows on the window background, inset hairlines between — no List chrome.
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    let list = rows
+                    ForEach(list) { e in
                         HistoryRowButton(store: store, event: e,
                                          focused: focusedEvent == e.id) { opened = e }
                             .focused($focusedEvent, equals: e.id)
-                            .listRowBackground(WarbleTheme.ink)
+                        if e.id != list.last?.id {
+                            // Inset both ends to the text column so the hairline sits on the page grid.
+                            Hairline().padding(.leading, 76).padding(.trailing, 8)
+                        }
                     }
                 }
-                .scrollContentBackground(.hidden)
-                .background(WarbleTheme.black)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
             }
         }
     }
 }
 
-/// One tappable feed row: a real Button (Return/Space open it when focused). Hover is a neutral
-/// lift drawn inside the row — no second hue — and keyboard focus draws the same 2px
-/// electric-bright (crest) ring as FilledButton/GhostButton.
+/// One tappable feed row: a real Button (Return/Space open it when focused). Hover is a subtle ink
+/// fill — no second hue — and keyboard focus draws the same 2px electric-bright (crest) ring as
+/// FilledButton/GhostButton.
 private struct HistoryRowButton: View {
     @ObservedObject var store: InsightStore
     let event: DictationEvent
@@ -81,7 +84,7 @@ private struct HistoryRowButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(hovered ? Color.white.opacity(0.04) : Color.clear,
+        .background(hovered ? WarbleTheme.ink : Color.clear,
                     in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 8)
             .strokeBorder(WarbleTheme.electricBright, lineWidth: 2)
@@ -91,18 +94,31 @@ private struct HistoryRowButton: View {
     }
 }
 
+/// Row anatomy shared with Home's feed: time gutter, two-line text, app + counts metadata, and a
+/// small trailing glyph saying what's replayable (waveform = saved audio, speaker = read-aloud).
 struct HistoryRow: View {
     @ObservedObject var store: InsightStore
     let event: DictationEvent
     var body: some View {
-        HStack(spacing: 12) {
-            AppIconView(bundleId: event.appBundleId)
+        HStack(alignment: .top, spacing: 12) {
+            Text(RowTime.string(event.date))
+                .font(.system(size: 11)).monospacedDigit()
+                .foregroundStyle(WarbleTheme.mist)
+                .frame(width: 56, alignment: .trailing)
+                .padding(.top, 2) // optical align with the 13pt first line
             VStack(alignment: .leading, spacing: 3) {
                 Text(event.text.isEmpty ? "\(event.words) words" : event.text)
-                    .font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi).lineLimit(1)
-                HStack(spacing: 6) {
-                    Text(event.appName ?? "—").foregroundStyle(WarbleTheme.electricText)
-                    Text("· \(RelTime.string(event.date)) · \(event.words) words").foregroundStyle(WarbleTheme.mist)
+                    .font(.system(size: 13))
+                    .foregroundStyle(WarbleTheme.textHi)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                HStack(spacing: 4) {
+                    if let app = event.appName {
+                        Text(app).foregroundStyle(WarbleTheme.electricText)
+                    }
+                    Text(event.kind == "read" ? "· \(event.words) words"
+                                              : "· \(event.words) words · \(event.wpm) wpm")
+                        .foregroundStyle(WarbleTheme.mist)
                 }
                 .font(.system(size: 11))
             }
@@ -110,8 +126,10 @@ struct HistoryRow: View {
             Image(systemName: event.kind == "read" ? "speaker.wave.2.fill"
                                                     : (store.audioURL(for: event) != nil ? "waveform" : "mic.fill"))
                 .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
+                .padding(.top, 2)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
     }
 }
 
@@ -138,7 +156,7 @@ struct DictationDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 Button { onClose() } label: {
                     Label("History", systemImage: "chevron.left")
                         .font(.system(size: 13))
@@ -151,47 +169,46 @@ struct DictationDetailView: View {
                     AppIconView(bundleId: event.appBundleId, size: 30)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(event.appName ?? (event.kind == "read" ? "Read aloud" : "Dictation"))
-                            .font(.system(size: 16, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
                         Text(metaLine).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                     }
                     Spacer()
                 }
 
+                // The replay strip sits directly on the background — the play glyph is the affordance.
                 if let url = store.audioURL(for: event) {
                     HStack(spacing: 12) {
                         Button { audio.toggle(url) } label: {
                             Image(systemName: audio.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                .font(.system(size: 30)).foregroundStyle(WarbleTheme.electric)
+                                .font(.system(size: 28)).foregroundStyle(WarbleTheme.electric)
                         }
                         .buttonStyle(.plain)
                         ProgressView(value: audio.progress).tint(WarbleTheme.electric)
                         Text("recording").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                     }
-                    .padding(12)
-                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
                 } else if event.kind == "dictate" {
-                    Text("No saved recording for this one.").font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
+                    Text("No saved recording for this one.").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
                 }
 
-                section("Transcript")
+                SectionHeader(title: "Transcript").padding(.top, 8)
+                // The editor keeps a border — it's a real text field, the one place a box is earned.
                 TextEditor(text: $editedText)
                     .font(.system(size: 14))
                     .foregroundStyle(WarbleTheme.textHi)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 110)
                     .padding(8)
-                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(WarbleTheme.line, lineWidth: 1))
+                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(WarbleTheme.line, lineWidth: 1))
                 HStack {
                     Spacer()
                     Button("Save text") { store.updateText(event.id, to: editedText); note = "Saved." }
                         .disabled(editedText == current.text)
                 }
 
-                section("Teach the dictionary")
+                SectionHeader(title: "Teach the dictionary").padding(.top, 8)
                 Text("Heard a word wrong? Add the fix so future dictations get it right — that's how you train it.")
-                    .font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
+                    .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
                 HStack(spacing: 8) {
                     TextField("warble heard…", text: $heard).textFieldStyle(.roundedBorder)
                     Image(systemName: "arrow.right").foregroundStyle(WarbleTheme.mist)
@@ -199,10 +216,10 @@ struct DictationDetailView: View {
                     Button("Add") { addCorrection() }.disabled(heard.isEmpty || correct.isEmpty)
                 }
                 if !note.isEmpty {
-                    Text(note).font(.system(size: 12)).foregroundStyle(WarbleTheme.electricText)
+                    Text(note).font(.system(size: 11)).foregroundStyle(WarbleTheme.electricText)
                 }
 
-                Divider().overlay(WarbleTheme.line).padding(.top, 8)
+                Hairline().padding(.top, 8)
                 // Destructive stays neutral (One-Accent Rule: no red) — the trash glyph carries the
                 // meaning, hover brightens mist to text-hi, same as every ghost affordance.
                 Button(role: .destructive) {
@@ -215,7 +232,9 @@ struct DictationDetailView: View {
                 .buttonStyle(.plain)
                 .onHover { deleteHovered = $0 }
             }
-            .padding(28)
+            .padding(.horizontal, 28)
+            .padding(.top, 20)
+            .padding(.bottom, 28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WarbleTheme.black)
@@ -229,10 +248,6 @@ struct DictationDetailView: View {
         Lexicon.shared.learnExplicit(from: from, to: to)
         note = "Added “\(from)” → “\(to)” to your dictionary."
         heard = ""; correct = ""
-    }
-
-    private func section(_ title: String) -> some View {
-        Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(WarbleTheme.mist).textCase(.uppercase)
     }
 
     /// The live event from the store, so the header + Save button reflect an edit immediately

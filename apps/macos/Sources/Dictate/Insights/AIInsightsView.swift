@@ -1,85 +1,91 @@
 import SwiftUI
 
 /// The "Insights AI" surface: the optional, default-off, 100% on-device layer that sits ABOVE the charts
-/// in the Insights tab. Three states, one electric-blue accent, warble's dark cards (`.cardStyle()`):
-///   1. master switch OFF  → a single ENABLE card explaining the (opt-in) feature + a "Turn on" button.
-///   2. ON but no engine   → a ComingSoon-styled note pointing at Setup (never a crash).
-///   3. ON + engine ready  → a summary card (with Regenerate / Generating…), then suggested-word rows
-///                            (Accept / Dismiss), then nudge chips. Sections that are empty are hidden.
+/// in the Insights tab. Three states, one electric-blue accent, content directly on the background:
+///   1. master switch OFF  → a single ENABLE section explaining the (opt-in) feature + a "Turn on" button.
+///   2. ON but no engine   → a plain note pointing at Setup (never a crash).
+///   3. ON + engine ready  → the summary (with Regenerate / Generating…), then suggested-word rows
+///                            (Accept / Dismiss), then nudges. Sections that are empty are hidden.
 /// All data comes from `AIInsightsStore` (which only ever reads local stats); this view is pure UI.
 struct AIInsightsView: View {
     @ObservedObject var ai: AIInsightsStore
     @ObservedObject var store: InsightStore
 
     var body: some View {
-        // The whole feature lives in one column so it slots cleanly above `wordsCard` in InsightsView.
-        VStack(alignment: .leading, spacing: 12) {
+        // The whole feature lives in one column so it slots cleanly above the charts in InsightsView.
+        VStack(alignment: .leading, spacing: 0) {
             if !store.aiInsightsEnabled {
-                enableCard                          // state 1: opt-in
+                enableSection                       // state 1: opt-in
             } else if !ai.isAvailable {
-                unavailableCard                     // state 2: enabled, no on-device engine yet
+                unavailableSection                  // state 2: enabled, no on-device engine yet
             } else {
-                summaryCard                         // state 3: enabled + available
-                if let snap = ai.snapshot, !snap.suggestions.isEmpty { suggestionsCard(snap.suggestions) }
-                if let snap = ai.snapshot, !snap.nudges.isEmpty { nudgesCard(snap.nudges) }
+                summarySection                      // state 3: enabled + available
+                if let snap = ai.snapshot, !snap.suggestions.isEmpty {
+                    Hairline().padding(.vertical, 20)
+                    suggestionsSection(snap.suggestions)
+                }
+                if let snap = ai.snapshot, !snap.nudges.isEmpty {
+                    Hairline().padding(.vertical, 20)
+                    nudgesSection(snap.nudges)
+                }
             }
+        }
+    }
+
+    /// The one place the sparkle glyph appears — it marks the generative layer, nothing else.
+    private func aiHeader(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles").font(.system(size: 12, weight: .medium)).foregroundStyle(WarbleTheme.electric)
+            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
         }
     }
 
     // MARK: state 1 — enable (master switch off)
 
-    /// The opt-in card. Plain about what it is and that it's off by default and stays on-device; the
+    /// The opt-in pitch. Plain about what it is and that it's off by default and stays on-device; the
     /// "Turn on" button flips the master switch and kicks the auto path so a snapshot starts building.
-    private var enableCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(WarbleTheme.electric)
-                Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-            }
+    private var enableSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            aiHeader("Insights AI")
             Text("Optional, on-device weekly summary, suggested words, and nudges — default off, nothing leaves your Mac.")
-                .font(.system(size: 12.5)).foregroundStyle(WarbleTheme.mist)
+                .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
                 .fixedSize(horizontal: false, vertical: true)
             Button("Turn on") {
                 store.aiInsightsEnabled = true
                 ai.refreshIfNeeded()
             }
             .buttonStyle(AIPrimaryButton())
+            .padding(.top, 4)
         }
-        .cardStyle()
     }
 
     // MARK: state 2 — enabled but engine not installed
 
     /// Enabled, but the on-device cleanup engine isn't installed — so there's no model to phrase a
-    /// summary. Styled like the rest of the cards (not a crash, not a blank); points at Setup.
-    private var unavailableCard: some View {
+    /// summary. Not a crash, not a blank; points at Setup.
+    private var unavailableSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(WarbleTheme.electric)
-                Text("Insights AI").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-            }
+            aiHeader("Insights AI")
             Text("Insights AI needs the on-device cleanup engine. Install it from Setup and your weekly summary will appear here — still 100% on your Mac.")
-                .font(.system(size: 12.5)).foregroundStyle(WarbleTheme.mist)
+                .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .cardStyle()
     }
 
     // MARK: state 3a — summary
 
     /// The generative recap: the cached summary text, a relative "Updated …" footer, and a Regenerate
-    /// button. While a pass runs we swap in a "Generating…" state; if the cache is still empty (auto mode
-    /// is mid-refresh on first open) we say so rather than show a blank card.
-    private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles").font(.system(size: 16, weight: .medium)).foregroundStyle(WarbleTheme.electric)
-                Text("This week").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-                Spacer()
+    /// action. While a pass runs we swap in a "Generating…" state; if the cache is still empty (auto mode
+    /// is mid-refresh on first open) we say so rather than show a blank.
+    private var summarySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                aiHeader("This week")
+                Spacer(minLength: 0)
                 Button(action: { ai.regenerate() }) {
                     Label("Regenerate", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon)
                 }
-                .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(WarbleTheme.electricText)
+                .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(WarbleTheme.electricText)
                 .disabled(ai.isGenerating)
                 .opacity(ai.isGenerating ? 0.5 : 1)
             }
@@ -100,27 +106,25 @@ struct AIInsightsView: View {
             }
 
             if let err = ai.lastError {
-                Text(err).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist.opacity(0.8))
+                Text(err).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
             }
         }
-        .cardStyle()
     }
 
     // MARK: state 3b — suggested words
 
     /// Deterministic suggested dictionary rules. Each row reads "from → to · reason" with Accept (learns
-    /// it) and Dismiss (drops it). Rows are divided by the same hairline as Data & Privacy.
-    private func suggestionsCard(_ suggestions: [AISuggestion]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Suggested words").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+    /// it) and Dismiss (drops it). Rows are divided by the dashboard's inset hairlines.
+    private func suggestionsSection(_ suggestions: [AISuggestion]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionHeader(title: "Suggested words")
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(suggestions) { s in
                     suggestionRow(s)
-                    if s.id != suggestions.last?.id { Divider().overlay(WarbleTheme.line).padding(.vertical, 10) }
+                    if s.id != suggestions.last?.id { Hairline() }
                 }
             }
         }
-        .cardStyle()
     }
 
     private func suggestionRow(_ s: AISuggestion) -> some View {
@@ -141,15 +145,16 @@ struct AIInsightsView: View {
                     .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(WarbleTheme.mist)
             }
         }
+        .padding(.vertical, 8)
     }
 
     // MARK: state 3c — nudges
 
-    /// Short computed insights, shown as quiet electric-tinted chips. Always real numbers (no model).
-    private func nudgesCard(_ nudges: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Nudges").font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-            VStack(alignment: .leading, spacing: 8) {
+    /// Short computed insights: an electric bolt glyph beside plain text. Always real numbers (no model).
+    private func nudgesSection(_ nudges: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionHeader(title: "Nudges")
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(nudges, id: \.self) { n in
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "bolt.fill").font(.system(size: 10)).foregroundStyle(WarbleTheme.electric)
@@ -157,13 +162,10 @@ struct AIInsightsView: View {
                         Text(n).font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.horizontal, 10).padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(WarbleTheme.electric.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                    .padding(.vertical, 6)
                 }
             }
         }
-        .cardStyle()
     }
 
     // MARK: helpers

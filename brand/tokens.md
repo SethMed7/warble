@@ -5,13 +5,14 @@ dictado's dusk-blue-on-black). warble is the voice layer for your Mac, so the sy
 around two colors: **electric blue on black.** Blue is the voice — shiny, electric, a tech
 signal; black is the surface it lives on.
 
-The mark is a **songbird singing its sound-wave** — a geometric bird (circle body, round head,
-beak lifted mid-song) whose **wing is three waveform bars**, knocked clean through the silhouette.
-It runs on a **deep-royal → cyan gradient** (the tail sits in deep royal; the song crests in cyan
-toward the beak). Canonical art: `brand/warble-mark.svg` (color) and
-`apps/macos/Sources/Shared/Resources/warble_glyph.svg` (monochrome).
+The mark is **the waveform as a songbird** — twelve vertical sound bars whose envelope traces a
+bird in profile: tail, round body, a sharp neck step, crown, lifted beak. Read small, it's a living
+waveform; read large, the bird appears. It runs on a **deep-royal → cyan gradient** (the tail sits
+in deep royal; the song crests in cyan toward the beak). Canonical art: `brand/warble-mark.svg`
+(color) and `apps/macos/Sources/Shared/Resources/warble_glyph.svg` (monochrome) — both **generated
+by `brand/source/gen_bird_bars.py`** (tune the envelope keypoints there; never hand-edit the bars).
 
-<img src="warble-mark.svg" alt="warble mark — a songbird whose wing is a sound-wave" width="220">
+<img src="warble-mark.svg" alt="warble mark — a songbird built from waveform bars" width="220">
 
 ## Wordmark
 
@@ -48,8 +49,8 @@ lowercase **warble**. Formerly **voz** (through 0.1.8); descends from the same p
 - **Both in-app panels are dark** (`ink #161520`): the read-along panel and the dictation pill are
   the same black card with the one electric-blue accent, so the two capabilities read as one app.
   The **menu-bar icon is the songbird mark** (`apps/macos/Sources/Shared/WarbleMark.swift`, loading
-  `warble_glyph.svg`), drawn as a template so it tints to the light/dark menu bar — the waveform-bar
-  wing stays legible at 18 pt.
+  `warble_glyph.svg`), drawn as a template so it tints to the light/dark menu bar — at 18 pt the
+  bird reads as a compact waveform, which is exactly right for a voice tool.
 
 ## Typography
 

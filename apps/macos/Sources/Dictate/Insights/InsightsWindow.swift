@@ -26,7 +26,15 @@ public final class InsightsWindow: NSObject {
     /// Deep-link from the menu (internal). The app coordinator uses openHome()/openTutorial().
     func open(section: InsightsSection = .home) { openImpl(section: section, tutorial: false) }
     /// Public entry points (callable from the app target, which can't see InsightsSection).
-    public func openHome() { openImpl(section: .home, tutorial: false) }
+    /// QA sibling of WARBLE_FORCE_INSIGHTS: WARBLE_SECTION=history (etc.) lands the forced open on
+    /// any section, so headless screenshots can cover all five panes.
+    public func openHome() {
+        if let raw = ProcessInfo.processInfo.environment["WARBLE_SECTION"],
+           let s = InsightsSection.allCases.first(where: { $0.rawValue.lowercased().hasPrefix(raw.lowercased()) }) {
+            openImpl(section: s, tutorial: false); return
+        }
+        openImpl(section: .home, tutorial: false)
+    }
     /// Open Home and run the first-time, skippable tutorial — e.g. right after engine setup is done.
     public func openTutorial() { openImpl(section: .home, tutorial: true) }
     /// Open straight to Data & Privacy — the dashboard's settings surface. The main menu's

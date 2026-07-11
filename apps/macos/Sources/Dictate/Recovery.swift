@@ -174,9 +174,9 @@ enum Recovery {
         }
     }
 
-    /// The normal post-transcription text pipeline (spell-out → cleanup level → dictionary) —
-    /// mirrors DictateController.transcribeAndDeliver minus the UI and the paste. Completion on
-    /// the main queue.
+    /// The normal post-transcription text pipeline (spell-out → cleanup level → dictionary →
+    /// snippets) — mirrors DictateController.transcribeAndDeliver minus the UI and the paste.
+    /// Completion on the main queue.
     private static func runPipeline(_ audio: URL, clipDuration: TimeInterval,
                                     completion: @escaping (PipelineOutcome) -> Void) {
         Transcribers.run(audio, clipDuration: clipDuration) { outcome in
@@ -186,7 +186,7 @@ enum Recovery {
             case .text(let raw):
                 DispatchQueue.global(qos: .utility).async { // LLM / bun cleaner may block
                     let spell = SpellOut.process(raw)
-                    let cleaned = Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text))
+                    let cleaned = Snippets.shared.expand(Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text)))
                     DispatchQueue.main.async {
                         for rule in spell.learned { Lexicon.shared.learnExplicit(from: rule.from, to: rule.to) }
                         completion(.text(cleaned: cleaned.isEmpty ? raw : cleaned, raw: raw))

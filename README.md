@@ -93,6 +93,14 @@ both AI levels are guarded, so output that changes your words is discarded for t
 result. Whatever the level, each history item also keeps the **raw transcript**: open it in the
 dashboard and click *"what you actually said"* to see — or restore — your verbatim words.
 
+Say a trigger phrase and warble types the text you saved instead — **Snippets**, managed under
+the dashboard's **Snippets** section: add "sign off" → your email signature, "my address" → the
+address you always have to type out, a canned reply, a meeting link. Say the trigger alone and it
+replaces the whole dictation; say it inside a longer sentence and only that span is swapped, the
+rest of your words untouched. Matching is case-insensitive and runs after cleanup and the
+dictionary, so a corrected spelling can still trigger one — fully local, and it only ever fires
+because you defined a trigger.
+
 ### Read aloud (text → voice)
 Press **⌃V** to start watching, then highlight anything — drag-select, double/triple-click, or
 **Shift-click to extend** — and each selection is queued in order and read aloud while a **dark

@@ -4,8 +4,9 @@ import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
-/// `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
+/// `--expand`, `--snippet-set`, `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`,
+/// `--retranscribe`, `--hold-cap`, `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`, `--sounds`,
+/// `--render-pill` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -145,6 +146,23 @@ public enum DictateCLI {
             print(Lexicon.shared.apply(args[i + 1]))
             return true
         }
+        if let i = args.firstIndex(of: "--expand"), i + 1 < args.count {
+            // Snippets (ROADMAP 0.5), headless: fixture triggers via WARBLE_HOME, same idiom as
+            // --apply. Runs the matcher alone — the full leg order (cleanup -> dictionary ->
+            // snippets) is what --bench-e2e and the real pipeline run.
+            Snippets.shared.load()
+            print(Snippets.shared.expand(args[i + 1]))
+            return true
+        }
+        if let i = args.firstIndex(of: "--snippet-set"), i + 2 < args.count {
+            // The dashboard's Add/Save action, headless: proves the write path end to end —
+            // WARBLE_HOME relocation, the owner-only (0600) file, and that a later --expand in a
+            // fresh process reads back exactly what was saved.
+            Snippets.shared.load()
+            Snippets.shared.set(trigger: args[i + 1], expansion: args[i + 2])
+            print("saved '\(args[i + 1].lowercased())' -> \(Snippets.shared.fileURL.path)")
+            return true
+        }
         if args.contains("--selftest") {
             runSelftest()
             return true
@@ -266,7 +284,8 @@ public enum DictateCLI {
     /// (History/stats must not move), then as the control dictation (must land, so a store that's
     /// simply broken can't fake a pass). Prints the raw → cleaned transformation the card shows.
     private static func practiceSim(wav: URL) -> Never {
-        Lexicon.shared.load() // honors WARBLE_DICTIONARY, like the app
+        Lexicon.shared.load()   // honors WARBLE_DICTIONARY, like the app
+        Snippets.shared.load()  // honors WARBLE_HOME, like the app
         var outcome = Transcribers.Outcome.failed
         var done = false
         Transcribers.run(wav, clipDuration: 10) { o in
@@ -278,7 +297,7 @@ public enum DictateCLI {
             exit(1)
         }
         let spell = SpellOut.process(raw)
-        let cleaned = Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text))
+        let cleaned = Snippets.shared.expand(Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text)))
         print("raw: \(raw)")
         print("cleaned: \(cleaned)")
         func ctx(sandbox: Bool) -> DictationContext {
@@ -307,7 +326,8 @@ public enum DictateCLI {
         // Clip duration from the file, so the engine timeout scales exactly as in the app.
         let clipDuration = (try? AVAudioFile(forReading: wav))
             .map { Double($0.length) / $0.processingFormat.sampleRate } ?? 10
-        Lexicon.shared.load() // honors WARBLE_DICTIONARY, like the app and --apply
+        Lexicon.shared.load()  // honors WARBLE_DICTIONARY, like the app and --apply
+        Snippets.shared.load() // honors WARBLE_HOME, like the app
         var times: [Double] = []
         var text = ""
         var failed = 0
@@ -322,7 +342,7 @@ public enum DictateCLI {
             switch outcome {
             case .text(let raw):
                 let spell = SpellOut.process(raw)
-                text = Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text))
+                text = Snippets.shared.expand(Lexicon.shared.apply(Cleaners.best(for: spell.text).clean(spell.text)))
                 let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
                 times.append(ms)
                 print(String(format: "run=%d ms=%.1f", n, ms))

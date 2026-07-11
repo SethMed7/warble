@@ -37,6 +37,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
 | `dictionary` | `--apply` / `--pronounce` over a fixture dictionary; repeated corrections promote at the learn threshold | dictionary |
+| `snippets` | `--expand` over a fixture `WARBLE_HOME`: trigger-alone replaces the whole dictation, trigger-in-sentence replaces only its span, no snippets defined is verbatim passthrough, a dictionary correction can still trigger a snippet (order proof + negative control), and `--snippet-set` writes an owner-only (0600) file a later process reads back | 0.5 snippets |
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
@@ -72,7 +73,7 @@ behavior. The sandbox seams work in any build.
 | `WARBLE_FAULT` | debug | force one failure path: `mic-busy` \| `mic-disconnected` \| `engine-warming` \| `engine-missing` \| `transcribe-fail` |
 | `WARBLE_MAX_HOLD_SECS` | debug | compress the 20-minute session cap so the warn→stop machine runs in seconds |
 | `WARBLE_FORCE_ENGINE` | debug | pin the transcription chain to exactly one engine (`parakeet-warm` \| `parakeet` \| `whisper` \| `apple` \| `stub`) — no silent fallback; `stub` is the engine-free fixed-utterance transcriber the suite runs on any machine |
-| `WARBLE_HOME` | any | relocate the whole `~/.warble` store (history, audio, in-flight buffer) to a sandbox |
+| `WARBLE_HOME` | any | relocate the whole `~/.warble` store (history, audio, in-flight buffer, `snippets.json`) to a sandbox |
 | `WARBLE_DICTIONARY` | any | point the dictionary at a fixture file instead of the real one |
 | `WARBLE_DISABLE_LLM` | any | hide an installed on-device LLM, so Medium/High provably fall back |
 | `WARBLE_FORCE_ONBOARDING=1` | any | reopen the welcome tour on launch without resetting the first-run keys (QA re-entry; **menu → Welcome tour…** is the user path) |

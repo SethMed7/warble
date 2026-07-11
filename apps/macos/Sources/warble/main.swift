@@ -19,7 +19,7 @@ if args.contains("--errors") { // the cause-naming taxonomy of both flows, asser
     DictateCLI.printErrors(); SpeakCLI.printErrors(); exit(0)
 }
 if SpeakCLI.handle(args) { exit(0) }    // --speak "text"
-if DictateCLI.handle(args) { exit(0) }  // --clean / --cleanup / --cleanup-level / --transcribe / --engine / --apply / --selftest
+if DictateCLI.handle(args) { exit(0) }  // --clean / --cleanup / --cleanup-level / --transcribe / --engine / --apply / --expand / --selftest
 if OnboardingCLI.handle(args) { exit(0) } // --onboarding-state / --render-onboarding (DEBUG)
 if SetupCLI.handle(args) { exit(0) }      // --engine-sizes / --fetch-resume / --render-setup (DEBUG)
 

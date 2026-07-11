@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
@@ -33,6 +33,7 @@ describe() {
     cleanup)       echo "cleanup levels: --clean + all four --cleanup levels, engine-free" ;;
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
     dictionary)    echo "--apply/--pronounce over a fixture dictionary + learn-threshold promotion" ;;
+    snippets)      echo "--expand over a fixture WARBLE_HOME: trigger-alone, in-sentence, no-snippets passthrough, dictionary+snippet order, 0600 storage" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -92,6 +93,12 @@ trap 'rm -rf "$REGTMP"' EXIT
 # var outranks the real dictionary; see Lexicon.fileURL / Pronouncer.fileURL).
 DICT="$REGTMP/dict.json"
 printf '%s\n' '{"corrections":{"miele":"Myela"},"pronunciations":{"myela":"my-ell-uh"}}' > "$DICT"
+
+# The fixture snippets home: WARBLE_HOME (unlike the dictionary's own env var) relocates the
+# WHOLE store, so this is a directory containing snippets.json — see Snippets.fileURL.
+SNIP_HOME="$REGTMP/snip-home"
+mkdir -p "$SNIP_HOME"
+printf '%s\n' '{"snippets":{"sign off":"Best,\nSeth","myela engine":"Myela Turbo Engine"}}' > "$SNIP_HOME/snippets.json"
 
 # make_orphan <home> — plant the exact wreckage a crash leaves in a sandbox store: an in-flight
 # WAV (16 kHz mono 16-bit PCM, 32000 bytes = 1.0s of audio) whose RIFF/data sizes are still ZERO,
@@ -228,6 +235,54 @@ check_dictionary() {
   else
     bad "repeated corrections promote at the learn threshold (got \"$LEARN_OUT\")"
   fi
+}
+
+# Snippets (ROADMAP 0.5): --expand over a fixture WARBLE_HOME. The matcher itself (word
+# boundaries, longest-match, no recursion, case-insensitivity, multi-line) is unit-tested in
+# `swift test` (SnippetsTests) against the pure static twin; this proves the headless flag, the
+# storage seam, and — the one thing only an end-to-end check can prove — that the real pipeline
+# order (cleanup -> dictionary -> snippets) is what actually runs.
+check_snippets() {
+  require_bin || return
+  SIGNOFF_WANT=$(printf 'Best,\nSeth')
+  expect "trigger spoken alone replaces the whole dictation" "$SIGNOFF_WANT" \
+    env WARBLE_HOME="$SNIP_HOME" "$BIN" --expand "sign off"
+  expect "trigger inside a longer dictation replaces only its span" "ship the Myela Turbo Engine home" \
+    env WARBLE_HOME="$SNIP_HOME" "$BIN" --expand "ship the myela engine home"
+  EMPTY_HOME="$REGTMP/snip-empty"
+  mkdir -p "$EMPTY_HOME"
+  expect "no snippets defined -> verbatim passthrough" "um so the the report" \
+    env WARBLE_HOME="$EMPTY_HOME" "$BIN" --expand "um so the the report"
+
+  # Dictionary + snippet interaction order: "miele" -> "Myela" (dictionary) must land BEFORE the
+  # "myela engine" trigger is matched, so the real leg order (cleanup -> dictionary -> snippets)
+  # is what a raw "miele" utterance actually gets.
+  APPLIED=$(env WARBLE_DICTIONARY="$DICT" "$BIN" --apply "ship the miele engine home")
+  EXPANDED=$(env WARBLE_HOME="$SNIP_HOME" "$BIN" --expand "$APPLIED")
+  if [ "$EXPANDED" = "ship the Myela Turbo Engine home" ]; then
+    ok "dictionary runs before snippets, so a corrected spelling can still trigger one"
+  else
+    bad "dictionary + snippet interaction order (dictionary=\"$APPLIED\"; expanded=\"$EXPANDED\")"
+  fi
+  # Negative control: the same trigger against the UNCORRECTED spelling must NOT fire — proof
+  # that the positive result above isn't a coincidence of the fixture text.
+  expect "the trigger does not fire before the dictionary corrects the spelling" "ship the miele engine home" \
+    env WARBLE_HOME="$SNIP_HOME" "$BIN" --expand "ship the miele engine home"
+
+  # Storage: the dashboard's Add/Save action (--snippet-set is its headless twin) writes an
+  # owner-only file under WARBLE_HOME, and a later process reads the same entry back.
+  SAVE_HOME="$REGTMP/snip-save"
+  mkdir -p "$SAVE_HOME"
+  env WARBLE_HOME="$SAVE_HOME" "$BIN" --snippet-set "my address" "123 Main St" >/dev/null 2>&1
+  SNIP_FILE="$SAVE_HOME/snippets.json"
+  SNIP_PERM=$(stat -f "%OLp" "$SNIP_FILE" 2>/dev/null || stat -c "%a" "$SNIP_FILE" 2>/dev/null)
+  if [ -f "$SNIP_FILE" ] && [ "$SNIP_PERM" = "600" ]; then
+    ok "snippets.json is written owner-only (0600), like the rest of ~/.warble"
+  else
+    bad "snippets.json owner-only permissions (file: $([ -f "$SNIP_FILE" ] && echo present || echo missing); perm: ${SNIP_PERM:-none})"
+  fi
+  expect "a snippet saved via the dashboard's Add path round-trips through --expand" "123 Main St" \
+    env WARBLE_HOME="$SAVE_HOME" "$BIN" --expand "my address"
 }
 
 check_selftest() {

@@ -11,7 +11,8 @@ level you choose (verbatim-leaning by default, raw transcript always kept), ever
 claim is measured — and all of it is provable by one deterministic command. Plus 0.4 — "the
 first five minutes" — in full: the welcome tour with permission cards that never dead-end and a
 guaranteed first success for both verbs, engine setup without the wait trap, the listening
-contract, and the whole milestone folded into the same regression suite.*
+contract, and the whole milestone folded into the same regression suite. And 0.5 — "cheap
+parity" — begins: Snippets, spoken trigger phrases that expand into saved text.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -203,6 +204,21 @@ contract, and the whole milestone folded into the same regression suite.*
   sandboxed, so a run never touches your real `~/.warble`, dictionary, or preferences. The full
   guide — coverage map, env seams, what still needs a human — is
   [docs/testing.md](docs/testing.md).
+- **Snippets (0.5 begins).** A spoken trigger phrase now expands into text you saved — a
+  signature, an address, a canned reply — managed in a new **Snippets** dashboard section that
+  follows Dictionary's exact layout: add/edit/delete, hairline rows, no boxes. Say the trigger
+  alone and it replaces the whole dictation; say it inside a longer sentence and only that span is
+  swapped. Matching is case-insensitive on word boundaries, tolerates any run of whitespace, and
+  the longest matching trigger wins when two overlap (so "see you soon" beats "see you"). It runs
+  after cleanup and the dictionary and before paste — at every cleanup level, including None, as
+  long as you've defined at least one snippet (a trigger is your explicit intent, never AI
+  rewriting) — so a spelling the dictionary just fixed can still trigger one. Stored at
+  `~/.warble/snippets.json`, owner-only (0600), honoring `WARBLE_HOME` like the rest of the store.
+  Headless proof: a new `--expand "text"` CLI flag (plus `--snippet-set` for the dashboard's write
+  path), a pure matcher unit-tested in `swift test` (word boundaries, longest-match, no recursive
+  expansion, case-insensitivity, multi-line expansions), and a `scripts/regression.sh` check
+  covering trigger-alone, trigger-in-sentence, the no-snippets passthrough, the dictionary-then-
+  snippets ordering, and the 0600 file.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

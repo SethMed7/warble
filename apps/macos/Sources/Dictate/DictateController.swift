@@ -558,7 +558,10 @@ public final class DictateController: NSObject {
                 DispatchQueue.global(qos: .utility).async { // LLM / bun cleaner may block
                     let spell = SpellOut.process(raw) // resolve any spoken spelling first
                     let cleaner = Cleaners.best(for: spell.text) // the chosen cleanup level; off main
-                    let cleaned = Lexicon.shared.apply(cleaner.clean(spell.text)) // cleanup, then your dictionary
+                    // cleanup, then your dictionary, then any snippet triggers (ROADMAP 0.5) — in
+                    // that order, always, regardless of cleanup level: a snippet is explicit user
+                    // intent, not AI rewriting, so it fires whenever any snippet is defined.
+                    let cleaned = Snippets.shared.expand(Lexicon.shared.apply(cleaner.clean(spell.text)))
                     DispatchQueue.main.async {
                         guard self.workGen == gen else { try? FileManager.default.removeItem(at: wav); return } // cancelled during polish
                         for rule in spell.learned { Lexicon.shared.learnExplicit(from: rule.from, to: rule.to) }

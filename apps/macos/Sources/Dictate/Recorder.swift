@@ -48,6 +48,11 @@ final class Recorder {
     /// captured up to the drop is still in the file and is delivered, not lost.
     var onDisconnect: (() -> Void)?
 
+    /// Fired (main thread) the moment the mic actually goes hot — engine started, buffers about
+    /// to flow. The listening contract's start ping hangs off this, so it can never sound for a
+    /// session whose mic failed to open.
+    var onHot: (() -> Void)?
+
     /// Start recording to a fresh temp WAV. Mic permission is requested here
     /// (whisper needs no Speech entitlement). onError fires if we can't record.
     func start(onError: @escaping (DictateError) -> Void) {
@@ -104,6 +109,10 @@ final class Recorder {
             return
         }
         self.engine = engine
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.active else { return } // released before the engine spun up
+            self.onHot?()
+        }
         // The input device can vanish mid-hold: the engine stops silently and no more buffers
         // arrive. Detect it so the session ends naming the cause instead of pasting a mystery.
         configObserver = NotificationCenter.default.addObserver(

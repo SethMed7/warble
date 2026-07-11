@@ -5,10 +5,43 @@ import AVFoundation
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
 /// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
-/// `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`.
+/// `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
+        if let i = args.firstIndex(of: "--sounds") {
+            // The listening contract's pings (ROADMAP 0.4). Get (no value) or set (on|off) the
+            // preference; always prints the resulting state, so a set in one process and a get in
+            // the next proves the UserDefaults round-trip headlessly (the --cleanup-level idiom).
+            if i + 1 < args.count, !args[i + 1].hasPrefix("--") {
+                switch args[i + 1] {
+                case "on": DictateSounds.enabled = true
+                case "off": DictateSounds.enabled = false
+                default:
+                    FileHandle.standardError.write(Data("unknown sounds value \"\(args[i + 1])\" — use on|off\n".utf8))
+                    exit(2)
+                }
+            }
+            print(DictateSounds.enabled ? "on" : "off")
+            return true
+        }
+        #if DEBUG
+        if let i = args.firstIndex(of: "--render-pill") {
+            // The pill's UI-verification seam: rasterize any pill state offscreen at 2x.
+            guard i + 2 < args.count else {
+                FileHandle.standardError.write(Data("usage: --render-pill <state> <out.png>\n".utf8))
+                exit(2)
+            }
+            Overlay.renderPill(args[i + 1], to: URL(fileURLWithPath: args[i + 2]))
+            return true
+        }
+        #else
+        if args.contains("--render-pill") {
+            // Never fall through into launching the app because a QA flag hit a release build.
+            FileHandle.standardError.write(Data("--render-pill exists in DEBUG builds only\n".utf8))
+            exit(2)
+        }
+        #endif
         if args.contains("--axcheck") {
             // Does THIS app have Accessibility? (no prompt) — auto-paste AND learn-from-edits need it.
             print(AXIsProcessTrusted() ? "accessibility: GRANTED" : "accessibility: NOT granted")

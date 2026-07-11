@@ -9,7 +9,8 @@ is what a user actually gets.
 failures name their cause, long sessions cap cleanly instead of truncating silently, cleanup is a
 level you choose (verbatim-leaning by default, raw transcript always kept), every performance
 claim is measured — and all of it is provable by one deterministic command. Plus the start of
-0.4, "the first five minutes": the welcome tour, now a full guaranteed-first-success flow.*
+0.4, "the first five minutes": the welcome tour (now a full guaranteed-first-success flow),
+engine setup without the wait trap, and the listening contract.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -88,6 +89,26 @@ claim is measured — and all of it is provable by one deterministic command. Pl
   (truncated partial resumes with only the remainder transferred, complete dest costs one HEAD,
   full-length partial promotes without a refetch, ignored range restarts) with **zero external
   network**; the resume decision matrix is unit-tested in `swift test`.
+- **The listening contract (0.4 continues).** "Did it hear me?" now has three unmissable answers:
+  - **Sounds.** A soft ping the moment the mic actually goes hot, and a quieter, lower one on a
+    clean stop (release, hands-free stop, or the cap's clean stop) — synthesized in-process, so
+    there's no asset and nothing to download. Cancel and error paths stay silent (their named
+    states already speak). Toggle under **Dictate ▸ Sounds** — on by default, one click to turn
+    off, and off *stays* off; nothing ever re-enables itself.
+  - **Honest phases, end to end.** The pill's three states are now visually unmistakable: the
+    electric waveform reacts only while the mic is hot, a flat line + spinner means transcribing,
+    and a new **brief electric checkmark** blinks as the text lands — then the pill is gone
+    (transient as ever). Fixed on the way: the spinner used to keep spinning for a beat after the
+    paste landed — motion now stops the instant its phase ends.
+  - **Hover shows the gesture.** Hovering the pill — any state — widens it to show the active
+    gesture in place: *hold Fn · Esc cancels* while recording (*double-tap Fn to stop* in
+    hands-free), *Esc cancels* while processing. Discoverability without a manual.
+
+  Headless proof: a new `--sounds` flag round-trips the toggle across processes; a DEBUG
+  `--render-pill` seam renders every pill state — live waveform, hover hint, cap countdown,
+  spinner, checkmark, clipboard/error pills — to a real @2x PNG offscreen; the ping synthesis
+  and hint copy are unit-tested; and `scripts/regression.sh` gained a `listening` check
+  asserting all of it.
 - **Honest numbers, measured.** The benchmark harness lands in `scripts/bench/` and the first
   real numbers in [docs/benchmarks.md](docs/benchmarks.md) — method, caveats, and a reproduction
   command for every figure, per the product constitution (product.md §4.9: measured end-to-end,

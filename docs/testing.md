@@ -31,7 +31,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | --- | --- | --- |
 | `core` | the canonical TS cleaner's acceptance suite (`core/clean.test.ts`, via `bun test`) | cleanup foundation |
 | `build` | a debug `swift build` succeeds and produces the CLI binary | — |
-| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), and the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing) | cleanup / cap logic / 0.4 onboarding + engine setup |
+| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing), and the listening contract's pure halves (ping synthesis: subtle-by-construction, click-free, decaying, tiny; the pill's gesture-hint copy) | cleanup / cap logic / 0.4 onboarding + engine setup + listening contract |
 | `version` | `--version` matches `Info.plist` | — |
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
@@ -48,6 +48,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `practice` | the practice card's sandbox invariant: `--practice-sim` runs the real pipeline (stub engine) and pushes the result through the store's record gate tagged `sandbox` — History/stats must not move — then as the control dictation, which must land; the on-disk `history.json` (under `WARBLE_HOME`) holds exactly the control event | 0.4 guaranteed first success |
 | `setup-sizes` | `--engine-sizes` states the verified download/disk/destination table verbatim (the numbers were measured against the real artifacts — drift means re-verify, exactly like `--errors`), and every Setup card state (fresh / installing / installed / failed) renders offscreen to a real @2x PNG via `--render-setup` (DEBUG seam — width exact at 1120, height the content's own) | 0.4 engine setup friction |
 | `setup-resume` | resumable downloads byte-for-byte against a loopback fixture server (`scripts/fixtures/range-server.ts`, 127.0.0.1 only — the suite never touches the real network) whose request log shows what crossed the wire: a truncated `.part` resumes with `Range: bytes=<n>-`, a complete dest costs one HEAD and zero data, a full-length partial verifies (416 + HEAD) and promotes without a refetch, an ignored range restarts honestly; the resume decision matrix itself is unit-tested (`swift test`) | 0.4 engine setup friction |
+| `listening` | the listening contract's headless halves: the start/stop pings' toggle round-trips through UserDefaults **across processes** via `--sounds` (default on — the ping is the contract; off *stays* off, product.md §4.5), and every pill state renders offscreen to a real @2x PNG via `--render-pill` (DEBUG seam — no panel, no mic; representative bar levels and a frozen spinner injected): the live listening waveform, the hover-revealed gesture hint, the cap countdown, the processing spinner, the landed checkmark, and the clipboard/error text pills — wave-pill dims asserted exactly, text-bearing states must out-width their textless base | 0.4 listening contract |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
@@ -95,6 +96,18 @@ the binary directly (no flags = the full app): `cd apps/macos && WARBLE_FAULT=mi
   **Re-transcribe** click resolves it in place.
 - **Undo-polish in the dashboard**: open a History item where cleanup changed the text — *"what
   you actually said"* shows the raw transcript, and restore puts it back as the transcript.
+- **The pings, heard**: hold Fn — a soft higher ping the moment the mic opens (never before), a
+  quieter lower one on release; the same pair for hands-free and for the cap's clean stop.
+  Esc-cancel and every error path stay silent. **Dictate ▸ Sounds** off silences both, survives a
+  relaunch, and never comes back on by itself. (The synthesis and the toggle's persistence are
+  the scripted twins — `swift test` + `--sounds`; this pass is your ears.)
+- **Hover the pill, live**: mid-recording, mouse over the pill — it widens in place with
+  *hold Fn · Esc cancels* (*double-tap Fn to stop* in a hands-free session) and narrows back on
+  mouse-out, waveform undisturbed; while processing it shows *Esc cancels*; on the clipboard/error
+  pills the hint is *hold Fn to dictate*. (Every hover look is rendered headlessly by
+  `--render-pill`; this pass is the tracking itself.)
+- **The landed checkmark**: after a paste lands, the spinner must become a brief electric ✓ and
+  the pill must be gone well under a second — no spinner ever visible after the text has landed.
 - **The paste itself** (+ Copy Last Dictation, Recent Dictations) into real apps — editor,
   terminal, Slack.
 - **Read-aloud**: ⌃V watch → selection queue → follow-along highlighting → collapse → Esc.

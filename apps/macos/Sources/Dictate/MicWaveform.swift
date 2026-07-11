@@ -53,6 +53,17 @@ final class MicWaveformView: NSView {
 
     private func stop() { timer?.invalidate(); timer = nil }
 
+    #if DEBUG
+    /// Render seam (--render-pill): pin the bars to an exact frame and stop the display loop, so
+    /// an offscreen snapshot is deterministic — no live animation in a headless render.
+    func freeze(levels frozen: [CGFloat]) {
+        stop()
+        flat = true // a later setLevel must not re-arm the loop
+        for i in levels.indices { levels[i] = frozen[min(i, frozen.count - 1)] }
+        needsDisplay = true
+    }
+    #endif
+
     private func tick() {
         phase += 0.42
         for i in levels.indices {
@@ -103,10 +114,20 @@ final class Spinner: NSView {
     }
     private let arc = CAShapeLayer()
 
+    #if DEBUG
+    /// Render seam (--render-pill): when set, new spinners draw a static arc via draw(_:) instead
+    /// of hosting an animated CAShapeLayer — which a headless offscreen snapshot can't capture.
+    static var frozenForRender = false
+    private var frozen = false
+    #endif
+
     override init(frame: NSRect) { super.init(frame: frame); setup() }
     required init?(coder: NSCoder) { fatalError() }
 
     private func setup() {
+        #if DEBUG
+        if Self.frozenForRender { frozen = true; return }
+        #endif
         wantsLayer = true
         arc.fillColor = NSColor.clear.cgColor
         arc.strokeColor = color.cgColor
@@ -115,8 +136,25 @@ final class Spinner: NSView {
         layer?.addSublayer(arc)
     }
 
+    #if DEBUG
+    override func draw(_ dirtyRect: NSRect) {
+        guard frozen else { return } // live spinners are pure Core Animation — nothing to draw
+        let r = max(2, min(bounds.width, bounds.height) / 2 - 1.5)
+        let path = NSBezierPath()
+        path.appendArc(withCenter: NSPoint(x: bounds.midX, y: bounds.midY), radius: r,
+                       startAngle: 0, endAngle: 270)
+        path.lineWidth = 2
+        path.lineCapStyle = .round
+        color.setStroke()
+        path.stroke()
+    }
+    #endif
+
     override func layout() {
         super.layout()
+        #if DEBUG
+        if frozen { return }
+        #endif
         let r = max(2, min(bounds.width, bounds.height) / 2 - 1.5)
         let path = CGMutablePath()
         path.addArc(center: CGPoint(x: bounds.midX, y: bounds.midY), radius: r,

@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening warm"
 
 describe() {
   case "$1" in
@@ -45,6 +45,7 @@ describe() {
     practice)      echo "practice sandbox: a rehearsal dictation shows raw -> cleaned but never lands in History/stats" ;;
     setup-sizes)   echo "engine setup: --engine-sizes states the verified size/destination table; every Setup card state renders a real @2x PNG" ;;
     setup-resume)  echo "engine setup: downloads resume a truncated .part, reuse a complete dest, restart on an ignored range — loopback fixture server, no external network" ;;
+    listening)     echo "the listening contract: the sounds toggle round-trips (--sounds, default on); every pill state renders a real @2x PNG" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -661,6 +662,66 @@ check_setup_resume() {
 
   kill "$RSRV_PID" 2>/dev/null
   wait "$RSRV_PID" 2>/dev/null
+}
+
+# The listening contract (ROADMAP 0.4 — "it heard me", unambiguous). Two headless halves:
+# (1) the start/stop pings' toggle must round-trip through UserDefaults across processes via
+# --sounds — default ON (the ping is the contract), and once off it must STAY off (product.md
+# §4.5: nothing re-enables itself). The pings themselves are synthesized pure math, unit-tested
+# in swift test (SoundsTests); actually hearing them is a by-hand item in docs/testing.md.
+# (2) every pill state must render offscreen to a real @2x PNG via --render-pill (DEBUG seam;
+# no panel, no mic): the live listening waveform, the hover-revealed gesture hint, the cap
+# countdown, the processing spinner, the landed checkmark, and the clipboard/error text pills.
+# Wave-pill layouts carry no text, so their dims are asserted exactly; text-bearing states carry
+# font-metric widths, so they assert height + "the extra content actually widened the pill".
+check_listening() {
+  require_bin || return
+  PIN_SOUNDS=$(defaults read warble dictateSounds 2>/dev/null || true)
+  defaults delete warble dictateSounds >/dev/null 2>&1
+  expect "sounds default on (the ping is the contract)" "on" "$BIN" --sounds
+  expect "--sounds off persists" "off" "$BIN" --sounds off
+  expect "sounds stay off across processes (nothing re-enables itself)" "off" "$BIN" --sounds
+  expect "--sounds on re-enables (the user's call, only ever the user's)" "on" "$BIN" --sounds on
+  if [ -n "$PIN_SOUNDS" ]; then
+    defaults write warble dictateSounds -int "$PIN_SOUNDS" >/dev/null 2>&1
+  else
+    defaults delete warble dictateSounds >/dev/null 2>&1
+  fi
+
+  PILL_DIR="$REGTMP/pill"
+  mkdir -p "$PILL_DIR"
+  # Fixed-layout states: exact pixel dims (the pill's arithmetic, at 2x).
+  for spec in "listening 176" "processing 220" "landed 220" "copied 920"; do
+    set -- $spec
+    PILL_PNG="$PILL_DIR/$1.png"
+    if "$BIN" --render-pill "$1" "$PILL_PNG" >/dev/null 2>&1 && [ -s "$PILL_PNG" ]; then
+      PILL_DIMS=$(sips -g pixelWidth -g pixelHeight "$PILL_PNG" 2>/dev/null | awk '/pixel/ {printf "%s ", $2}')
+      if [ "$PILL_DIMS" = "$2 64 " ]; then
+        ok "pill state '$1' renders offscreen at 2x (${2}x64 PNG)"
+      else
+        bad "pill state '$1' renders offscreen at 2x (dims: ${PILL_DIMS:-none}, want $2 64)"
+      fi
+    else
+      bad "pill state '$1' renders a nonzero PNG"
+    fi
+  done
+  # Text-bearing states: height exact; width must exceed the state's textless base, proving the
+  # hint/countdown/copy actually joined the capsule.
+  for spec in "listening+hint 176" "listening+cap 176" "processing+hint 220" "error 240"; do
+    set -- $spec
+    PILL_PNG="$PILL_DIR/$1.png"
+    if "$BIN" --render-pill "$1" "$PILL_PNG" >/dev/null 2>&1 && [ -s "$PILL_PNG" ]; then
+      PILL_W=$(sips -g pixelWidth "$PILL_PNG" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+      PILL_H=$(sips -g pixelHeight "$PILL_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+      if [ "$PILL_H" = "64" ] && [ "${PILL_W:-0}" -gt "$2" ]; then
+        ok "pill state '$1' renders wider than its base (${PILL_W}x64 PNG)"
+      else
+        bad "pill state '$1' renders wider than its base (dims: ${PILL_W:-none}x${PILL_H:-none}, want >$2 x64)"
+      fi
+    else
+      bad "pill state '$1' renders a nonzero PNG"
+    fi
+  done
 }
 
 # Warm-engine extras — the only checks that need the premium engines installed. Gated behind

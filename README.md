@@ -74,6 +74,12 @@ mid-dictation the next launch quietly offers **menu → Dictate → Recover Last
 transcribes it into History (never auto-pasted). If transcription itself fails, the dictation lands
 in History as a *failed* item with its recording kept — open it and hit **Re-transcribe**.
 
+You always know it heard you: a soft ping sounds the moment the mic actually opens, and a quieter,
+lower one on a clean stop (toggle under **menu → Dictate → Sounds** — off stays off). The pill's
+phases are honest end to end — the waveform moves only while it's listening, a spinner replaces it
+while it transcribes, and a brief electric ✓ blinks as the text lands. Hover the pill any time and
+it shows the active gesture (*hold Fn · Esc cancels*).
+
 One honest limit: a single dictation is capped at **20 minutes** (the category norm; it also keeps
 a maxed-out clip inside the premium engine's single-pass window). With one minute left the pill
 adds an orange countdown ("stops in 0:59"), and at the cap warble stops **cleanly** — everything

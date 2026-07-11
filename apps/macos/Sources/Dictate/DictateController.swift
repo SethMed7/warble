@@ -20,6 +20,7 @@ public final class DictateController: NSObject {
     private let recorder = Recorder()
     private let learner = KeystrokeLearner() // learns corrections from keystrokes — works in terminals too
     private var handsFree = false // true while a double-tap-⌃ (no-hold) session is recording
+    private var micWentHot = false // this session's mic actually opened — gates the stop ping (no stop without a start)
     private var capClock: HoldCapClock? // counts down to, then cleanly enforces, the long-session cap
     private var sessionCapped = false   // this session was stopped by the cap — deliver() names why
     /// Bumped whenever a session ends or is cancelled, so a late transcribe/polish completion from a
@@ -93,6 +94,12 @@ public final class DictateController: NSObject {
         HotKey.shared.onRelease = { [weak self] in self?.hotKeyReleased() }
         HotKey.shared.onDoubleTap = { [weak self] in self?.handsFreeToggle() }
         recorder.onDisconnect = { [weak self] in self?.micDisconnected() }
+        // The listening contract's start ping (ROADMAP 0.4): tied to the mic ACTUALLY opening —
+        // a session whose mic fails stays silent (its error state speaks instead).
+        recorder.onHot = { [weak self] in
+            self?.micWentHot = true
+            DictateSounds.playStart()
+        }
         if dictateEnabled { HotKey.shared.register() } // off → no monitor, no permission prompt
         pendingRecovery = Recovery.scan() // an unclean exit mid-dictation? offer the quiet Recover row
     }
@@ -197,6 +204,11 @@ public final class DictateController: NSObject {
         learn.target = self
         learn.state = learnEnabled ? .on : .off
         sub.addItem(learn)
+        let sounds = NSMenuItem(title: "Sounds", action: #selector(toggleSounds), keyEquivalent: "")
+        sounds.target = self
+        sounds.state = DictateSounds.enabled ? .on : .off
+        sounds.toolTip = "A soft ping when the mic goes hot; a quieter one on a clean stop"
+        sub.addItem(sounds)
         sub.addItem(.separator())
         let dash = NSMenuItem(title: "Dictionary…", action: #selector(openDictionary), keyEquivalent: "d")
         dash.target = self
@@ -221,6 +233,7 @@ public final class DictateController: NSObject {
             capClock?.cancel(); capClock = nil
             processingWatchdog?.cancel(); processingWatchdog = nil
             unregisterEsc() // and don't leave Esc consumed if we were recording
+            micWentHot = false // torn down, not cleanly stopped — no ping
             if let clip = recorder.stop() { try? FileManager.default.removeItem(at: clip.url) }
             state = .idle
             learner.stop(); LearnPill.shared.close()
@@ -244,6 +257,13 @@ public final class DictateController: NSObject {
     @objc private func toggleLearn() {
         learnEnabled.toggle()
         if !learnEnabled { learner.stop(); LearnPill.shared.close() }
+        onMenuRebuild?() // refresh the checkmark in the shared menu
+    }
+
+    /// The start/stop pings (the audible half of the listening contract). Off stays off —
+    /// nothing ever re-enables it (product.md §4.5).
+    @objc private func toggleSounds() {
+        DictateSounds.enabled.toggle()
         onMenuRebuild?() // refresh the checkmark in the shared menu
     }
 
@@ -338,9 +358,10 @@ public final class DictateController: NSObject {
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt
         workGen &+= 1 // a fresh session; any straggler completion from before is now stale
         sessionCapped = false
+        micWentHot = false
         registerEsc() // Esc cancels — while recording, and through processing
         state = .listening
-        Overlay.shared.showListening()
+        Overlay.shared.showListening(handsFree: handsFree) // shapes the pill's hover hint
         // Warm the engines now so their load overlaps with you speaking, not the paste path:
         // the warm Parakeet ASR server and the LLM polish model.
         DispatchQueue.global(qos: .utility).async {
@@ -369,10 +390,16 @@ public final class DictateController: NSObject {
         })
     }
 
-    private func finishRecording() {
+    private func finishRecording(playStopSound: Bool = true) {
         capClock?.cancel(); capClock = nil
         state = .finishing // Esc stays claimed → it now cancels the transcribe/polish (see escapePressed)
-        guard let clip = recorder.stop() else { // nothing captured
+        let stopped = recorder.stop()
+        // The stop ping — a clean, user-intended end only (release / hands-free stop / the cap's
+        // clean stop). After recorder.stop(), so it can never leak into the clip; gated on the mic
+        // having actually opened; skipped on the disconnect path (that error names itself).
+        if micWentHot, playStopSound { DictateSounds.playStop() }
+        micWentHot = false
+        guard let clip = stopped else { // nothing captured
             unregisterEsc(); state = .idle
             Log.dictate.info("reason=no-clip — recorder had nothing")
             Overlay.shared.close()
@@ -408,7 +435,7 @@ public final class DictateController: NSObject {
         noteError(.micDisconnected)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self, self.state == .listening else { return } // released or cancelled meanwhile
-            self.finishRecording()
+            self.finishRecording(playStopSound: false) // an error path — the named cause speaks, not a chime
         }
     }
 
@@ -428,6 +455,7 @@ public final class DictateController: NSObject {
         capClock?.cancel(); capClock = nil
         unregisterEsc()
         handsFree = false
+        micWentHot = false // cancelled — no stop ping (only clean stops chime)
         recorder.onLevel = nil
         if let clip = recorder.stop() { try? FileManager.default.removeItem(at: clip.url) }
         state = .idle
@@ -564,7 +592,7 @@ public final class DictateController: NSObject {
             // user didn't aim at), nothing remembered or learned; InsightStore.record
             // double-guards on ctx.sandbox so History/stats can't move either.
             PracticeSandbox.shared.deliver(raw: raw, cleaned: cleaned)
-            Overlay.shared.showTyped()
+            Overlay.shared.showLanded()
             return
         }
         remember(cleaned)                                                // in-memory safety net for a mis-targeted paste
@@ -578,7 +606,7 @@ public final class DictateController: NSObject {
             } else if shouldNoteAppleFloor(ctx) {
                 Overlay.shared.flash(message: DictateError.engineMissing.message) // notice, not a failure
             } else {
-                Overlay.shared.showTyped()
+                Overlay.shared.showLanded()
             }
             startLearning(pasted: cleaned)
         } else {

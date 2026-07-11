@@ -48,6 +48,7 @@ final class WarmASR {
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         server = (try? p.run()) != nil ? p : nil
+        if server == nil { Log.dictate.error("warm ASR server failed to spawn") }
     }
 
     func isHealthy() -> Bool { LoopbackHTTP.health(baseURL) == .ok }
@@ -58,7 +59,10 @@ final class WarmASR {
     func transcribe(wav16kPath: String, timeout: TimeInterval) -> String? {
         guard Self.isInstalled() else { return nil }
         ensureRunning()
-        guard waitHealthy(timeout: 8) else { return nil } // first call waits out the one-time model load
+        guard waitHealthy(timeout: 8) else { // first call waits out the one-time model load
+            Log.dictate.info("warm ASR not healthy in time — cold chain takes over")
+            return nil
+        }
         guard let body = try? JSONSerialization.data(withJSONObject: ["path": wav16kPath]) else { return nil }
         guard let d = LoopbackHTTP.postJSON("\(baseURL)/transcribe", body: body, timeout: max(15, timeout)),
               let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],

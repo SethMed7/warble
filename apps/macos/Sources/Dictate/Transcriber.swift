@@ -8,42 +8,61 @@ import Shared
 /// modes: no endpointer, no 30s timeout, no 1-minute cap, no isFinal-on-device
 /// hang, and crucially no pause-drop. Pluggable like the Cleaner protocol.
 protocol Transcriber {
-    /// Transcribe `wav`, calling completion on the main queue with the text
-    /// (empty string on failure). Bounded by `timeout` so a wedged engine
-    /// can never hang the paste path.
-    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String) -> Void)
+    /// Transcribe `wav`, calling completion on the main queue with the text — nil when the
+    /// ENGINE failed (spawn error, non-zero exit, timeout, denied auth), "" when it ran fine and
+    /// heard nothing. The distinction is what lets the chain name "transcription failed" vs
+    /// "nothing heard". Bounded by `timeout` so a wedged engine can never hang the paste path.
+    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String?) -> Void)
 }
 
 enum Transcribers {
+    /// What a run of the whole chain concluded, so the caller can name the cause.
+    enum Outcome {
+        case text(String) // a transcript (non-empty, post-hallucination-filter)
+        case silence      // at least one engine ran fine and heard nothing — the clip is empty
+        case failed       // EVERY engine errored — the audio is still good; the caller keeps it
+    }
+
     /// Run the best available engine, falling through to the next on any empty/failed
     /// result over the SAME WAV (mirrors the cleaner chain's fall-through) — so a 30-second hold
     /// is never silently lost. Priority: Parakeet (sherpa-onnx, NVIDIA, best accuracy +
     /// no silence-hallucination) → whisper.cpp → Apple on-device (the zero-setup floor).
     /// Every result passes the anti-hallucination filter.
-    static func run(_ wav: URL, clipDuration: TimeInterval, completion: @escaping (String) -> Void) {
+    static func run(_ wav: URL, clipDuration: TimeInterval, completion: @escaping (Outcome) -> Void) {
+        if Fault.isActive(.transcribeFail) { DispatchQueue.main.async { completion(.failed) }; return }
+        if Fault.isActive(.engineWarming) { return } // never completes → the processing watchdog names the warm-up
         let timeout = max(15, clipDuration * 2 + 8)
         var chain: [Transcriber] = []
-        if WarmSherpaTranscriber.isAvailable() { chain.append(WarmSherpaTranscriber()) } // warm Parakeet (~0.08s)
-        if SherpaTranscriber.isAvailable() { chain.append(SherpaTranscriber()) }          // cold Parakeet fallback
-        if WhisperTranscriber.isAvailable() { chain.append(WhisperTranscriber()) }
+        if !Fault.isActive(.engineMissing) { // debug-only: pretend no premium engine is installed
+            if WarmSherpaTranscriber.isAvailable() { chain.append(WarmSherpaTranscriber()) } // warm Parakeet (~0.08s)
+            if SherpaTranscriber.isAvailable() { chain.append(SherpaTranscriber()) }          // cold Parakeet fallback
+            if WhisperTranscriber.isAvailable() { chain.append(WhisperTranscriber()) }
+        }
         chain.append(AppleFileTranscriber()) // always present: the install-free baseline
-        tryChain(chain, 0, wav, timeout, completion)
+        tryChain(chain, 0, wav, timeout, sawEmpty: false, completion)
     }
 
-    private static func tryChain(_ chain: [Transcriber], _ i: Int, _ wav: URL, _ timeout: TimeInterval, _ completion: @escaping (String) -> Void) {
-        guard i < chain.count else { completion(""); return }
+    private static func tryChain(_ chain: [Transcriber], _ i: Int, _ wav: URL, _ timeout: TimeInterval,
+                                 sawEmpty: Bool, _ completion: @escaping (Outcome) -> Void) {
+        guard i < chain.count else { completion(sawEmpty ? .silence : .failed); return }
         let engine = chain[i]
         engine.transcribe(wav, timeout: timeout) { text in
             _ = engine // retain the instance through its async call
+            guard let text else { // engine errored → next engine, same WAV
+                Log.dictate.error("engine \(String(describing: type(of: engine)), privacy: .public) failed — falling through")
+                tryChain(chain, i + 1, wav, timeout, sawEmpty: sawEmpty, completion)
+                return
+            }
             let cleaned = Hallucination.filter(text)
-            if !cleaned.isEmpty { completion(cleaned); return }
-            tryChain(chain, i + 1, wav, timeout, completion) // empty/failed → next engine, same WAV
+            if !cleaned.isEmpty { completion(.text(cleaned)); return }
+            tryChain(chain, i + 1, wav, timeout, sawEmpty: true, completion) // ran, heard nothing → next engine
         }
     }
 
     /// User-facing name of the engine a dictation would use right now — the single source of
     /// truth for the priority order, shown in the menu and the --engine flag.
     static func activeEngineName() -> String {
+        if Fault.isActive(.engineMissing) { return "Apple Speech" } // debug-only, mirrors run()
         if WarmSherpaTranscriber.isAvailable() { return "Parakeet (warm)" }
         if SherpaTranscriber.isAvailable() { return "Parakeet" }
         if WhisperTranscriber.isAvailable() { return "whisper.cpp" }
@@ -130,19 +149,19 @@ enum AudioConvert {
 // MARK: - Warm Parakeet (sherpa-onnx kept loaded via WarmASR — ~0.08s/clip vs ~1.5s cold)
 
 /// Transcribes via warble's warm ASR server: convert to 16k mono in-process, then hand the path to
-/// WarmASR (loopback HTTP). Same Parakeet model as SherpaTranscriber, just never reloaded. Returns ""
-/// on any failure so the chain falls through to the cold engines.
+/// WarmASR (loopback HTTP). Same Parakeet model as SherpaTranscriber, just never reloaded. Returns
+/// nil on any failure so the chain falls through to the cold engines.
 final class WarmSherpaTranscriber: Transcriber {
     static func isAvailable() -> Bool { WarmASR.isInstalled() }
 
-    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String) -> Void) {
+    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let wav16 = wav.deletingPathExtension().appendingPathExtension("warm16k.wav")
             defer { try? FileManager.default.removeItem(at: wav16) }
             guard AudioConvert.to16kMonoWAV(input: wav, output: wav16) else {
-                DispatchQueue.main.async { completion("") }; return
+                DispatchQueue.main.async { completion(nil) }; return
             }
-            let text = WarmASR.shared.transcribe(wav16kPath: wav16.path, timeout: timeout) ?? ""
+            let text = WarmASR.shared.transcribe(wav16kPath: wav16.path, timeout: timeout)
             DispatchQueue.main.async { completion(text) }
         }
     }
@@ -198,16 +217,16 @@ final class SherpaTranscriber: Transcriber {
 
     static func isAvailable() -> Bool { binaryPath() != nil && modelDir() != nil }
 
-    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String) -> Void) {
+    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String?) -> Void) {
         guard let bin = Self.binaryPath(), let model = Self.modelDir() else {
-            DispatchQueue.main.async { completion("") }; return
+            DispatchQueue.main.async { completion(nil) }; return
         }
         DispatchQueue.global(qos: .userInitiated).async {
             // sherpa needs single-channel 16-bit PCM.
             let wav16 = wav.deletingPathExtension().appendingPathExtension("16k.wav")
             defer { try? FileManager.default.removeItem(at: wav16) }
             guard AudioConvert.to16kMonoWAV(input: wav, output: wav16) else {
-                DispatchQueue.main.async { completion("") }; return
+                DispatchQueue.main.async { completion(nil) }; return
             }
             // No --model-type: auto-detect handles Parakeet TDT (the `transducer` value rejects it).
             let args = [
@@ -218,7 +237,7 @@ final class SherpaTranscriber: Transcriber {
                 "--num-threads=4",
                 wav16.path,
             ]
-            var text = ""
+            var text: String? // nil = the spawn failed/timed out/exited non-zero
             if let r = Subprocess.run(bin, args, timeout: timeout), r.status == 0 { text = Self.parseText(r.stdout) }
             DispatchQueue.main.async { completion(text) }
         }
@@ -269,13 +288,13 @@ final class WhisperTranscriber: Transcriber {
 
     static func isAvailable() -> Bool { binaryPath() != nil && modelPath() != nil }
 
-    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String) -> Void) {
+    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String?) -> Void) {
         guard let bin = Self.binaryPath(), let model = Self.modelPath() else {
-            DispatchQueue.main.async { completion("") }; return
+            DispatchQueue.main.async { completion(nil) }; return
         }
         DispatchQueue.global(qos: .userInitiated).async {
             let args = ["-m", model, "-f", wav.path, "-nt", "-np", "-l", "en", "-sns"]
-            var text = ""
+            var text: String? // nil = the spawn failed/timed out/exited non-zero
             if let r = Subprocess.run(bin, args, timeout: timeout), r.status == 0 {
                 text = String(decoding: r.stdout, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -296,17 +315,17 @@ final class AppleFileTranscriber: Transcriber {
     private var resolved = false
     private let lock = NSLock() // the recognition callback and the timeout race to finish exactly once
 
-    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String) -> Void) {
+    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String?) -> Void) {
         ensureAuth { [weak self] ok in
-            guard let self else { completion(""); return }
+            guard let self else { completion(nil); return }
             guard ok, let recognizer = self.recognizer, recognizer.isAvailable,
-                  recognizer.supportsOnDeviceRecognition else { completion(""); return }
+                  recognizer.supportsOnDeviceRecognition else { completion(nil); return }
 
             let request = SFSpeechURLRecognitionRequest(url: wav)
             request.requiresOnDeviceRecognition = true
             request.shouldReportPartialResults = false
 
-            let finish: (String) -> Void = { text in
+            let finish: (String?) -> Void = { text in
                 self.lock.lock()
                 if self.resolved { self.lock.unlock(); return }
                 self.resolved = true
@@ -321,11 +340,13 @@ final class AppleFileTranscriber: Transcriber {
                     self.lock.lock(); self.latest = result.bestTranscription.formattedString; let snap = self.latest; self.lock.unlock()
                     if result.isFinal { finish(snap) }
                 }
-                if error != nil { self.lock.lock(); let snap = self.latest; self.lock.unlock(); finish(snap) }
+                // Errored (or timed out below) with no partial text = the ENGINE failed → nil;
+                // with a partial, the words win — deliver what it got.
+                if error != nil { self.lock.lock(); let snap = self.latest; self.lock.unlock(); finish(snap.isEmpty ? nil : snap) }
             }
             // Bound it: on-device file recognition is usually quick, but never hang the paste path.
             DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
-                self.lock.lock(); let snap = self.latest; self.lock.unlock(); finish(snap)
+                self.lock.lock(); let snap = self.latest; self.lock.unlock(); finish(snap.isEmpty ? nil : snap)
             }
         }
     }

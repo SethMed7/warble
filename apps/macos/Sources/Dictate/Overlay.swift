@@ -20,6 +20,7 @@ final class Overlay {
     private let bg = Theme.pillSurface.ns  // canon ink at 97% — the floating-capsule surface
     private let stroke = Theme.line.ns
     private let electricText = Theme.electricText.ns // the accent's AA-safe small-text tint
+    private let warn = Theme.warn.ns       // true failures only, always with a glyph (DESIGN.md)
 
     private let pillHeight: CGFloat = 32
     private let waveSize = CGSize(width: 64, height: 20)
@@ -47,6 +48,14 @@ final class Overlay {
     func flash(message: String) {
         presentText(message, detail: nil)
         autoClose(after: 1.4)
+    }
+
+    /// A true failure: the named cause in warn, paired with a glyph so color is never the only
+    /// signal (warn is the single declared exception to the one-accent law — DESIGN.md). Dwell is
+    /// longer than a notice so the cause can actually be read.
+    func flashError(message: String) {
+        presentText(message, detail: nil, error: true)
+        autoClose(after: 2.6)
     }
 
     func close() {
@@ -113,11 +122,19 @@ final class Overlay {
 
     // MARK: text pill (errors / clipboard fallback)
 
-    private func presentText(_ message: String, detail: String?) {
+    private func presentText(_ message: String, detail: String?, error: Bool = false) {
         close()
         let hasDetail = detail != nil && !(detail!.isEmpty)
-        let msg = label(message, size: 12, weight: .medium, color: hasDetail ? electricText : muted)
+        let msg = label(message, size: 12, weight: .medium, color: error ? warn : (hasDetail ? electricText : muted))
         var views: [NSView] = [msg]
+        if error { // failures pair the warn copy with a glyph — color is never the only signal
+            let icon = NSImageView()
+            icon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "error")?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
+            icon.contentTintColor = warn
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            views.insert(icon, at: 0)
+        }
         if hasDetail {
             let d = label(detail!, size: 12, weight: .regular, color: textHi)
             d.maximumNumberOfLines = 1
@@ -126,11 +143,11 @@ final class Overlay {
             d.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             views.append(d)
         }
-        let width: CGFloat = hasDetail ? 460 : max(120, msg.intrinsicContentSize.width + 34)
+        let width: CGFloat = hasDetail ? 460 : max(120, msg.intrinsicContentSize.width + 34 + (error ? 22 : 0))
         let height: CGFloat = 32
         let stack = NSStackView(views: views)
         stack.orientation = .horizontal
-        stack.spacing = 12
+        stack.spacing = error ? 8 : 12
         stack.alignment = .centerY
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false

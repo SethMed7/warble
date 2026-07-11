@@ -255,6 +255,7 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --apply "ship the miele engine"  # apply your dictionary (dictation)
 .build/debug/warble --pronounce "read Myela aloud"   # apply your pronunciations (read-aloud)
 .build/debug/warble --selftest              # learn-from-edits logic
+.build/debug/warble --errors                # the cause-naming error taxonomy (a copy contract)
 ```
 
 **Regression:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — it

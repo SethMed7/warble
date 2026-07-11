@@ -52,6 +52,7 @@ final class Overlay {
     private let surface = Theme.pillSurface.ns // canon ink at 97% — the floating-panel surface
     private let line = Theme.line.ns           // hairline border on dark + the neutral circle fill
     private let electricText = Theme.electricText.ns // the accent's AA-safe small-text tint
+    private let warn = Theme.warn.ns           // true failures only, always with a glyph (DESIGN.md)
     private let bodyFont = NSFont.systemFont(ofSize: 15)
     private var boldFont: NSFont { NSFont.systemFont(ofSize: 15, weight: .heavy) }
 
@@ -186,18 +187,50 @@ final class Overlay {
 
     func setStatus(_ text: String) {
         guard panel != nil else { return }
-        statusLabel?.stringValue = text
+        setPlainStatus(text)
     }
+
+    /// While reading with the fallback system voice (a premium voice picked, Kokoro not installed),
+    /// the status line carries the honesty note instead of the generic "reading aloud".
+    private var voiceFallback = false
+    func setVoiceFallback(_ on: Bool) { voiceFallback = on }
 
     func update(state: SpeakerState) {
         guard panel != nil else { return }
         switch state {
-        case .preparing: statusLabel.stringValue = "preparing voice…"; setSpeaking(false)
-        case .speaking: statusLabel.stringValue = "reading aloud"; setPlayGlyph(playing: true); setSpeaking(true)
-        case .paused: statusLabel.stringValue = "paused"; setPlayGlyph(playing: false); setSpeaking(false)
+        case .preparing: setPlainStatus("preparing voice…"); setSpeaking(false)
+        case .speaking:
+            setPlainStatus(voiceFallback ? SpeakError.voiceMissing.message : "reading aloud")
+            setPlayGlyph(playing: true); setSpeaking(true)
+        case .paused: setPlainStatus("paused"); setPlayGlyph(playing: false); setSpeaking(false)
         case .done: setPlayGlyph(playing: false); setSpeaking(false)
-        case .failed(let message): statusLabel.stringValue = "error: \(message)"; setSpeaking(false)
+        case .failed(let message): setFailedStatus(message); setSpeaking(false)
         }
+    }
+
+    /// Plain status resets any failure styling left behind (color and attributed content).
+    private func setPlainStatus(_ text: String) {
+        statusLabel?.textColor = textLo
+        statusLabel?.stringValue = text
+    }
+
+    /// A true failure: the named cause in warn, paired with a glyph so color is never the only
+    /// signal (warn is the single declared exception to the one-accent law — DESIGN.md).
+    private func setFailedStatus(_ message: String) {
+        guard let statusLabel else { return }
+        let s = NSMutableAttributedString()
+        if let img = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "error")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
+                .applying(.init(paletteColors: [warn]))) {
+            let att = NSTextAttachment()
+            att.image = img
+            s.append(NSAttributedString(attachment: att))
+            s.append(NSAttributedString(string: " "))
+        }
+        s.append(NSAttributedString(string: message, attributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: warn,
+        ]))
+        statusLabel.attributedStringValue = s
     }
 
     private func setPlayGlyph(playing: Bool) {
@@ -214,7 +247,7 @@ final class Overlay {
 
     func finish() {
         guard panel != nil else { return }
-        statusLabel.stringValue = "done"
+        setPlainStatus("done")
         setPlayGlyph(playing: false)
         setSpeaking(false)
         activeWord = nil

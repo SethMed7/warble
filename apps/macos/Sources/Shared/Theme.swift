@@ -42,6 +42,9 @@ public enum Theme {
     public static let mist = Token(0x8B8794)
     /// #2A2833 — line-dark: hairline borders on dark surfaces.
     public static let line = Token(0x2A2833)
+    /// #FF9F0A — warn: the single declared exception to the one-accent law. Failure/blocked states
+    /// only (8.79:1 on ink), and always paired with a glyph so color is never the only signal.
+    public static let warn = Token(0xFF9F0A)
 
     // MARK: - Derived UI tokens (treatments built on canon, shared by the overlays and windows)
 

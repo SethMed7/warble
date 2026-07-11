@@ -194,7 +194,13 @@ final class Speaker {
     private func playLive(_ text: String, index: Int) {
         current?.stop()  // never orphan a live engine (e.g. voice switched mid-read): terminate its
                          // subprocess, invalidate its timer, and delete its temp audio before replacing it
-        let useKokoro = voiceId != "system" && KokoroEngine.isAvailable()
+        let wantsKokoro = voiceId != "system"
+        let useKokoro = wantsKokoro && KokoroEngine.isAvailable()
+        if wantsKokoro, !useKokoro { // a premium voice is picked but the engine isn't installed —
+            // never silently sound different: the status line names it while this read plays.
+            Log.speak.notice("reason=voice-missing — \(self.voiceId, privacy: .public) selected, Kokoro not installed; using the system voice")
+        }
+        Overlay.shared.setVoiceFallback(wantsKokoro && !useKokoro)
         let engine: SpeechEngine = useKokoro ? KokoroEngine() : SystemEngine()
         current = engine
         engine.speak(text, onState: { [weak self] s in self?.handleState(engine, index, s) },
@@ -429,6 +435,7 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
                 if self.warmAttempt, !self.triedCold, failed, self.queue.isEmpty, self.player == nil {
                     self.triedCold = true
                     WarmTTS.shared.markStale()
+                    Log.speak.info("warm TTS failed before any audio — falling back to the cold renderer")
                     self.spawn(warm: false)
                     return
                 }
@@ -438,10 +445,14 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
                 }
                 self.rendererDone = true
                 if failed && self.queue.isEmpty && self.player == nil {
+                    // Both paths produced nothing: name the cause; the stderr detail goes to the log,
+                    // never the status line.
                     let err = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                    self.onState?(.failed(String(err.suffix(200))))
+                    Log.speak.error("reason=render-failed (\(self.warmAttempt ? "warm" : "cold", privacy: .public)): \(String(err.suffix(200)), privacy: .public)")
+                    self.onState?(.failed(SpeakError.renderFailed.message))
                 } else if self.player == nil && self.queue.isEmpty {
-                    self.onState?(self.renderTruncated ? .failed("read cut off") : .done)
+                    if self.renderTruncated { Log.speak.error("reason=read-cut-off — renderer died mid-stream") }
+                    self.onState?(self.renderTruncated ? .failed(SpeakError.readCutOff.message) : .done)
                 }
             }
         }
@@ -453,7 +464,8 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
             stdin.fileHandleForWriting.closeFile()
         } catch {
             if warm, !triedCold { triedCold = true; WarmTTS.shared.markStale(); spawn(warm: false); return }
-            onState?(.failed(error.localizedDescription))
+            Log.speak.error("reason=render-failed — couldn't launch the renderer: \(error.localizedDescription, privacy: .public)")
+            onState?(.failed(SpeakError.renderFailed.message))
         }
     }
 
@@ -469,7 +481,10 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         wordTimer = nil
         guard !queue.isEmpty else {
             player = nil
-            if rendererDone { onState?(renderTruncated ? .failed("read cut off") : .done) }
+            if rendererDone {
+                if renderTruncated { Log.speak.error("reason=read-cut-off — audio drained before the renderer finished") }
+                onState?(renderTruncated ? .failed(SpeakError.readCutOff.message) : .done)
+            }
             return
         }
         let (url, text) = queue.removeFirst()

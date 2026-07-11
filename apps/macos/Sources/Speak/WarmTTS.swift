@@ -93,6 +93,7 @@ final class WarmTTS {
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
             server = (try? p.run()) != nil ? p : nil
+            if server == nil { Log.speak.error("warm TTS server failed to spawn") }
         }
         lock.unlock()
         ready = waitHealthy(timeout: 12)

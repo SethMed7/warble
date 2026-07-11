@@ -33,6 +33,10 @@ public final class DictateController: NSObject {
     private var recentTranscripts: [String] = []
     private let maxRecent = 10
 
+    /// The last failure, named (the taxonomy in DictateError). Shown as a disabled row in the
+    /// Dictate submenu until the next successful dictation, so a missed pill is still explained.
+    private var lastError: DictateError?
+
     /// The app being dictated INTO, captured at recording start (before focus can change) for per-app stats.
     private var dictationApp: (bundleId: String?, name: String?)?
     /// Whether a secure (password) field was focused at recording start — so Insights can keep metrics only.
@@ -80,6 +84,7 @@ public final class DictateController: NSObject {
         HotKey.shared.onPress = { [weak self] in self?.hotKeyPressed() }
         HotKey.shared.onRelease = { [weak self] in self?.hotKeyReleased() }
         HotKey.shared.onDoubleTap = { [weak self] in self?.handsFreeToggle() }
+        recorder.onDisconnect = { [weak self] in self?.micDisconnected() }
         if dictateEnabled { HotKey.shared.register() } // off → no monitor, no permission prompt
     }
 
@@ -106,9 +111,21 @@ public final class DictateController: NSObject {
         let sub = NSMenu()
         sub.autoenablesItems = false // the root's setting doesn't propagate; the Engine info row needs it
 
-        let engine = NSMenuItem(title: "Engine: \(Transcribers.activeEngineName())", action: nil, keyEquivalent: "")
+        // The Engine row is honest about the floor: on Apple Speech it says WHY (no premium engine).
+        let engineName = Transcribers.activeEngineName()
+        let engine = NSMenuItem(title: engineName == "Apple Speech"
+            ? "Engine: Apple Speech — premium not installed"
+            : "Engine: \(engineName)", action: nil, keyEquivalent: "")
         engine.isEnabled = false
         sub.addItem(engine)
+
+        // The last failure, named — so a pill that vanished before it was read is still explained.
+        if let err = lastError {
+            let item = NSMenuItem(title: "Last error: \(err.message)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            item.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "error")
+            sub.addItem(item)
+        }
 
         // Recovery: if a dictation pasted somewhere wrong, grab it here instead of re-saying it.
         if let last = recentTranscripts.first {
@@ -283,11 +300,11 @@ public final class DictateController: NSObject {
             if Cleaners.level.usesLLM, MLXCleaner.isAvailable() { WarmLLM.shared.ensureRunning() }
         }
         recorder.onLevel = { Overlay.shared.updateLevel($0) }
-        recorder.start(onError: { [weak self] message in
+        recorder.start(onError: { [weak self] err in
             self?.recordingWatchdog?.cancel()
             self?.unregisterEsc() // don't leave Esc globally consumed if the mic couldn't start
             self?.state = .idle
-            Overlay.shared.flash(message: message)
+            self?.noteError(err)
         })
         // Safety net: if a Fn key-up is ever dropped, force-finish so Esc + the mic can't wedge forever.
         let watchdog = DispatchWorkItem { [weak self] in
@@ -303,6 +320,7 @@ public final class DictateController: NSObject {
         state = .finishing // Esc stays claimed → it now cancels the transcribe/polish (see escapePressed)
         guard let clip = recorder.stop() else { // nothing captured
             unregisterEsc(); state = .idle
+            Log.dictate.info("reason=no-clip — recorder had nothing")
             Overlay.shared.close()
             return
         }
@@ -310,16 +328,40 @@ public final class DictateController: NSObject {
         if clip.duration < minClipSeconds {
             try? FileManager.default.removeItem(at: clip.url)
             unregisterEsc(); state = .idle
+            Log.dictate.info("reason=too-short — \(clip.duration, privacy: .public)s clip dropped")
             Overlay.shared.close()
             return
         }
         if clip.peak < silenceFloor {
             try? FileManager.default.removeItem(at: clip.url)
             unregisterEsc(); state = .idle
+            Log.dictate.info("reason=silent-clip — peak \(clip.peak, privacy: .public) under the floor")
             Overlay.shared.flash(message: "nothing heard")
             return
         }
         transcribeAndDeliver(clip)
+    }
+
+    /// The input device vanished mid-dictation (unplugged, Bluetooth drop). Name the cause, then run
+    /// the normal finish path — whatever was captured before the drop is transcribed and delivered,
+    /// never lost (product.md §4.10). The short delay lets the cause actually be read before the
+    /// pill switches to the processing spinner.
+    private func micDisconnected() {
+        guard state == .listening else { return }
+        noteError(.micDisconnected)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self, self.state == .listening else { return } // released or cancelled meanwhile
+            self.finishRecording()
+        }
+    }
+
+    /// One gate every failure passes through: remember it for the menu row, log its distinguishable
+    /// reason, and flash the named cause in the pill (warn + glyph — DESIGN.md failure styling).
+    private func noteError(_ err: DictateError) {
+        lastError = err
+        Log.dictate.error("reason=\(err.reason, privacy: .public)")
+        Overlay.shared.flashError(message: err.message)
+        onMenuRebuild?()
     }
 
     /// Esc while recording — discard the clip, paste nothing. Works for both hold and hands-free.
@@ -332,6 +374,7 @@ public final class DictateController: NSObject {
         recorder.onLevel = nil
         if let clip = recorder.stop() { try? FileManager.default.removeItem(at: clip.url) }
         state = .idle
+        Log.dictate.info("reason=cancelled — Esc while recording")
         Overlay.shared.flash(message: "cancelled")
     }
 
@@ -344,6 +387,7 @@ public final class DictateController: NSObject {
         processingWatchdog?.cancel(); processingWatchdog = nil
         unregisterEsc()
         state = .idle
+        Log.dictate.info("reason=cancelled — Esc while processing")
         Overlay.shared.flash(message: "cancelled")
     }
 
@@ -365,14 +409,18 @@ public final class DictateController: NSObject {
     /// idle (and free Esc) after a generous, clip-scaled bound, so the pill can never spin forever.
     private func startProcessingWatchdog(gen: Int, clipDuration: TimeInterval) {
         processingWatchdog?.cancel()
-        let bound = max(30, clipDuration * 3 + 25)
+        let bound = Fault.isActive(.engineWarming) ? 3 : max(30, clipDuration * 3 + 25)
         let wd = DispatchWorkItem { [weak self] in
             guard let self, self.state == .finishing, self.workGen == gen else { return }
             self.workGen &+= 1
             self.processingWatchdog = nil
             self.unregisterEsc()
             self.state = .idle
-            Overlay.shared.flash(message: "took too long — press Fn to retry")
+            // Name the likeliest cause: a warm engine that's installed but not answering yet is
+            // still loading its model. The health probe is a 1s one-shot on an already-failed path.
+            let warming = Fault.isActive(.engineWarming)
+                || (WarmASR.isInstalled() && !WarmASR.shared.isHealthy())
+            self.noteError(warming ? .engineWarming : .processingTimeout)
         }
         processingWatchdog = wd
         DispatchQueue.main.asyncAfter(deadline: .now() + bound, execute: wd)
@@ -386,9 +434,10 @@ public final class DictateController: NSObject {
         state = .idle
     }
 
-    /// One pass over the whole recorded clip, off the main thread, then clean +
-    /// paste. The temp WAV is deleted as soon as we have the text — no audio is
-    /// ever persisted. Esc (or the watchdog) can cancel mid-flight: each completion
+    /// One pass over the whole recorded clip, off the main thread, then clean + paste. The temp WAV
+    /// is deleted once it's handled: copied into history's audio store when saving is on, kept
+    /// there too when transcription FAILS (the words must never cost a re-say — product.md §4.10),
+    /// deleted outright otherwise. Esc (or the watchdog) can cancel mid-flight: each completion
     /// re-checks `workGen`, so a superseded run never pastes.
     private func transcribeAndDeliver(_ clip: Recorder.Result) {
         Overlay.shared.showThinking()
@@ -402,29 +451,38 @@ public final class DictateController: NSObject {
                                    appName: dictationApp?.name,
                                    secure: dictationSecure)
         let wav = clip.url
-        Transcribers.run(wav, clipDuration: clip.duration) { [weak self] text in
+        Transcribers.run(wav, clipDuration: clip.duration) { [weak self] outcome in
             guard let self else { try? FileManager.default.removeItem(at: wav); return }
             guard self.workGen == gen else { try? FileManager.default.removeItem(at: wav); return } // cancelled
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
-                try? FileManager.default.removeItem(at: wav) // nothing heard — don't keep the audio
+            switch outcome {
+            case .failed:
+                // Every engine errored on a clip that HAD voice (the silence gate passed it).
+                // Keep the recording beside the saved dictation clips — the explicit Recover
+                // affordance lands next milestone — and say so.
+                let kept = InsightStore.shared.keepFailedAudio(wav, secure: ctx.secure)
+                try? FileManager.default.removeItem(at: wav)
                 self.endProcessing(gen: gen)
+                self.noteError(kept ? .transcribeFailedKept : .transcribeFailed)
+            case .silence:
+                try? FileManager.default.removeItem(at: wav) // genuinely nothing heard — don't keep the audio
+                self.endProcessing(gen: gen)
+                Log.dictate.info("reason=nothing-heard — engines ran, no speech found")
                 Overlay.shared.flash(message: "nothing heard")
-                return
-            }
-            DispatchQueue.global(qos: .utility).async { // LLM / bun cleaner may block
-                let spell = SpellOut.process(trimmed) // resolve any spoken spelling first
-                let cleaner = Cleaners.best(for: spell.text) // the chosen cleanup level; off main
-                let cleaned = Lexicon.shared.apply(cleaner.clean(spell.text)) // cleanup, then your dictionary
-                DispatchQueue.main.async {
-                    guard self.workGen == gen else { try? FileManager.default.removeItem(at: wav); return } // cancelled during polish
-                    for rule in spell.learned { Lexicon.shared.learnExplicit(from: rule.from, to: rule.to) }
-                    // `trimmed` is the verbatim transcript — history keeps it so any cleanup is undoable.
-                    self.deliver(cleaned, raw: trimmed, ctx: ctx, audio: wav) // record copies the recording (when saving is on)
-                    try? FileManager.default.removeItem(at: wav) // then drop the temp WAV
-                    if let word = spell.learned.first?.to { // confirm what spelling was locked in
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            LearnPill.shared.showAdded(word: word) { spell.learned.forEach { Lexicon.shared.forget($0.from) } }
+            case .text(let raw):
+                DispatchQueue.global(qos: .utility).async { // LLM / bun cleaner may block
+                    let spell = SpellOut.process(raw) // resolve any spoken spelling first
+                    let cleaner = Cleaners.best(for: spell.text) // the chosen cleanup level; off main
+                    let cleaned = Lexicon.shared.apply(cleaner.clean(spell.text)) // cleanup, then your dictionary
+                    DispatchQueue.main.async {
+                        guard self.workGen == gen else { try? FileManager.default.removeItem(at: wav); return } // cancelled during polish
+                        for rule in spell.learned { Lexicon.shared.learnExplicit(from: rule.from, to: rule.to) }
+                        // `raw` is the verbatim transcript — history keeps it so any cleanup is undoable.
+                        self.deliver(cleaned, raw: raw, ctx: ctx, audio: wav) // record copies the recording (when saving is on)
+                        try? FileManager.default.removeItem(at: wav) // then drop the temp WAV
+                        if let word = spell.learned.first?.to { // confirm what spelling was locked in
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                LearnPill.shared.showAdded(word: word) { spell.learned.forEach { Lexicon.shared.forget($0.from) } }
+                            }
                         }
                     }
                 }
@@ -437,20 +495,38 @@ public final class DictateController: NSObject {
         unregisterEsc()
         state = .idle
         guard !cleaned.isEmpty else {
+            Log.dictate.info("reason=cleaned-empty — cleanup produced nothing")
             Overlay.shared.flash(message: "nothing heard")
             return
         }
+        lastError = nil // this dictation landed — the menu's "Last error" row retires
         remember(cleaned)                                                // in-memory safety net for a mis-targeted paste
         InsightStore.shared.record(cleaned, raw: raw, ctx: ctx, audioSource: audio) // local stats + history (+ saved recording)
         if Paster.paste(cleaned) {
-            Overlay.shared.showTyped()
+            if shouldNoteAppleFloor(ctx) {
+                Overlay.shared.flash(message: DictateError.engineMissing.message) // notice, not a failure
+            } else {
+                Overlay.shared.showTyped()
+            }
             startLearning(pasted: cleaned)
         } else {
             // Accessibility denied: text is on the clipboard. Echo it so the user
             // can confirm what was captured before pasting manually — the one
             // place the old live preview earned its keep.
+            Log.dictate.error("reason=paste-denied — Accessibility not granted; text left on the clipboard")
             Overlay.shared.showCopied(cleaned)
         }
+    }
+
+    /// One-time honesty note (once ever — never a nag, principle 5): the dictation worked, but on
+    /// the zero-install Apple engine because no premium engine is installed. The menu's Engine row
+    /// carries the same fact persistently; Setup is one menu away.
+    private func shouldNoteAppleFloor(_ ctx: DictationContext) -> Bool {
+        guard ctx.engine == "Apple Speech",
+              !UserDefaults.standard.bool(forKey: "notedAppleEngine") else { return false }
+        UserDefaults.standard.set(true, forKey: "notedAppleEngine")
+        Log.dictate.notice("reason=engine-missing — dictated on Apple Speech; no premium engine installed")
+        return true
     }
 
     /// After a paste, watch the field for a few seconds; if Seth fixes a word's spelling,

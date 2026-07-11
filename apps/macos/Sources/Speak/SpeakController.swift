@@ -265,7 +265,8 @@ public final class SpeakController: NSObject {
     @objc func readSelection() {
         SelectionGrabber.grab { [weak self] text in
             guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                Overlay.shared.flash(message: "No text selected")
+                Log.speak.info("reason=no-selection — Read Selection found nothing")
+                Overlay.shared.flash(message: SpeakError.noSelection.message)
                 return
             }
             self?.readOneShot(text)

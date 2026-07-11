@@ -128,6 +128,25 @@ public final class InsightStore: ObservableObject {
         appendLine(e)
     }
 
+    /// A failed transcription must not cost the words (product.md §4.10): keep the clip in the same
+    /// audio store as a saved dictation's recording — named failed-<id> so the next milestone's
+    /// explicit Recover affordance can surface it — under the same user gates as record(): audio
+    /// saving on, never from a secure field. Returns whether the recording was kept, so the failure
+    /// copy can say so honestly.
+    func keepFailedAudio(_ src: URL, secure: Bool) -> Bool {
+        guard saveAudio, !(secure && excludeSecureFields) else { return false }
+        let id = "failed-\(UUID().uuidString)"
+        let dest = audioDir.appendingPathComponent("\(id).m4a")
+        if AudioConvert.to16kMonoAAC(input: src, output: dest) {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
+            return true
+        }
+        let wav = audioDir.appendingPathComponent("\(id).wav") // encoder failure — keep the raw copy
+        guard (try? FileManager.default.copyItem(at: src, to: wav)) != nil else { return false }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: wav.path)
+        return true
+    }
+
     static func wordCount(_ s: String) -> Int {
         s.split { $0 == " " || $0 == "\n" || $0 == "\t" || $0 == "\r" }.count
     }

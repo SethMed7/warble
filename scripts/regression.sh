@@ -140,6 +140,44 @@ case "$ENGINE" in
     bad "--engine names a known engine (got \"$ENGINE\")" ;;
 esac
 
+# Cause-naming errors (ROADMAP 0.3). --errors prints the whole taxonomy as "domain/reason: copy";
+# asserting it verbatim makes any copy change deliberate. The WARBLE_FAULT seam (compiled into
+# DEBUG builds only — this script always runs the debug binary) then forces the two failure paths
+# provable headlessly: the engine-missing floor and a failed transcription.
+ERRORS_WANT="dictate/mic-permission: grant Microphone access in System Settings
+dictate/mic-busy: mic is in use by another app
+dictate/mic-disconnected: mic disconnected mid-dictation
+dictate/no-mic: no microphone found
+dictate/record-failed: couldn't start recording
+dictate/engine-warming: engine still warming up — try again in a moment
+dictate/processing-timeout: took too long — press Fn to retry
+dictate/transcribe-failed: transcription failed
+dictate/transcribe-failed-kept: transcription failed — recording kept
+dictate/engine-missing: premium engine not installed — using Apple engine
+speak/render-failed: voice engine failed
+speak/read-cut-off: read cut off
+speak/voice-missing: premium voice not installed — using Apple voice
+speak/no-selection: no text selected"
+expect "--errors prints the full cause-naming taxonomy" "$ERRORS_WANT" "$BIN" --errors
+
+expect "engine-missing fault forces the Apple floor" "Apple Speech" \
+  env WARBLE_FAULT=engine-missing "$BIN" --engine
+
+EM_NOTE=$(env WARBLE_FAULT=engine-missing "$BIN" --engine 2>&1 >/dev/null)
+if [ "$EM_NOTE" = "premium engine not installed — using Apple engine" ]; then
+  ok "engine-missing names its cause on stderr"
+else
+  bad "engine-missing names its cause on stderr (got \"$EM_NOTE\")"
+fi
+
+TF_MSG=$(env WARBLE_FAULT=transcribe-fail "$BIN" --transcribe /dev/null 2>&1 >/dev/null)
+TF_STATUS=$?
+if [ "$TF_STATUS" -ne 0 ] && [ "$TF_MSG" = "transcription failed" ]; then
+  ok "transcribe-fail fault names its cause and exits non-zero"
+else
+  bad "transcribe-fail fault names its cause (exit $TF_STATUS; got \"$TF_MSG\")"
+fi
+
 # --- 4. warm-engine paths (opt-in: needs the premium engines installed) ---------------------
 if [ "${WARBLE_REGRESSION_FULL:-}" = "1" ]; then
   section "warm engines (WARBLE_REGRESSION_FULL=1)"

@@ -18,4 +18,10 @@ public enum SpeakCLI {
         _ = done.wait(timeout: .now() + 120)
         return true
     }
+
+    /// The read-aloud half of `--errors` (dispatched in main.swift): one "speak/<reason>: <copy>"
+    /// line per taxonomy case. regression.sh asserts the table verbatim — copy drift is deliberate.
+    public static func printErrors() {
+        for e in SpeakError.allCases { print("speak/\(e.reason): \(e.message)") }
+    }
 }

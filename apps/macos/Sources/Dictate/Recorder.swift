@@ -1,4 +1,5 @@
 import AVFoundation
+import Shared
 
 /// Records raw mic audio for the whole hotkey hold into a temp WAV — no
 /// recognizer, no endpointer, no silence cutoff. The finger is the only
@@ -23,6 +24,7 @@ final class Recorder {
     private var engine: AVAudioEngine?
     private var file: AVAudioFile?
     private var url: URL?
+    private var configObserver: Any? // watches for the input device vanishing mid-recording
     private var active = false
     private var frames: AVAudioFramePosition = 0
     private var sampleRate: Double = 0
@@ -33,25 +35,31 @@ final class Recorder {
     /// main thread per audio buffer (~12×/s). Set before `start`; nil = no meter.
     var onLevel: ((Float) -> Void)?
 
+    /// Fired (main thread) when the input device vanishes mid-recording — unplugged, or a
+    /// Bluetooth mic dropping. The session owner ends the dictation naming the cause; the audio
+    /// captured up to the drop is still in the file and is delivered, not lost.
+    var onDisconnect: (() -> Void)?
+
     /// Start recording to a fresh temp WAV. Mic permission is requested here
     /// (whisper needs no Speech entitlement). onError fires if we can't record.
-    func start(onError: @escaping (String) -> Void) {
+    func start(onError: @escaping (DictateError) -> Void) {
         active = true
         frames = 0
         peak = 0
         capped = false
+        if Fault.isActive(.micBusy) { active = false; onError(.micBusy); return }
         requestMic { [weak self] granted in
             guard let self, self.active else { return } // released during the dialog
-            guard granted else { self.active = false; onError("grant Microphone in System Settings"); return }
+            guard granted else { self.active = false; onError(.micPermission); return }
             self.begin(onError: onError)
         }
     }
 
-    private func begin(onError: @escaping (String) -> Void) {
+    private func begin(onError: @escaping (DictateError) -> Void) {
         let engine = AVAudioEngine()
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { active = false; onError("no audio input device"); return }
+        guard format.sampleRate > 0 else { active = false; onError(.noMic); return }
         sampleRate = format.sampleRate
         let maxFrames = AVAudioFramePosition(Self.maxSeconds * sampleRate)
 
@@ -61,7 +69,8 @@ final class Recorder {
             file = try AVAudioFile(forWriting: tmp, settings: format.settings)
         } catch {
             active = false
-            onError("could not open audio file: \(error.localizedDescription)")
+            Log.dictate.error("temp WAV create failed: \(error.localizedDescription, privacy: .public)")
+            onError(.recordFailed)
             return
         }
         url = tmp
@@ -80,15 +89,36 @@ final class Recorder {
             input.removeTap(onBus: 0)
             active = false
             file = nil
-            onError("audio input failed: \(error.localizedDescription)")
+            // A device is present but capture couldn't start — in practice another app holding
+            // the input exclusively. The underlying error is logged for the exotic cases.
+            Log.dictate.error("engine.start failed: \(error.localizedDescription, privacy: .public)")
+            onError(.micBusy)
             return
         }
         self.engine = engine
+        // The input device can vanish mid-hold: the engine stops silently and no more buffers
+        // arrive. Detect it so the session ends naming the cause instead of pasting a mystery.
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            guard let self, self.active else { return }
+            if engine.inputNode.outputFormat(forBus: 0).sampleRate == 0 || !engine.isRunning {
+                Log.dictate.error("input device vanished mid-recording (configuration change)")
+                self.onDisconnect?()
+            }
+        }
+        if Fault.isActive(.micDisconnected) { // debug-only: simulate the drop shortly after start
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self, self.active else { return }
+                self.onDisconnect?()
+            }
+        }
     }
 
     /// Stop and hand back the recorded clip (or nil if nothing was captured).
     /// removeTap first so no further writes race the close.
     func stop() -> Result? {
+        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+        configObserver = nil
         guard active else { return nil }
         active = false
         engine?.inputNode.removeTap(onBus: 0)

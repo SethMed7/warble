@@ -82,15 +82,27 @@ public enum DictateCLI {
         }
         if let i = args.firstIndex(of: "--transcribe"), i + 1 < args.count {
             let wav = URL(fileURLWithPath: args[i + 1])
-            var result = ""
+            var outcome = Transcribers.Outcome.failed
             // Completion posts to the main queue; run the main loop so it can drain.
-            Transcribers.run(wav, clipDuration: 10) { text in result = text; CFRunLoopStop(CFRunLoopGetMain()) }
+            Transcribers.run(wav, clipDuration: 10) { o in outcome = o; CFRunLoopStop(CFRunLoopGetMain()) }
             CFRunLoopRunInMode(.defaultMode, 60, false)
-            print(result)
+            switch outcome {
+            case .text(let t): print(t)
+            case .silence: print("") // ran fine, heard nothing — same output the old smoke expected
+            case .failed:
+                // The flow's named cause, minus "recording kept" (the CLI owns no recording).
+                // regression.sh forces this branch with WARBLE_FAULT=transcribe-fail.
+                FileHandle.standardError.write(Data("\(DictateError.transcribeFailed.message)\n".utf8))
+                exit(1)
+            }
             return true
         }
         if args.contains("--engine") {
-            print(Transcribers.activeEngineName())
+            let name = Transcribers.activeEngineName()
+            if name == "Apple Speech" { // name the floor's cause, off stdout so smokes stay exact
+                FileHandle.standardError.write(Data("\(DictateError.engineMissing.message)\n".utf8))
+            }
+            print(name)
             return true
         }
         if let i = args.firstIndex(of: "--apply"), i + 1 < args.count {
@@ -103,6 +115,12 @@ public enum DictateCLI {
             return true
         }
         return false
+    }
+
+    /// The dictate half of `--errors` (dispatched in main.swift): one "dictate/<reason>: <copy>"
+    /// line per taxonomy case. regression.sh asserts the table verbatim — copy drift is deliberate.
+    public static func printErrors() {
+        for e in DictateError.allCases { print("dictate/\(e.reason): \(e.message)") }
     }
 
     /// Verify the learn-from-edits detection logic and history-event codability headlessly.

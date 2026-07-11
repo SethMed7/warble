@@ -5,6 +5,18 @@ is what a user actually gets.
 
 ## Unreleased
 
+- **Cause-naming errors.** Every failure in the dictate and read-aloud flows now names its cause —
+  "mic is in use by another app", "mic disconnected mid-dictation", "engine still warming up — try
+  again in a moment", "premium engine not installed — using Apple engine" (a one-time notice, never
+  a nag), "transcription failed — recording kept" — in the pill/panel (warn + glyph for true
+  failures), in the menu (an honest Engine row plus a "Last error" row until the next successful
+  dictation), and in the unified log with a stable `reason=` slug per branch
+  (`log stream --predicate 'subsystem == "io.github.sethmed7.voz"'`). A **failed transcription now
+  keeps the recording** under `~/.warble/audio` (honoring the Save-recordings and secure-field
+  settings) instead of discarding it — the explicit Recover affordance lands next. A mic that
+  disconnects mid-dictation delivers everything captured up to the drop. Debug builds accept
+  `WARBLE_FAULT=mic-busy|mic-disconnected|engine-warming|engine-missing|transcribe-fail` to force
+  each path; `--errors` prints the whole taxonomy, asserted verbatim in `scripts/regression.sh`.
 - **Cleanup levels.** **Dictate ▸ Cleanup** replaces the "Polish with AI" toggle with four levels:
   **None** (verbatim — whitespace only), **Light** (the deterministic tidy — the default),
   **Medium** (on-device LLM punctuation + fillers — the old polish), and **High** (fuller LLM

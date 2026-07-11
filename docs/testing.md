@@ -1,7 +1,8 @@
 # warble — testing
 
-*How warble's promises are proven. One deterministic command covers everything 0.3 shipped; this
-page maps what it checks, the seams it uses, and the short list that still needs a human.*
+*How warble's promises are proven. One deterministic command covers everything 0.3 and 0.4
+shipped; this page maps what it checks, the seams it uses, and the short list that still needs a
+human — headed by the fresh-account five-minute test, 0.4's exit criterion.*
 
 ## The one command
 
@@ -49,6 +50,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `setup-sizes` | `--engine-sizes` states the verified download/disk/destination table verbatim (the numbers were measured against the real artifacts — drift means re-verify, exactly like `--errors`), and every Setup card state (fresh / installing / installed / failed) renders offscreen to a real @2x PNG via `--render-setup` (DEBUG seam — width exact at 1120, height the content's own) | 0.4 engine setup friction |
 | `setup-resume` | resumable downloads byte-for-byte against a loopback fixture server (`scripts/fixtures/range-server.ts`, 127.0.0.1 only — the suite never touches the real network) whose request log shows what crossed the wire: a truncated `.part` resumes with `Range: bytes=<n>-`, a complete dest costs one HEAD and zero data, a full-length partial verifies (416 + HEAD) and promotes without a refetch, an ignored range restarts honestly; the resume decision matrix itself is unit-tested (`swift test`) | 0.4 engine setup friction |
 | `listening` | the listening contract's headless halves: the start/stop pings' toggle round-trips through UserDefaults **across processes** via `--sounds` (default on — the ping is the contract; off *stays* off, product.md §4.5), and every pill state renders offscreen to a real @2x PNG via `--render-pill` (DEBUG seam — no panel, no mic; representative bar levels and a frozen spinner injected): the live listening waveform, the hover-revealed gesture hint, the cap countdown, the processing spinner, the landed checkmark, and the clipboard/error text pills — wave-pill dims asserted exactly, text-bearing states must out-width their textless base | 0.4 listening contract |
+| `gallery` | the card gallery stays runnable: `scripts/onboarding-gallery.sh` renders **every** onboarding card (+ variants), Setup state, and pill state into one directory in one command — the check runs the real script into a sandbox and asserts every PNG lands, recomputing the expected count from the machine's declared steps so a new card can't miss the gallery | 0.4 design review |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
@@ -73,13 +75,77 @@ behavior. The sandbox seams work in any build.
 | `WARBLE_HOME` | any | relocate the whole `~/.warble` store (history, audio, in-flight buffer) to a sandbox |
 | `WARBLE_DICTIONARY` | any | point the dictionary at a fixture file instead of the real one |
 | `WARBLE_DISABLE_LLM` | any | hide an installed on-device LLM, so Medium/High provably fall back |
+| `WARBLE_FORCE_ONBOARDING=1` | any | reopen the welcome tour on launch without resetting the first-run keys (QA re-entry; **menu → Welcome tour…** is the user path) |
+| `MEMEX_AI_HOME` | any | relocate the shared model store (default `~/.memex/ai`) — pins the destination paths `--engine-sizes` prints |
 | `WARBLE_REGRESSION_FULL=1` | — | include the warm-engine checks in a full regression run |
+
+## The render seams + the card gallery
+
+Onboarding and first-run UI is renderable **headlessly** (DEBUG builds only, like the other debug
+seams): each flag rasterizes the exact live view offscreen at @2x with fixture state injected —
+no window, no window-server ordering, no permissions, no mic. Every new UI step must extend one
+of these seams; the regression checks above assert real pixels through them.
+
+| Flag | Renders |
+| --- | --- |
+| `--render-onboarding <step[+variant]> <out.png>` | one tour card — step ids from `--onboarding-state`; variants inject preview state: `mic+granted`, `ax+granted`, `meter+nomic`, `practice+done`, `practice+nomic`, `read+done`, `read+noax` |
+| `--render-setup <state> <out.png>` | the Setup window in one state: `fresh` \| `installing` \| `installed` \| `failed` |
+| `--render-pill <state> <out.png>` | the pill: `listening` \| `listening+hint` \| `listening+cap` \| `processing` \| `processing+hint` \| `landed` \| `copied` \| `error` |
+
+For human design review, one command renders all of them — every tour card and variant, every
+Setup state, every pill state (26 PNGs, `@2x`):
+
+```sh
+sh scripts/onboarding-gallery.sh          # → /tmp/warble-onboarding-qa (pass a dir to override)
+```
+
+Review the output against [DESIGN.md](../DESIGN.md). The suite's `gallery` check runs this same
+script, so the gallery command can never silently rot.
 
 ## What remains manual
 
 These need a mic, a screen, or twenty real minutes — each has a scripted twin above proving the
 logic, so the by-hand pass is about the *experience*. Run the debug app with a seam by launching
 the binary directly (no flags = the full app): `cd apps/macos && WARBLE_FAULT=mic-busy .build/debug/warble`.
+
+### The fresh-account five-minute test — 0.4's exit criterion
+
+**The milestone gate (ROADMAP 0.4):** a fresh Mac account reaches a successful real-app dictation
+AND one read-aloud inside five minutes, with **no verbal instructions**. Run it with a human who
+has never used warble. You watch silently, timer in hand; every stall you'd want to explain away
+is the bug.
+
+**Setup (before the clock):**
+
+1. Build the release dmg (`sh scripts/release.sh`) or take the latest released one — the test is
+   release-build territory (real TCC prompts, real Gatekeeper).
+2. **System Settings → Users & Groups → Add User** — a brand-new macOS account, then log into it.
+   (Fresh TCC state: no permission ever granted to warble; no premium engine installed — the tour
+   must succeed on the Apple floor.)
+3. Open the dmg, drag warble to Applications. Don't launch it yet.
+4. Hand over the seat and say exactly this, nothing more: *"Launch warble and follow what it
+   shows you. I can't answer questions."*
+
+**The clock starts at first launch.** The targets (cumulative — drift is fine, 5:00 isn't):
+
+| Target | What must happen on its own | Watch for |
+| --- | --- | --- |
+| 0:00 | Launch → the welcome tour opens by itself | no hunting in the menu bar |
+| 0:30 | **Microphone** card → its button raises the real system prompt → grant → status flips to the checkmark → Next lights | do they find the button unprompted? |
+| 1:15 | **Accessibility** card → deep-link lands on the right Settings pane → grant → the card's status flips live | the flip must happen while Settings is still open |
+| 1:45 | **It hears you** — the bars move with their voice, settle in silence | do they speak without being told to? |
+| 2:45 | **Try a dictation** — hold Fn, the messy prompt line, release → the cleaned sentence lands in the card, raw struck beneath | the gesture understood from the card alone, first try |
+| 3:30 | **Hear it back** — select the in-card paragraph, ⌃V → the real read fires, follow-along panel and all | |
+| 4:30 | **Finish card** → they click Mail / Notes / Messages → hold Fn and dictate a real sentence → it lands at the cursor | **criterion 1: a real-app dictation** |
+| 4:55 | In that same app: select the dictated sentence, ⌃V → it reads aloud | **criterion 2: a real read-aloud** |
+
+**Pass:** both criteria inside 5:00 with zero words from you. **Fail:** any stall you broke with
+words, any dead-end card, or the clock passing 5:00 — write down the exact card and moment; that
+is the milestone's bug list. **Afterwards, verify the sandbox:** open the dashboard — History
+must hold exactly the real dictation(s), never the practice rehearsal; then quit and relaunch —
+the tour must not reappear (only **menu → Welcome tour…** brings it back).
+
+### The rest of the by-hand list
 
 - **The three mic faults** (`mic-busy`, `mic-disconnected`, `engine-warming`): launch with the
   fault, hold Fn and speak — the pill must show the exact taxonomy copy (see `--errors`), the menu

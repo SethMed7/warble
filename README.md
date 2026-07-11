@@ -315,15 +315,24 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --render-setup fresh /tmp/setup.png   # (DEBUG) render the Setup screen offscreen at 2x
                                             #   states: fresh | installing | installed | failed
 .build/debug/warble --fetch-resume <url> <dest>  # (DEBUG) one resumable fetch, narrated (resume/restart/reuse)
+.build/debug/warble --sounds                # the listening pings' toggle: prints on|off (set: --sounds off)
+.build/debug/warble --render-pill listening /tmp/pill.png  # (DEBUG) render a pill state offscreen at 2x
+                                            #   states: listening | listening+hint | listening+cap | processing
+                                            #   | processing+hint | landed | copied | error
+
+# the whole card gallery — every tour card, Setup state, and pill state — in one command:
+sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (26 @2x PNGs, for design review)
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the
 `core/` acceptance suite, a debug `swift build`, the Swift unit tests (`swift test`), the headless
-CLI checks above with exact-output assertions, and a smoke of the benchmark harness; it exits
-non-zero on any failure and needs **no premium engines installed** (`WARBLE_REGRESSION_FULL=1`
-adds the warm-engine extras; `--list` names every check, `--only <check>` runs one). The full
-guide — coverage map, the env seams (`WARBLE_FAULT`, `WARBLE_MAX_HOLD_SECS`, `WARBLE_HOME`…), and
-what still needs a human — is [docs/testing.md](docs/testing.md).
+CLI checks above with exact-output assertions (every onboarding card, Setup state, and pill state
+rendered offscreen to real @2x PNGs), and a smoke of the benchmark harness; it exits non-zero on
+any failure and needs **no premium engines installed** (`WARBLE_REGRESSION_FULL=1` adds the
+warm-engine extras; `--list` names every check, `--only <check>` runs one). The full guide —
+coverage map, the env + render seams (`WARBLE_FAULT`, `WARBLE_HOME`, `--render-onboarding`…), and
+what still needs a human, headed by the fresh-account **five-minute test** (0.4's exit
+criterion, scripted step by step) — is [docs/testing.md](docs/testing.md).
 
 **Benchmarks:** every public performance claim is measured, dated, and reproducible — method,
 caveats, and this machine's actual numbers live in [docs/benchmarks.md](docs/benchmarks.md); the

@@ -22,13 +22,13 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
     core)          echo "core/ acceptance suite (bun install + bun test)" ;;
     build)         echo "swift build (debug) — the binary every CLI check runs" ;;
-    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine)" ;;
+    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine, resume matrix, ping synthesis)" ;;
     version)       echo "--version matches Info.plist" ;;
     cleanup)       echo "cleanup levels: --clean + all four --cleanup levels, engine-free" ;;
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
@@ -46,6 +46,7 @@ describe() {
     setup-sizes)   echo "engine setup: --engine-sizes states the verified size/destination table; every Setup card state renders a real @2x PNG" ;;
     setup-resume)  echo "engine setup: downloads resume a truncated .part, reuse a complete dest, restart on an ignored range — loopback fixture server, no external network" ;;
     listening)     echo "the listening contract: the sounds toggle round-trips (--sounds, default on); every pill state renders a real @2x PNG" ;;
+    gallery)       echo "the card gallery: scripts/onboarding-gallery.sh renders every onboarding card, Setup state, and pill state in one command" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -722,6 +723,28 @@ check_listening() {
       bad "pill state '$1' renders a nonzero PNG"
     fi
   done
+}
+
+# The card gallery (0.4, consolidated): scripts/onboarding-gallery.sh is the one command a human
+# runs for design review — every onboarding card (+ variants), Setup state, and pill state as
+# @2x PNGs. This check runs the real script into a sandbox dir and recomputes the expected count
+# from the same sources the script uses (the machine's declared steps + the fixed variant/setup/
+# pill lists), so a new card that misses the gallery — or a render seam that breaks — fails the
+# gate, not the human's review.
+check_gallery() {
+  require_bin || return
+  GAL_DIR="$REGTMP/gallery"
+  GAL_OUT=$(sh "$ROOT/scripts/onboarding-gallery.sh" "$GAL_DIR" 2>&1)
+  GAL_STATUS=$?
+  GAL_STEPS=$("$BIN" --onboarding-state 2>/dev/null | grep -c '^step ')
+  GAL_WANT=$((GAL_STEPS + 7 + 4 + 8)) # steps + onboarding variants + setup states + pill states
+  GAL_GOT=$(ls "$GAL_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$GAL_STATUS" -eq 0 ] && [ "$GAL_GOT" = "$GAL_WANT" ] \
+    && printf '%s\n' "$GAL_OUT" | grep -q "^gallery: $GAL_WANT/$GAL_WANT renders"; then
+    ok "onboarding-gallery.sh renders every card/state in one command ($GAL_GOT PNGs)"
+  else
+    bad "onboarding-gallery.sh renders every card/state (exit $GAL_STATUS; want $GAL_WANT PNGs, got ${GAL_GOT:-0}; out: \"$GAL_OUT\")"
+  fi
 }
 
 # Warm-engine extras — the only checks that need the premium engines installed. Gated behind

@@ -8,9 +8,10 @@ is what a user actually gets.
 *The 0.3 reliability core — "never lose a word": dictations survive crashes and failed pastes,
 failures name their cause, long sessions cap cleanly instead of truncating silently, cleanup is a
 level you choose (verbatim-leaning by default, raw transcript always kept), every performance
-claim is measured — and all of it is provable by one deterministic command. Plus the start of
-0.4, "the first five minutes": the welcome tour (now a full guaranteed-first-success flow),
-engine setup without the wait trap, and the listening contract.*
+claim is measured — and all of it is provable by one deterministic command. Plus 0.4 — "the
+first five minutes" — in full: the welcome tour with permission cards that never dead-end and a
+guaranteed first success for both verbs, engine setup without the wait trap, the listening
+contract, and the whole milestone folded into the same regression suite.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -109,6 +110,19 @@ engine setup without the wait trap, and the listening contract.*
   spinner, checkmark, clipboard/error pills — to a real @2x PNG offscreen; the ping synthesis
   and hint copy are unit-tested; and `scripts/regression.sh` gained a `listening` check
   asserting all of it.
+- **The first five minutes, folded into the durable suite (0.4 complete).** Everything the
+  milestone shipped is now proven by the same one command: the onboarding machine's order, skip
+  paths, first-run migration, and jump-back (`swift test` + `--onboarding-state`), every tour
+  card and preview variant, every Setup state, and every pill state rendered offscreen to real
+  @2x PNGs, the practice card's rehearsals-never-recorded invariant on disk, the verified
+  engine-size table, byte-level download resume against a loopback fixture server, and the
+  sounds toggle that stays off. New for human design review: `scripts/onboarding-gallery.sh`
+  renders the complete card gallery — every tour card, Setup state, and pill state, 26 @2x
+  PNGs — to `/tmp/warble-onboarding-qa` in one command, and a `gallery` regression check keeps
+  that command from rotting. [docs/testing.md](docs/testing.md) grew the 0.4 coverage map, the
+  render-seam reference, and the by-hand list — headed by **the fresh-account five-minute
+  test**, the milestone's exit criterion, written as an exact timed script (both verbs landing
+  in a real app inside 5:00, zero verbal help).
 - **Honest numbers, measured.** The benchmark harness lands in `scripts/bench/` and the first
   real numbers in [docs/benchmarks.md](docs/benchmarks.md) — method, caveats, and a reproduction
   command for every figure, per the product constitution (product.md §4.9: measured end-to-end,

@@ -107,7 +107,18 @@ else
   printf 'Download the Qwen2.5-1.5B-Instruct cleanup model (Apache-2.0, ~1.0 GB)? [y/N] '
   read -r ans 2>/dev/null || ans=""
   case "$ans" in
-    [Yy]*) echo "Downloading model…"; curl -fL "$MODEL_URL" -o "$MODEL" ;;
+    [Yy]*)
+      # -C - resumes an interrupted download instead of restarting it. Bytes land in a .part
+      # that is renamed only when complete, so a partial never reads as the model. curl exit
+      # 22/33 = HTTP 416: a previous run finished the download but not the rename — promote it.
+      # Any other failure keeps the .part for the next resume.
+      echo "Downloading model…"
+      rc=0; curl -fL -C - "$MODEL_URL" -o "$MODEL.part" || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        { [ "$rc" -eq 22 ] || [ "$rc" -eq 33 ]; } && [ -s "$MODEL.part" ] || exit "$rc"
+      fi
+      mv "$MODEL.part" "$MODEL"
+      ;;
     *) echo "Skipped — warble keeps using the deterministic cleaner."; exit 0 ;;
   esac
 fi

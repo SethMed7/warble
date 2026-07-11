@@ -13,7 +13,12 @@ final class SetupWindow {
         if window == nil {
             let host = NSHostingView(rootView: SetupView(setup: EngineSetup.shared, onDone: { [weak self] in
                 self?.window?.close()
-                InsightsWindow.shared.openTutorial() // finish setup → open Insights with the first-time tutorial
+                // First finish only: hand off to the dashboard's one-time tutorial. Every later
+                // Done just closes — walking away from Setup is a decline, and declining is
+                // permanent-quiet (product.md §4.5: no re-prompt, no surprise window).
+                if !UserDefaults.standard.bool(forKey: "didShowTutorial") {
+                    InsightsWindow.shared.openTutorial()
+                }
             }))
             host.sizingOptions = [] // critical: don't let the hosting view resize the window to its content
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 600),

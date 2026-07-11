@@ -31,7 +31,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | --- | --- | --- |
 | `core` | the canonical TS cleaner's acceptance suite (`core/clean.test.ts`, via `bun test`) | cleanup foundation |
 | `build` | a debug `swift build` succeeds and produces the CLI binary | — |
-| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, and the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back) | cleanup / cap logic / 0.4 onboarding |
+| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), and the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing) | cleanup / cap logic / 0.4 onboarding + engine setup |
 | `version` | `--version` matches `Info.plist` | — |
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
@@ -46,11 +46,14 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `bench` | the benchmark harness itself: WER/stats math (`bun test` + an exact `wer.ts` check), the latency harness end-to-end over the committed fixture WAV through the stub engine, the footprint sampler's `ps` parsing | honest numbers |
 | `onboarding` | `--onboarding-state` declares the welcome tour's steps in order (welcome → mic → ax → meter → practice → read → finish), every step parseable and skippable, the demonstrations constant-complete and practice/read constant-incomplete headlessly; every declared card **plus every preview-state variant** (granted permissions, the meter/practice skipped-mic looks, the practice card's landed raw→cleaned transformation, the read card's done/no-accessibility looks) renders offscreen to a real 920×1080 @2x PNG via `--render-onboarding` (DEBUG seam — no window, no permissions, fixture states injected) | 0.4 permission cards + first success |
 | `practice` | the practice card's sandbox invariant: `--practice-sim` runs the real pipeline (stub engine) and pushes the result through the store's record gate tagged `sandbox` — History/stats must not move — then as the control dictation, which must land; the on-disk `history.json` (under `WARBLE_HOME`) holds exactly the control event | 0.4 guaranteed first success |
+| `setup-sizes` | `--engine-sizes` states the verified download/disk/destination table verbatim (the numbers were measured against the real artifacts — drift means re-verify, exactly like `--errors`), and every Setup card state (fresh / installing / installed / failed) renders offscreen to a real @2x PNG via `--render-setup` (DEBUG seam — width exact at 1120, height the content's own) | 0.4 engine setup friction |
+| `setup-resume` | resumable downloads byte-for-byte against a loopback fixture server (`scripts/fixtures/range-server.ts`, 127.0.0.1 only — the suite never touches the real network) whose request log shows what crossed the wire: a truncated `.part` resumes with `Range: bytes=<n>-`, a complete dest costs one HEAD and zero data, a full-length partial verifies (416 + HEAD) and promotes without a refetch, an ignored range restarts honestly; the resume decision matrix itself is unit-tested (`swift test`) | 0.4 engine setup friction |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
-`apps/macos/Tests/` for Swift — DictateTests plus SharedTests for the onboarding machine;
-`swift test` shares `swift build`'s artifacts, so it adds seconds, not a second build);
+`apps/macos/Tests/` for Swift — DictateTests plus SharedTests for the onboarding machine and the
+resumable-fetch logic; `swift test` shares `swift build`'s artifacts, so it adds seconds, not a
+second build);
 **flows** live in headless CLI checks against the debug binary (the same code paths the app
 runs, minus UI — for onboarding that includes rendering every card to a PNG); the **harness**
 that produces public numbers gets its own smoke so a broken script can't quietly stop the
@@ -128,6 +131,14 @@ the binary directly (no flags = the full app): `cd apps/macos && WARBLE_FAULT=mi
   method, caveats, and reproduction commands in [benchmarks.md](benchmarks.md). The suite only
   smokes the harness; the published numbers are gathered by hand, per the constitution
   (product.md §4.9).
+- **Dictating while an engine installs**: start a big install in Setup (Sharper dictation is the
+  slowest), then hold Fn and dictate — the pill must run normally on the current engine the whole
+  time, and Setup's "you can keep dictating" line must show while anything installs. The
+  can't-load-a-half-model logic (partials as `.part`, staged unpack) is proven headlessly by
+  `setup-resume`; this by-hand pass is about the experience.
+- **A real network resume**: mid-install, turn Wi-Fi off until the card fails, turn it back on,
+  hit **Retry** — the bar must pick up near where it stopped, not at 0% (the byte-level twin is
+  `setup-resume`; this proves it against real CDNs).
 - **Sparkle updates and engine Setup** — release-build territory (both involve the network by
   design: the two disclosed calls).
 

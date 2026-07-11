@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume warm"
 
 describe() {
   case "$1" in
@@ -43,6 +43,8 @@ describe() {
     bench)         echo "benchmark harness smoke: wer/stats tests, latency over the stub engine, footprint" ;;
     onboarding)    echo "onboarding flow: --onboarding-state declares the card flow; every card (+ variants) renders a real @2x PNG" ;;
     practice)      echo "practice sandbox: a rehearsal dictation shows raw -> cleaned but never lands in History/stats" ;;
+    setup-sizes)   echo "engine setup: --engine-sizes states the verified size/destination table; every Setup card state renders a real @2x PNG" ;;
+    setup-resume)  echo "engine setup: downloads resume a truncated .part, reuse a complete dest, restart on an ignored range — loopback fixture server, no external network" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -540,6 +542,125 @@ check_practice() {
   else
     bad "history.json holds exactly the control event (got ${PRACTICE_COUNT:-none})"
   fi
+}
+
+# Engine setup, part one (ROADMAP 0.4 "engine setup friction"): sizes up front. --engine-sizes
+# must state the verified download/disk/destination table verbatim — the numbers were measured
+# against the real artifacts (HTTP content-lengths + du of finished installs), so any drift is a
+# deliberate re-verification, exactly like --errors. MEMEX_AI_HOME is pinned so the printed
+# store paths are deterministic. Then every Setup card state must render offscreen to a real
+# @2x PNG (--render-setup, a DEBUG seam): width is exact (1120 = 560pt @2x); height is the
+# content's own (fixture text wraps differently per state and the Mac card shows the real
+# machine), so it's asserted as "tall enough to hold the three cards", which a blank or 1x
+# render can't fake.
+check_setup_sizes() {
+  require_bin || return
+  SIZES_WANT='engine dictation | download ~510 MB | disk ~0.9 GB | weights ~/.memex/ai/models | runtime ~/.warble
+engine voices | download ~140 MB + ~95 MB voices on first read | disk ~0.5 GB | weights ~/.memex/ai/models/kokoro | runtime ~/.warble/kokoro
+engine cleanup | download ~0.9 GB | disk ~1.1 GB | weights ~/.memex/ai/models/qwen2.5-1.5b-instruct-4bit | runtime ~/.warble'
+  expect "--engine-sizes states sizes + destinations up front (drift = re-verify the numbers)" \
+    "$SIZES_WANT" env MEMEX_AI_HOME="$HOME/.memex/ai" "$BIN" --engine-sizes
+  SETUP_DIR="$REGTMP/setup-renders"
+  mkdir -p "$SETUP_DIR"
+  for s in fresh installing installed failed; do
+    SETUP_PNG="$SETUP_DIR/$s.png"
+    if "$BIN" --render-setup "$s" "$SETUP_PNG" >/dev/null 2>&1 && [ -s "$SETUP_PNG" ]; then
+      SETUP_W=$(sips -g pixelWidth "$SETUP_PNG" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+      SETUP_H=$(sips -g pixelHeight "$SETUP_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+      if [ "$SETUP_W" = "1120" ] && [ "${SETUP_H:-0}" -ge 1000 ]; then
+        ok "setup state '$s' renders offscreen at 2x (1120x$SETUP_H PNG)"
+      else
+        bad "setup state '$s' renders offscreen at 2x (dims: ${SETUP_W:-none}x${SETUP_H:-none})"
+      fi
+    else
+      bad "setup state '$s' renders a nonzero PNG"
+    fi
+  done
+}
+
+# Engine setup, part two: resumable downloads, proven byte-for-byte against a loopback fixture
+# server (scripts/fixtures/range-server.ts — 127.0.0.1 only; the suite never touches the real
+# network). The server logs every request's Range header, so the assertions read what actually
+# went over the wire: a truncated <dest>.part resumes with "bytes=<n>-" and only the remainder
+# transfers; a dest that already matches the remote size costs one HEAD and zero data; a
+# full-length partial (crash between download and rename) is verified via 416+HEAD and promoted,
+# never refetched; a server that ignores Range gets an honest restart. Partials live ONLY in
+# .part files (never at dest), so engine detection can't mistake them for finished installs.
+check_setup_resume() {
+  require_bin || return
+  RESUME_DIR="$REGTMP/resume"
+  mkdir -p "$RESUME_DIR"
+  awk 'BEGIN{for(i=0;i<32768;i++) printf "%08d", i}' > "$RESUME_DIR/fixture.bin" # 256 KiB, position-coded
+  RLOG="$RESUME_DIR/req.log"; : > "$RLOG"
+  bun "$ROOT/scripts/fixtures/range-server.ts" "$RESUME_DIR/fixture.bin" "$RLOG" > "$RESUME_DIR/port.txt" 2>&1 &
+  RSRV_PID=$!
+  RPORT=""
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    RPORT=$(sed -n 's/^port //p' "$RESUME_DIR/port.txt" 2>/dev/null)
+    [ -n "$RPORT" ] && break
+    sleep 0.25
+  done
+  if [ -z "$RPORT" ]; then
+    bad "range fixture server starts (no port line; is bun installed?)"
+    kill "$RSRV_PID" 2>/dev/null
+    return
+  fi
+  RURL="http://127.0.0.1:$RPORT/fixture.bin"
+
+  # 1. A fresh fetch lands the exact bytes and leaves no partial behind.
+  R1=$("$BIN" --fetch-resume "$RURL" "$RESUME_DIR/dl1.bin" 2>&1)
+  if [ $? -eq 0 ] && printf '%s\n' "$R1" | grep -q "^fetched 262144 bytes" \
+    && cmp -s "$RESUME_DIR/fixture.bin" "$RESUME_DIR/dl1.bin" \
+    && [ ! -e "$RESUME_DIR/dl1.bin.part" ]; then
+    ok "fresh fetch lands the exact bytes; the .part is promoted, not copied"
+  else
+    bad "fresh fetch (got \"$R1\")"
+  fi
+
+  # 2. A truncated partial resumes: only the remainder crosses the wire (the log's Range proves it).
+  dd if="$RESUME_DIR/fixture.bin" of="$RESUME_DIR/dl2.bin.part" bs=1024 count=100 2>/dev/null
+  R2=$("$BIN" --fetch-resume "$RURL" "$RESUME_DIR/dl2.bin" 2>&1)
+  if [ $? -eq 0 ] && printf '%s\n' "$R2" | grep -q "^resumed from 102400 bytes$" \
+    && cmp -s "$RESUME_DIR/fixture.bin" "$RESUME_DIR/dl2.bin" \
+    && grep -q "^GET bytes=102400-$" "$RLOG"; then
+    ok "interrupted download resumes from its .part (server saw Range: bytes=102400-)"
+  else
+    bad "interrupted download resumes (got \"$R2\"; log: $(cat "$RLOG" 2>/dev/null | tr '\n' ' '))"
+  fi
+
+  # 3. A dest that already matches the remote size is never re-downloaded (one HEAD, no GET).
+  cp "$RESUME_DIR/fixture.bin" "$RESUME_DIR/dl3.bin"
+  R3=$("$BIN" --fetch-resume "$RURL" "$RESUME_DIR/dl3.bin" 2>&1)
+  if [ $? -eq 0 ] && printf '%s\n' "$R3" | grep -q "^already complete (262144 bytes)" \
+    && [ "$(tail -n 1 "$RLOG")" = "HEAD -" ]; then
+    ok "complete dest is reused, not re-downloaded (one HEAD, zero data)"
+  else
+    bad "complete dest reuse (got \"$R3\"; log tail: $(tail -n 1 "$RLOG" 2>/dev/null))"
+  fi
+
+  # 4. A full-length partial (crash after the last byte, before the rename) is verified — 416 +
+  #    HEAD — and promoted without refetching.
+  cp "$RESUME_DIR/fixture.bin" "$RESUME_DIR/dl4.bin.part"
+  R4=$("$BIN" --fetch-resume "$RURL" "$RESUME_DIR/dl4.bin" 2>&1)
+  if [ $? -eq 0 ] && printf '%s\n' "$R4" | grep -q "^partial already held every byte" \
+    && cmp -s "$RESUME_DIR/fixture.bin" "$RESUME_DIR/dl4.bin"; then
+    ok "full-length partial verifies (416 + HEAD) and promotes without a refetch"
+  else
+    bad "full-length partial verify (got \"$R4\")"
+  fi
+
+  # 5. A server that ignores Range (sends 200) gets an honest restart — never corrupted appends.
+  dd if="$RESUME_DIR/fixture.bin" of="$RESUME_DIR/dl5.bin.part" bs=1024 count=100 2>/dev/null
+  R5=$("$BIN" --fetch-resume "http://127.0.0.1:$RPORT/noresume/fixture.bin" "$RESUME_DIR/dl5.bin" 2>&1)
+  if [ $? -eq 0 ] && printf '%s\n' "$R5" | grep -q "^restarted — server ignored the range$" \
+    && cmp -s "$RESUME_DIR/fixture.bin" "$RESUME_DIR/dl5.bin"; then
+    ok "ignored range restarts the file honestly (no corrupt append)"
+  else
+    bad "ignored-range restart (got \"$R5\")"
+  fi
+
+  kill "$RSRV_PID" 2>/dev/null
+  wait "$RSRV_PID" 2>/dev/null
 }
 
 # Warm-engine extras — the only checks that need the premium engines installed. Gated behind

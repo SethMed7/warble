@@ -51,6 +51,43 @@ claim is measured — and all of it is provable by one deterministic command. Pl
   PNG (`--render-onboarding meter` / `practice+done` / `read+noax`…), the state machine's new
   steps + jump-back are unit-tested, and a new `--practice-sim` flag + regression check prove the
   sandbox invariant on disk: a rehearsal records nothing while a control dictation still lands.
+- **Engine setup without the wait trap (0.4 continues).** The premium-engine download is the
+  classic local-app first-five-minutes killer; Setup now takes the sting out of every part of it:
+  - **Sizes up front.** Every engine card states its download size AND disk footprint before any
+    consent — measured against the real artifacts (HTTP content-lengths of the pinned tarballs
+    and repos, `du` of finished installs), not folklore: Sharper dictation ~510 MB down / ~0.9 GB
+    on disk, Neural voices ~140 MB down (+ ~95 MB voices on the first read — stated, so nothing
+    ever downloads unannounced) / ~0.5 GB, AI cleanup ~0.9 GB down / ~1.1 GB. Each card also says
+    **where it lands** (weights → the store you picked, runtime → `~/.warble`), live with the
+    "New downloads" choice.
+  - **Resumable downloads.** Bytes stream into a `<file>.part` next to the destination and an
+    interrupted download — network drop, app quit — **resumes from where it stopped** (HTTP
+    Range); a server that ignores the range gets an honest restart, never a corrupt append. The
+    reuse-on-reinstall promise extends to partials: a re-run never re-downloads bytes that are
+    already present and valid, and a finished file is verified by size and never fetched twice.
+    The shell-script installers gained the same resume (`curl -C -`).
+  - **Progress that never lies.** The bar exists only when real bytes back it (a resumed
+    download honestly starts partway along); phases that report nothing — unpacking, venv
+    setup — show their **name** with the spinner, never a fake percentage or a stalled bar. Also
+    fixed: the doubled ellipsis in phase labels, and the system controls that couldn't take the
+    design system's focus ring (the store picker and progress bar are now warble's own).
+  - **Non-blocking, and it says so.** Installs run in the background and archives unpack into a
+    hidden staging dir that's renamed into place atomically — a dictation mid-install can never
+    see (or load) a half-written model. While anything installs, Setup says the thing that
+    matters: *you can keep dictating on your current engine.*
+  - **Later never nags.** Audited every path that surfaces Setup: the menu item, the tour's
+    finish card (its one mention, as a quiet option), and a hover tooltip — nothing auto-opens,
+    badges, or re-prompts. Closing Setup without installing is a permanent-quiet decline; the
+    one-time dashboard-tutorial handoff now happens only on the first finish (a later **Done**
+    just closes the window).
+
+  Headless proof: `--engine-sizes` prints the verified size/destination table (asserted verbatim
+  in `scripts/regression.sh`, like `--errors` — drift means re-verify); a DEBUG `--render-setup`
+  seam renders every Setup state (fresh / installing / installed / failed) to a real @2x PNG; a
+  DEBUG `--fetch-resume` seam plus a loopback Range fixture server prove resume byte-for-byte
+  (truncated partial resumes with only the remainder transferred, complete dest costs one HEAD,
+  full-length partial promotes without a refetch, ignored range restarts) with **zero external
+  network**; the resume decision matrix is unit-tested in `swift test`.
 - **Honest numbers, measured.** The benchmark harness lands in `scripts/bench/` and the first
   real numbers in [docs/benchmarks.md](docs/benchmarks.md) — method, caveats, and a reproduction
   command for every figure, per the product constitution (product.md §4.9: measured end-to-end,

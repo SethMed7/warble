@@ -28,8 +28,10 @@ no API key. It works **immediately** on Apple's built-in on-device engines; you 
 Accessibility the first time you use each mode.
 
 Want the *premium* on-device engines (sharper dictation, warmer voices, LLM polish)? Open
-**menu → "Set up better engines…"** — a transparent setup that checks your Mac and **asks before
-installing anything**. Nothing is required; nothing happens without your yes.
+**menu → "Set up better engines…"** — a transparent setup that checks your Mac, **states each
+engine's download size and disk footprint before you consent**, and asks before installing
+anything. Downloads run in the background (keep dictating on your current engine) and **resume
+where they stopped** if interrupted. Nothing is required; nothing happens without your yes.
 
 ## See it work
 
@@ -195,19 +197,28 @@ Apple APIs), so only the app *shell* is macOS-specific.
 These premium layers are all optional and fully on-device. Install them from the app's **menu →
 "Set up better engines…"**, which checks your Mac and asks before each step — Kokoro neural voices
 and the warm read-aloud server, Parakeet dictation and its warm server, and the MLX LLM polish (a
-venv with `mlx-lm` plus the consented model download). The on-device homes install under `~/.warble`, and an existing
-`~/.leelo` / `~/.dictado` install is migrated in place (no model re-download). Pick the cleanup
-level under **menu → Dictate → Cleanup** (None / Light / Medium / High — the AI levels use the
-polish model); pin a different model with `WARBLE_LLM_MODEL=<mlx repo>`.
+venv with `mlx-lm` plus the consented model download). Every card states its **download size and
+disk footprint up front** (verified against the real artifacts, printed by `--engine-sizes`), and
+where the weights land. Progress never lies: the bar is real bytes where the fetch reports them,
+and phases that report nothing show their name ("Unpacking…") instead of a fake percentage.
+**Interrupted downloads resume** — bytes accumulate in a `.part` file and a re-run picks up where
+it stopped, so a network drop or an app quit never costs you what you already downloaded — and
+dictation keeps working on your current engine while an install runs. The on-device homes install
+under `~/.warble`, and an existing `~/.leelo` / `~/.dictado` install is migrated in place (no model
+re-download). Pick the cleanup level under **menu → Dictate → Cleanup** (None / Light / Medium /
+High — the AI levels use the polish model); pin a different model with `WARBLE_LLM_MODEL=<mlx repo>`.
 
 ## What installs, and where
 
 Everything the optional setup installs is **downloaded only with your explicit "y", and lives in
 your home folder** — never inside the app, nothing system-wide, no admin/sudo. **Model weights** go to
-a **shared store at `~/.memex/ai/models`** (Parakeet ~600 MB, the MLX cleanup model ~0.9 GB, the
-Kokoro voices ~90–330 MB) — reusable
+a **shared store at `~/.memex/ai/models`** (Parakeet ~660 MB on disk / ~508 MB download, the MLX
+cleanup model ~880 MB, the Kokoro voices ~95 MB — measured, not folklore; `--engine-sizes` prints
+the full table) — reusable
 by your other on-device "memex" apps, and **reused on reinstall instead of re-downloaded** — or to
-`~/.warble`/`~/.cache` if you pick **"warble only"** in Setup. The small **runtimes** stay warble-local: `~/.bun`
+`~/.warble`/`~/.cache` if you pick **"warble only"** in Setup. The reuse extends to **partial
+downloads**: an interrupted fetch keeps its `.part` bytes and resumes, and a finished file is
+verified by size and never fetched twice. The small **runtimes** stay warble-local: `~/.bun`
 (bun runtime) and `~/.warble/` (helper scripts, your dictionary + history, the warm servers, `kokoro/`,
 `asr-venv/`, `llm-venv/`). Every engine runs locally and binds `127.0.0.1` only. The app's **Set up
 better engines…** shows the **source and path of each engine** and asks before each step, so nothing
@@ -294,6 +305,10 @@ sh scripts/install.sh                    # build, sign, install to /Applications
                                             #   variants inject preview state: mic+granted, meter+nomic,
                                             #   practice+done, read+done, read+noax…
 .build/debug/warble --practice-sim <wav>    # the practice card's sandbox invariant: rehearsals never land in History
+.build/debug/warble --engine-sizes          # the Setup table: verified download/disk sizes + destinations
+.build/debug/warble --render-setup fresh /tmp/setup.png   # (DEBUG) render the Setup screen offscreen at 2x
+                                            #   states: fresh | installing | installed | failed
+.build/debug/warble --fetch-resume <url> <dest>  # (DEBUG) one resumable fetch, narrated (resume/restart/reuse)
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the

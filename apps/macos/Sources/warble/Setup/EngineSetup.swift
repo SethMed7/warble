@@ -23,11 +23,44 @@ enum Engine: String, CaseIterable, Identifiable {
         case .cleanup: return "Punctuation + filler removal (Qwen via MLX)"
         }
     }
-    var sizeText: String {
+    // The size story, stated BEFORE any consent (ROADMAP 0.4 "sizes up front"). Verified
+    // 2026-07-11 against the real artifacts, not folklore — download: HTTP content-lengths of the
+    // pinned tarballs/repos (sherpa 25.9 MB + Parakeet 482.5 MB; kokoro-js npm tarballs ~138 MB +
+    // the q8 voice model 93 MB lazily on first read; Qwen2.5-1.5B-4bit repo 880 MB); disk: du of
+    // finished installs, warble-local venvs/runtimes included (824 MiB / 497 MiB / 1082 MiB).
+    // Re-verify whenever a pinned version or model changes; --engine-sizes prints this table.
+    var downloadSize: String {
         switch self {
-        case .dictation: return "~600 MB"
-        case .voices: return "~90 MB"
+        case .dictation: return "~510 MB"
+        case .voices: return "~140 MB"
         case .cleanup: return "~0.9 GB"
+        }
+    }
+    var diskSize: String {
+        switch self {
+        case .dictation: return "~0.9 GB"
+        case .voices: return "~0.5 GB"
+        case .cleanup: return "~1.1 GB"
+        }
+    }
+    /// Bytes that arrive AFTER install, stated up front so nothing ever downloads unannounced.
+    var lazyDownloadNote: String? {
+        self == .voices ? "~95 MB voices on first read" : nil
+    }
+    /// Where this engine lands for a given target choice: the big weights (the user's store
+    /// choice) and the small always-warble-local runtime. Home-abbreviated for cards and the seam.
+    func destination(for target: AIStore.Target) -> (weights: String, runtime: String) {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        func tilde(_ p: String) -> String { p.hasPrefix(home) ? "~" + p.dropFirst(home.count) : p }
+        switch self {
+        case .dictation:
+            return (tilde(AIStore.modelsDir(for: target)), "~/.warble")
+        case .voices:
+            return (tilde(target == .shared ? AIStore.kokoroCacheDir : AIStore.legacyKokoroCache),
+                    "~/.warble/kokoro")
+        case .cleanup:
+            return (tilde(target == .shared ? "\(AIStore.sharedModels)/qwen2.5-1.5b-instruct-4bit"
+                                            : "\(home)/.warble/llm/mlx-model"), "~/.warble")
         }
     }
     var symbol: String {
@@ -110,6 +143,15 @@ final class EngineSetup: ObservableObject {
     private var home: String { FileManager.default.homeDirectoryForCurrentUser.path }
 
     init() { refresh() }
+
+    #if DEBUG
+    /// The --render-setup fixture: injected card states, no disk scan, no install machinery —
+    /// so every Setup look (sizes up front, honest progress, failure) renders headlessly.
+    init(preview: [Engine: InstallState], target: AIStore.Target = .shared) {
+        self.state = preview
+        self.target = target
+    }
+    #endif
 
     // MARK: install-state detection (same paths the engines check at runtime)
 
@@ -264,6 +306,13 @@ final class EngineSetup: ObservableObject {
         for f in files {
             let u = URL(string: "https://huggingface.co/\(repo)/resolve/main/\(f)")!
             let dest = "\(dir)/\(f)"
+            // Present and valid (size matches the listing) → never re-download it. A partial from
+            // an interrupted run is a `.part` file, which download() resumes instead.
+            if let want = sizes[f], want > 0,
+               let have = try? FileManager.default.attributesOfItem(atPath: dest)[.size] as? Int64,
+               have == want {
+                done += want; continue
+            }
             try? FileManager.default.createDirectory(
                 atPath: (dest as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
             let base = done
@@ -275,27 +324,45 @@ final class EngineSetup: ObservableObject {
         }
     }
 
+    /// Download an archive (resumable — the archive lives NEXT TO its destination, not in a
+    /// throwaway temp path, so an interrupted download survives an app quit) and unpack it in two
+    /// honest phases. Extraction is staged into a hidden dir and each entry renamed into place, so
+    /// engine detection — and a dictation running on the current engine mid-install — can never
+    /// see a half-written model.
     private func downloadAndUntar(_ url: URL, into dir: String, engine: Engine, status: String) throws {
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("warble-dl-\(ProcessInfo.processInfo.globallyUniqueString).tar.bz2")
-        defer { try? FileManager.default.removeItem(at: tmp) }
-        try download(url, to: tmp) { written, expected in
+        let fm = FileManager.default
+        let archive = URL(fileURLWithPath: "\(dir)/\(url.lastPathComponent)")
+        try download(url, to: archive) { written, expected in
             let f = expected > 0 ? Double(written) / Double(expected) : nil
             self.progress(engine, f, status)
         }
-        progress(engine, nil, "Extracting…")
+        progress(engine, nil, "Unpacking…") // tar reports nothing — a named phase, never a fake %
+        let stage = "\(dir)/.unpack-\(url.lastPathComponent)"
+        try? fm.removeItem(atPath: stage)
+        try fm.createDirectory(atPath: stage, withIntermediateDirectories: true)
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-        p.arguments = ["-xjf", tmp.path, "-C", dir]
+        p.arguments = ["-xjf", archive.path, "-C", stage]
         p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
         try p.run(); p.waitUntilExit()
-        guard p.terminationStatus == 0 else { throw Err.bad("could not extract \(url.lastPathComponent)") }
+        guard p.terminationStatus == 0 else {
+            try? fm.removeItem(atPath: stage)
+            try? fm.removeItem(at: archive) // a corrupt archive must not be "resumed" next run
+            throw Err.bad("could not extract \(url.lastPathComponent)")
+        }
+        for entry in (try? fm.contentsOfDirectory(atPath: stage)) ?? [] {
+            try? fm.removeItem(atPath: "\(dir)/\(entry)")
+            try fm.moveItem(atPath: "\(stage)/\(entry)", toPath: "\(dir)/\(entry)")
+        }
+        try? fm.removeItem(atPath: stage)
+        try? fm.removeItem(at: archive)
     }
 
-    /// Synchronous URLSession download with progress (we're already off the main thread).
+    /// Synchronous resumable download with real-byte progress (we're already off the main
+    /// thread). Bytes accumulate in `<dest>.part` and resume across interruptions and app quits;
+    /// a dest that already matches the remote size is reused, not re-fetched (ResumableFetch).
     private func download(_ url: URL, to dest: URL, onProgress: @escaping (Int64, Int64) -> Void) throws {
-        let dl = Downloader()
-        guard dl.run(url, to: dest, onProgress: onProgress) else { throw Err.bad("download failed: \(url.lastPathComponent)") }
+        _ = try ResumableFetch().run(url, to: dest, onProgress: onProgress)
     }
 
     private func getJSON(_ url: URL) throws -> [String: Any] {
@@ -359,40 +426,5 @@ final class EngineSetup: ObservableObject {
     enum Err: LocalizedError {
         case bad(String)
         var errorDescription: String? { switch self { case .bad(let m): return m } }
-    }
-}
-
-/// Minimal URLSessionDownloadDelegate wrapper for a synchronous download with progress.
-private final class Downloader: NSObject, URLSessionDownloadDelegate {
-    private var dest: URL!
-    private var onProgress: ((Int64, Int64) -> Void)?
-    private let done = DispatchSemaphore(value: 0)
-    private var ok = false
-
-    func run(_ url: URL, to dest: URL, onProgress: @escaping (Int64, Int64) -> Void) -> Bool {
-        self.dest = dest; self.onProgress = onProgress; self.ok = false
-        let cfg = URLSessionConfiguration.default
-        cfg.timeoutIntervalForResource = 3600
-        let session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
-        session.downloadTask(with: url).resume()
-        done.wait()
-        session.invalidateAndCancel()
-        return ok
-    }
-
-    func urlSession(_ s: URLSession, downloadTask t: URLSessionDownloadTask,
-                    didWriteData _: Int64, totalBytesWritten w: Int64, totalBytesExpectedToWrite e: Int64) {
-        onProgress?(w, e)
-    }
-    func urlSession(_ s: URLSession, downloadTask t: URLSessionDownloadTask, didFinishDownloadingTo loc: URL) {
-        do {
-            try? FileManager.default.removeItem(at: dest)
-            try FileManager.default.moveItem(at: loc, to: dest)
-            ok = true
-        } catch { ok = false }
-    }
-    func urlSession(_ s: URLSession, task t: URLSessionTask, didCompleteWithError err: Error?) {
-        if err != nil { ok = false }
-        done.signal()
     }
 }

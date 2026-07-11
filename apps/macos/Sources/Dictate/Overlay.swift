@@ -37,6 +37,7 @@ final class Overlay {
     private enum WaveState { case listening, processing, landed }
     private var waveState: WaveState?
     private var capText: String?   // the hold-cap countdown, when active
+    private var landedNote: String? // auto-send confirmation ("sent — said 'press enter'"), when it fired
     private var handsFree = false  // shapes the listening hint (hold vs double-tap)
 
     // Tokens from Shared/Theme — one canon (brand/tokens.md), no local literals.
@@ -58,6 +59,7 @@ final class Overlay {
         self.handsFree = handsFree
         waveState = .listening
         capText = nil
+        landedNote = nil
         mountWave()
     }
 
@@ -68,6 +70,7 @@ final class Overlay {
     func showThinking() {
         waveState = .processing
         capText = nil
+        landedNote = nil
         mountWave()
     }
 
@@ -85,12 +88,16 @@ final class Overlay {
 
     /// Pasted — the spinner becomes a brief electric checkmark (success is a glyph, never a color —
     /// DESIGN.md), then the pill is gone. Motion stops the instant processing ends: the spinner is
-    /// removed, the bars are already flat, nothing loops during the confirmation.
-    func showLanded() {
+    /// removed, the bars are already flat, nothing loops during the confirmation. `note` names an
+    /// action the checkmark alone can't explain (currently just auto-send: "sent — said 'press
+    /// enter'") — DESIGN.md's success rule ("a checkmark glyph beside text-hi text"), so the
+    /// behavior it confirms is never mysterious (ROADMAP 0.5).
+    func showLanded(note: String? = nil) {
         waveState = .landed
         capText = nil
+        landedNote = note
         mountWave()
-        autoClose(after: 0.6)
+        autoClose(after: note == nil ? 0.6 : 1.6) // a note needs a moment longer to actually read
     }
 
     /// Accessibility denied: text is on the clipboard. Tell the user to paste it.
@@ -120,6 +127,7 @@ final class Overlay {
         stackView = nil
         waveState = nil
         capText = nil
+        landedNote = nil
         hovering = false
         panel?.orderOut(nil); panel = nil
         waveformView = nil
@@ -202,6 +210,13 @@ final class Overlay {
             width += 8 + 16 + 10
             cons += [check.widthAnchor.constraint(equalToConstant: 16),
                      check.heightAnchor.constraint(equalToConstant: 16)]
+            // Auto-send confirmation (ROADMAP 0.5): "a checkmark glyph (electric) beside text-hi
+            // text" is DESIGN.md's own success rule — this is that text, added only when it fired.
+            if let landedNote {
+                let l = label(landedNote, size: 12, weight: .medium, color: textHi)
+                views.append(l)
+                width += 8 + l.intrinsicContentSize.width
+            }
         }
 
         let stack = NSStackView(views: views)
@@ -436,7 +451,7 @@ final class CapsuleView: NSView {
 /// deterministic. Asserted by scripts/regression.sh (check: listening).
 extension Overlay {
     static let renderableStates = ["listening", "listening+hint", "listening+cap",
-                                   "processing", "processing+hint", "landed", "copied", "error"]
+                                   "processing", "processing+hint", "landed", "landed+sent", "copied", "error"]
 
     static func renderPill(_ state: String, to out: URL) {
         guard renderableStates.contains(state) else {
@@ -455,6 +470,7 @@ extension Overlay {
         case "listening", "processing", "landed":
             o.waveState = base == "listening" ? .listening : (base == "processing" ? .processing : .landed)
             if variant == "cap" { o.capText = "stops in 0:59" }
+            if variant == "sent" { o.landedNote = "sent — said 'press enter'" }
             guard let built = o.waveContent() else { exit(1) }
             content = built.view
             width = built.width

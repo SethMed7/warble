@@ -209,6 +209,11 @@ public final class DictateController: NSObject {
         sounds.state = DictateSounds.enabled ? .on : .off
         sounds.toolTip = "A soft ping when the mic goes hot; a quieter one on a clean stop"
         sub.addItem(sounds)
+        let autoSend = NSMenuItem(title: "Press Enter to Send", action: #selector(toggleAutoSend), keyEquivalent: "")
+        autoSend.target = self
+        autoSend.state = AutoSend.enabled ? .on : .off
+        autoSend.toolTip = "End a dictation by saying \"press enter\" — warble sends it. Off by default; never fires in a password field."
+        sub.addItem(autoSend)
         sub.addItem(.separator())
         let dash = NSMenuItem(title: "Dictionary…", action: #selector(openDictionary), keyEquivalent: "d")
         dash.target = self
@@ -264,6 +269,13 @@ public final class DictateController: NSObject {
     /// nothing ever re-enables it (product.md §4.5).
     @objc private func toggleSounds() {
         DictateSounds.enabled.toggle()
+        onMenuRebuild?() // refresh the checkmark in the shared menu
+    }
+
+    /// "Press enter" auto-send (ROADMAP 0.5). Off stays off — nothing ever re-enables it
+    /// (product.md §4.5); flipped on, it applies starting with the very next dictation.
+    @objc private func toggleAutoSend() {
+        AutoSend.enabled.toggle()
         onMenuRebuild?() // refresh the checkmark in the shared menu
     }
 
@@ -558,15 +570,19 @@ public final class DictateController: NSObject {
                 DispatchQueue.global(qos: .utility).async { // LLM / bun cleaner may block
                     let spell = SpellOut.process(raw) // resolve any spoken spelling first
                     let cleaner = Cleaners.best(for: spell.text) // the chosen cleanup level; off main
-                    // cleanup, then your dictionary, then any snippet triggers (ROADMAP 0.5) — in
-                    // that order, always, regardless of cleanup level: a snippet is explicit user
-                    // intent, not AI rewriting, so it fires whenever any snippet is defined.
+                    // cleanup, then your dictionary, then any snippet triggers, then "press enter"
+                    // auto-send (ROADMAP 0.5) — in that order, always, regardless of cleanup level:
+                    // a snippet or the auto-send phrase is explicit user intent, not AI rewriting,
+                    // so each fires whenever it applies (a snippet whenever any is defined; the
+                    // phrase only when the toggle is on AND it's in the final position).
                     let cleaned = Snippets.shared.expand(Lexicon.shared.apply(cleaner.clean(spell.text)))
+                    let auto = AutoSend.apply(cleaned)
                     DispatchQueue.main.async {
                         guard self.workGen == gen else { try? FileManager.default.removeItem(at: wav); return } // cancelled during polish
                         for rule in spell.learned { Lexicon.shared.learnExplicit(from: rule.from, to: rule.to) }
                         // `raw` is the verbatim transcript — history keeps it so any cleanup is undoable.
-                        self.deliver(cleaned, raw: raw, ctx: ctx, audio: wav) // record copies the recording (when saving is on)
+                        self.deliver(auto.pasted, raw: raw, ctx: ctx, audio: wav,
+                                     autoSendSaid: auto.send ? auto.said : nil) // record copies the recording (when saving is on)
                         try? FileManager.default.removeItem(at: wav) // then drop the temp WAV
                         if let word = spell.learned.first?.to { // confirm what spelling was locked in
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -579,7 +595,10 @@ public final class DictateController: NSObject {
         }
     }
 
-    private func deliver(_ cleaned: String, raw: String, ctx: DictationContext, audio: URL?) {
+    /// `autoSendSaid` is non-nil only when the "press enter" toggle is on AND the dictation ended
+    /// with the phrase (AutoSend.apply already stripped it out of `cleaned`) — its value is the
+    /// phrase itself ("press enter" / "press return"), for the pill's landed copy.
+    private func deliver(_ cleaned: String, raw: String, ctx: DictationContext, audio: URL?, autoSendSaid: String? = nil) {
         processingWatchdog?.cancel(); processingWatchdog = nil
         unregisterEsc()
         state = .idle
@@ -601,11 +620,19 @@ public final class DictateController: NSObject {
         remember(cleaned)                                                // in-memory safety net for a mis-targeted paste
         InsightStore.shared.record(cleaned, raw: raw, ctx: ctx, audioSource: audio) // local stats + history (+ saved recording)
         if Paster.paste(cleaned) {
+            // Auto-send (ROADMAP 0.5): the Return keystroke fires only after this successful
+            // paste, and NEVER in a secure field — reusing ctx.secure, the same signal
+            // InsightStore already gates on to keep secure-field dictations to metrics-only.
+            let sending = autoSendSaid != nil && !ctx.secure
+            if sending { Paster.postReturn() }
             if sessionCapped {
                 sessionCapped = false
                 // The stop was warble's doing, not the user's — say why (warn + glyph so it can't
                 // be missed after a 20-minute session), and keep the cause in the menu row too.
                 noteError(.holdCapReached)
+            } else if sending {
+                // So the behavior is never mysterious: the checkmark alone can't say "and it sent".
+                Overlay.shared.showLanded(note: "sent — said '\(autoSendSaid!)'")
             } else if shouldNoteAppleFloor(ctx) {
                 Overlay.shared.flash(message: DictateError.engineMissing.message) // notice, not a failure
             } else {

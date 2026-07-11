@@ -4,9 +4,9 @@ import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--expand`, `--snippet-set`, `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`,
-/// `--retranscribe`, `--hold-cap`, `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`, `--sounds`,
-/// `--render-pill` (DEBUG).
+/// `--expand`, `--snippet-set`, `--autosend`, `--selftest`, `--axcheck`, `--learn-test`,
+/// `--recover-scan`, `--retranscribe`, `--hold-cap`, `--hold-cap-sim`, `--bench-e2e`,
+/// `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -161,6 +161,18 @@ public enum DictateCLI {
             Snippets.shared.load()
             Snippets.shared.set(trigger: args[i + 1], expansion: args[i + 2])
             print("saved '\(args[i + 1].lowercased())' -> \(Snippets.shared.fileURL.path)")
+            return true
+        }
+        if let i = args.firstIndex(of: "--autosend"), i + 1 < args.count {
+            // "Press enter" auto-send (ROADMAP 0.5), headless: reads the CURRENT persisted toggle
+            // (the "warble" defaults domain — same seam as --cleanup-level/--sounds), so a
+            // `defaults write warble autoSendEnabled -bool true` in the shell before this call
+            // proves the ON path, and the toggle's OFF default needs no setup at all. Runs on
+            // already-cleaned input — the real pipeline runs cleanup -> dictionary -> snippets
+            // first (see transcribeAndDeliver); this flag is the auto-send leg alone.
+            let r = AutoSend.apply(args[i + 1])
+            print("send: \(r.send ? "yes" : "no")")
+            print("pasted: \(r.pasted)")
             return true
         }
         if args.contains("--selftest") {

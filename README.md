@@ -101,6 +101,15 @@ rest of your words untouched. Matching is case-insensitive and runs after cleanu
 dictionary, so a corrected spelling can still trigger one — fully local, and it only ever fires
 because you defined a trigger.
 
+End a dictation by saying **"press enter"** (or "press return") and warble sends it — turn it on
+under **menu → Dictate → Press Enter to Send** (off by default, and it never turns itself back on).
+It's recognized only when it's the very last thing you say — the words are stripped from what gets
+pasted and a Return keystroke follows right after, so "hold Fn, dictate a Slack message, press
+enter" is one gesture, no reach for the keyboard. Say it in the middle of a sentence ("if you press
+enter here it submits") and it's left exactly as spoken — only the *final* position counts. The
+pill's checkmark says so when it fires ("sent — said 'press enter'"), and it never fires in a
+password field.
+
 ### Read aloud (text → voice)
 Press **⌃V** to start watching, then highlight anything — drag-select, double/triple-click, or
 **Shift-click to extend** — and each selection is queued in order and read aloud while a **dark
@@ -324,12 +333,14 @@ sh scripts/install.sh                    # build, sign, install to /Applications
                                             #   states: fresh | installing | installed | failed
 .build/debug/warble --fetch-resume <url> <dest>  # (DEBUG) one resumable fetch, narrated (resume/restart/reuse)
 .build/debug/warble --sounds                # the listening pings' toggle: prints on|off (set: --sounds off)
+.build/debug/warble --autosend "ship it press enter"  # "press enter" auto-send: prints send: yes|no + pasted: <text>
+                                            #   (reads the persisted toggle — off by default, so send: no until it's turned on)
 .build/debug/warble --render-pill listening /tmp/pill.png  # (DEBUG) render a pill state offscreen at 2x
                                             #   states: listening | listening+hint | listening+cap | processing
-                                            #   | processing+hint | landed | copied | error
+                                            #   | processing+hint | landed | landed+sent | copied | error
 
 # the whole card gallery — every tour card, Setup state, and pill state — in one command:
-sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (26 @2x PNGs, for design review)
+sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (27 @2x PNGs, for design review)
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the

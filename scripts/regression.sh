@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
@@ -34,6 +34,7 @@ describe() {
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
     dictionary)    echo "--apply/--pronounce over a fixture dictionary + learn-threshold promotion" ;;
     snippets)      echo "--expand over a fixture WARBLE_HOME: trigger-alone, in-sentence, no-snippets passthrough, dictionary+snippet order, 0600 storage" ;;
+    autosend)      echo "--autosend: toggle off -> verbatim passthrough; toggle on -> final-position strip + send, mid-sentence untouched; the landed+sent pill renders" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -283,6 +284,72 @@ check_snippets() {
   fi
   expect "a snippet saved via the dashboard's Add path round-trips through --expand" "123 Main St" \
     env WARBLE_HOME="$SAVE_HOME" "$BIN" --expand "my address"
+}
+
+# "Press enter" auto-send (ROADMAP 0.5): --autosend proves the toggle gate plus the pure
+# detector's final-position / mid-sentence / punctuation behavior through the real CLI (the
+# matrix itself is also unit-tested directly in AutoSendTests, no process spawn there); the
+# toggle's cross-process persistence uses the same "warble" defaults domain as
+# --cleanup-level/--sounds, restored after. The landed+sent pill (the feedback that fires
+# alongside a real send — DESIGN.md's "checkmark + text-hi text" success rule) renders and is
+# provably wider than the textless landed pill, the same idiom check_listening uses.
+check_autosend() {
+  require_bin || return
+  PIN_AUTOSEND=$(defaults read warble autoSendEnabled 2>/dev/null || true)
+
+  defaults write warble autoSendEnabled -bool false
+  AUTOSEND_OFF=$("$BIN" --autosend "ship the report press enter")
+  if printf '%s\n' "$AUTOSEND_OFF" | grep -qx "send: no" \
+    && printf '%s\n' "$AUTOSEND_OFF" | grep -qx "pasted: ship the report press enter"; then
+    ok "toggle off -> verbatim passthrough even with the phrase (no hint, no strip)"
+  else
+    bad "toggle off -> verbatim passthrough (got: \"$AUTOSEND_OFF\")"
+  fi
+
+  defaults write warble autoSendEnabled -bool true
+  AUTOSEND_ON=$("$BIN" --autosend "ship the report press enter")
+  if printf '%s\n' "$AUTOSEND_ON" | grep -qx "send: yes" \
+    && printf '%s\n' "$AUTOSEND_ON" | grep -qx "pasted: ship the report"; then
+    ok "toggle on -> final-position phrase strips and reports send"
+  else
+    bad "toggle on -> strip + send (got: \"$AUTOSEND_ON\")"
+  fi
+
+  AUTOSEND_PUNCT=$("$BIN" --autosend "ship the report press enter.")
+  if printf '%s\n' "$AUTOSEND_PUNCT" | grep -qx "send: yes" \
+    && printf '%s\n' "$AUTOSEND_PUNCT" | grep -qx "pasted: ship the report"; then
+    ok "trailing punctuation on the command is tolerated"
+  else
+    bad "trailing punctuation tolerated (got: \"$AUTOSEND_PUNCT\")"
+  fi
+
+  AUTOSEND_MID=$("$BIN" --autosend "please press enter and keep typing")
+  if printf '%s\n' "$AUTOSEND_MID" | grep -qx "send: no" \
+    && printf '%s\n' "$AUTOSEND_MID" | grep -qx "pasted: please press enter and keep typing"; then
+    ok "mid-sentence occurrence is left verbatim, even with the toggle on"
+  else
+    bad "mid-sentence occurrence left verbatim (got: \"$AUTOSEND_MID\")"
+  fi
+
+  if [ -n "$PIN_AUTOSEND" ]; then
+    defaults write warble autoSendEnabled -int "$PIN_AUTOSEND"
+  else
+    defaults delete warble autoSendEnabled >/dev/null 2>&1
+  fi
+
+  AS_DIR="$REGTMP/autosend-pill"
+  mkdir -p "$AS_DIR"
+  if "$BIN" --render-pill "landed+sent" "$AS_DIR/landed-sent.png" >/dev/null 2>&1 && [ -s "$AS_DIR/landed-sent.png" ]; then
+    AS_W=$(sips -g pixelWidth "$AS_DIR/landed-sent.png" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+    AS_H=$(sips -g pixelHeight "$AS_DIR/landed-sent.png" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ "$AS_H" = "64" ] && [ "${AS_W:-0}" -gt 220 ]; then
+      ok "pill state 'landed+sent' renders wider than the textless landed pill (${AS_W}x64 PNG)"
+    else
+      bad "pill state 'landed+sent' renders wider than landed (dims: ${AS_W:-none}x${AS_H:-none}, want >220 x64)"
+    fi
+  else
+    bad "pill state 'landed+sent' renders a nonzero PNG"
+  fi
 }
 
 check_selftest() {
@@ -792,7 +859,7 @@ check_gallery() {
   GAL_OUT=$(sh "$ROOT/scripts/onboarding-gallery.sh" "$GAL_DIR" 2>&1)
   GAL_STATUS=$?
   GAL_STEPS=$("$BIN" --onboarding-state 2>/dev/null | grep -c '^step ')
-  GAL_WANT=$((GAL_STEPS + 7 + 4 + 8)) # steps + onboarding variants + setup states + pill states
+  GAL_WANT=$((GAL_STEPS + 7 + 4 + 9)) # steps + onboarding variants + setup states + pill states
   GAL_GOT=$(ls "$GAL_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
   if [ "$GAL_STATUS" -eq 0 ] && [ "$GAL_GOT" = "$GAL_WANT" ] \
     && printf '%s\n' "$GAL_OUT" | grep -q "^gallery: $GAL_WANT/$GAL_WANT renders"; then

@@ -61,4 +61,21 @@ enum Paster {
         keyUp.post(tap: .cghidEventTap)
         return true
     }
+
+    /// Synthesize a plain Return keystroke — auto-send (ROADMAP 0.5). The SAME event-posting path
+    /// as `postCmdV`, no modifiers. Callers (DictateController.deliver) must only reach this AFTER
+    /// `paste(_:)` has already returned true, and never when a secure field was focused at
+    /// recording start — that gate lives at the call site, not here, since Paster stays a dumb
+    /// keystroke-poster with no dictation-state knowledge of its own.
+    @discardableResult
+    static func postReturn() -> Bool {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_Return), keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_Return), keyDown: false) else {
+            return false
+        }
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return true
+    }
 }

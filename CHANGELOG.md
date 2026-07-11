@@ -12,7 +12,8 @@ claim is measured — and all of it is provable by one deterministic command. Pl
 first five minutes" — in full: the welcome tour with permission cards that never dead-end and a
 guaranteed first success for both verbs, engine setup without the wait trap, the listening
 contract, and the whole milestone folded into the same regression suite. And 0.5 — "cheap
-parity" — begins: Snippets, spoken trigger phrases that expand into saved text.*
+parity" — continues: Snippets (spoken trigger phrases that expand into saved text) and "press
+enter" auto-send (end a dictation with the phrase and warble sends it, off by default).*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -219,6 +220,23 @@ parity" — begins: Snippets, spoken trigger phrases that expand into saved text
   expansion, case-insensitivity, multi-line expansions), and a `scripts/regression.sh` check
   covering trigger-alone, trigger-in-sentence, the no-snippets passthrough, the dictionary-then-
   snippets ordering, and the 0600 file.
+- **"Press enter" auto-send (0.5 continues).** End a dictation by saying **"press enter"** (or
+  "press return") and warble sends it — huge for chat apps: hold Fn, dictate a message, say the
+  phrase, release, and it's already sent. **Off by default** (**Dictate ▸ Press Enter to Send**;
+  never re-enables itself once turned off) and recognized ONLY when it's the very last thing you
+  say — the phrase is stripped from what gets pasted, but the exact same words anywhere earlier in
+  the dictation ("if you press enter here it submits") are left completely untouched, so dictating
+  instructions about the feature still works. Case-insensitive, tolerates trailing punctuation
+  ("press enter." / "press enter!"), and runs as the final leg of the pipeline (cleanup → dictionary
+  → snippets → auto-send). The Return keystroke fires only after a successful paste and never in a
+  secure (password) field — it reuses the same secure-field signal InsightStore already gates
+  history recording on. When it fires, the pill's landed checkmark says so ("sent — said 'press
+  enter'") so the behavior is never mysterious; when the toggle is off, the phrase pastes verbatim,
+  no hint, no nag. Headless proof: a pure `AutoSend.detectFinal` unit-tested hard (final-position
+  matrix, mid-sentence negatives, punctuation variants, newline-preserving strip), a new
+  `--autosend "text"` CLI flag reading the persisted toggle, a `--render-pill landed+sent` seam for
+  the pill's new feedback state, and a `scripts/regression.sh` check covering the toggle gate, the
+  strip, and the render.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

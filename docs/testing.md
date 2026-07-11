@@ -38,6 +38,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
 | `dictionary` | `--apply` / `--pronounce` over a fixture dictionary; repeated corrections promote at the learn threshold | dictionary |
 | `snippets` | `--expand` over a fixture `WARBLE_HOME`: trigger-alone replaces the whole dictation, trigger-in-sentence replaces only its span, no snippets defined is verbatim passthrough, a dictionary correction can still trigger a snippet (order proof + negative control), and `--snippet-set` writes an owner-only (0600) file a later process reads back | 0.5 snippets |
+| `autosend` | `--autosend` over the persisted toggle: off is verbatim passthrough even with the phrase, on strips a FINAL-position "press enter"/"press return" and reports `send: yes`, trailing punctuation is tolerated, a mid-sentence occurrence never fires — plus the `landed+sent` pill renders wider than the textless `landed` base | 0.5 auto-send |
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
@@ -91,10 +92,10 @@ of these seams; the regression checks above assert real pixels through them.
 | --- | --- |
 | `--render-onboarding <step[+variant]> <out.png>` | one tour card — step ids from `--onboarding-state`; variants inject preview state: `mic+granted`, `ax+granted`, `meter+nomic`, `practice+done`, `practice+nomic`, `read+done`, `read+noax` |
 | `--render-setup <state> <out.png>` | the Setup window in one state: `fresh` \| `installing` \| `installed` \| `failed` |
-| `--render-pill <state> <out.png>` | the pill: `listening` \| `listening+hint` \| `listening+cap` \| `processing` \| `processing+hint` \| `landed` \| `copied` \| `error` |
+| `--render-pill <state> <out.png>` | the pill: `listening` \| `listening+hint` \| `listening+cap` \| `processing` \| `processing+hint` \| `landed` \| `landed+sent` \| `copied` \| `error` |
 
 For human design review, one command renders all of them — every tour card and variant, every
-Setup state, every pill state (26 PNGs, `@2x`):
+Setup state, every pill state (27 PNGs, `@2x`):
 
 ```sh
 sh scripts/onboarding-gallery.sh          # → /tmp/warble-onboarding-qa (pass a dir to override)
@@ -177,6 +178,15 @@ the tour must not reappear (only **menu → Welcome tour…** brings it back).
   the pill must be gone well under a second — no spinner ever visible after the text has landed.
 - **The paste itself** (+ Copy Last Dictation, Recent Dictations) into real apps — editor,
   terminal, Slack.
+- **"Press enter" auto-send, the real keystroke**: `defaults write warble autoSendEnabled -bool
+  true`, then hold Fn and end a dictation with "…press enter" into a real chat app (Slack/Messages)
+  — the message must paste stripped of the phrase AND actually send, and the pill must show "sent
+  — said 'press enter'". Say the phrase mid-sentence in the same app and it must paste untouched,
+  nothing sent. With the toggle back off, ending with the phrase must paste it verbatim. Finally,
+  focus a real secure field (a password prompt) and dictate ending with the phrase: the Return
+  keystroke must NOT fire (the field must not submit) even with the toggle on — the detection/strip
+  logic itself and the toggle's default are the scripted twins (`swift test` `AutoSendTests` +
+  `--autosend`); this by-hand pass is the actual keystroke landing in a real app.
 - **Read-aloud**: ⌃V watch → selection queue → follow-along highlighting → collapse → Esc.
 - **The welcome tour, end to end**: `WARBLE_FORCE_ONBOARDING=1 .build/debug/warble` (or, for the
   true first-run path, clear the debug domain's keys first: `defaults delete warble

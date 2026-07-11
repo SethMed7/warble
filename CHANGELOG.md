@@ -14,6 +14,10 @@ is what a user actually gets.
   never do; [ROADMAP.md](ROADMAP.md) stages 0.3 → 1.0 with an explicit go-public gate; and a
   verified multi-agent competitive teardown of Wispr Flow lives in
   [docs/competitive/](docs/competitive/wispr-flow.md).
+- **One regression gate.** `scripts/regression.sh` runs the whole deterministic check in one
+  command — the core acceptance suite, a debug build, and the headless CLI smokes with
+  exact-output assertions — engine-free by default (`WARBLE_REGRESSION_FULL=1` adds the
+  warm-engine paths). Milestone 0.3's reliability checks extend it.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

@@ -246,6 +246,11 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --selftest              # learn-from-edits logic
 ```
 
+**Regression:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — it
+runs the `core/` acceptance suite, a debug `swift build`, and the headless smokes above with
+exact-output assertions, and exits non-zero on any failure. It needs no premium engines installed;
+set `WARBLE_REGRESSION_FULL=1` to also exercise the warm-engine paths (a real `--speak` render).
+
 **Cut a release:** `sh scripts/release.sh` builds a Developer-ID-signed, **notarized** `.dmg` in
 `dist/` (needs a Developer ID cert + a `voz-notary` notarytool profile in your Keychain — the
 profile name is a holdover from the voz era; no secrets ever live in the repo), then

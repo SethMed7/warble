@@ -479,17 +479,27 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (33 @2x PNGs, for design review)
 ```
 
-**Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the
-`core/` acceptance suite, a debug `swift build`, the Swift unit tests (`swift test`), the headless
-CLI checks above with exact-output assertions (every onboarding card, Setup state, pill state,
-History-detail scenario, and dashboard retention render — Home empty/populated + the share card —
-rendered offscreen to real @2x PNGs, plus a structural grep proving the context-capture module
-carries zero networking symbols), and a smoke of the benchmark harness; it exits non-zero on
-any failure and needs **no premium engines installed** (`WARBLE_REGRESSION_FULL=1` adds the
-warm-engine extras; `--list` names every check, `--only <check>` runs one). The full guide —
-coverage map, the env + render seams (`WARBLE_FAULT`, `WARBLE_HOME`, `--render-onboarding`…), and
-what still needs a human, headed by the fresh-account **five-minute test** (0.4's exit criterion)
-and the **Little Snitch silence test** (0.6's), both scripted step by step — is
+**Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — **37**
+named checks (`--list` to see them all, `--only <check>` for one), covering the `core/` acceptance
+suite, a debug `swift build`, the Swift unit tests (`swift test`), the headless CLI checks with
+exact-output assertions (every onboarding card, Setup state, pill state, History-detail scenario,
+and dashboard retention render — Home empty/populated + the share card — rendered offscreen to
+real @2x PNGs), and a smoke of the benchmark harness. Plus 0.7's trust-dossier checks: a
+repo-wide grep tripwire banning known overclaim phrases (extended explicitly over `docs/vs/`
+too), the checksum script verified against the real `shasum -a 256 -c`, the Wispr import tool's
+extraction/dedupe/round-trip suite over a committed fixture SQLite (plus the imported dictionary
+applied verbatim by the real app), the CI workflow's own well-formedness, the SpeechAnalyzer
+engine's presence-tolerant chain (transcribes when its macOS 26 assets are installed, fails
+cleanly — never a silent fallback — when they aren't), and `strings` over the actual compiled
+binary confirming only the disclosed hosts appear (the exact command the transparency doc asks a
+stranger to run, made a permanent regression check). Structural, not just behavioral throughout:
+a grep proves the context-capture module carries zero networking symbols, and the TTS curl call's
+`--noproxy` is checked in its real arguments array, not a comment. It exits non-zero on any
+failure and needs **no premium engines installed** (`WARBLE_REGRESSION_FULL=1` adds the
+warm-engine extras). The full guide — coverage map, the env + render seams (`WARBLE_FAULT`,
+`WARBLE_HOME`, `--render-onboarding`…), and what still needs a human, headed by the fresh-account
+**five-minute test** (0.4's exit criterion), the **Little Snitch silence test** (0.6's), and
+**the stranger test** (0.7's — run as far as automatable; the residue is named plainly) — is
 [docs/testing.md](docs/testing.md).
 
 **Benchmarks:** every public performance claim is measured, dated, and reproducible — method,

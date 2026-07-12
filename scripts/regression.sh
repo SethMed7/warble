@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors speechanalyzer hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums import ci vs warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors speechanalyzer hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums import ci vs strings warm"
 
 describe() {
   case "$1" in
@@ -61,6 +61,7 @@ describe() {
     import)        echo "Wispr import (0.7): scripts/import-wispr.ts bun suite (extraction/dedupe/schema-probe/corrupt+missing), a dry-run over the committed fixture writes nothing, --write creates warble's dictionary while leaving Wispr's file byte-identical, and the imported file is applied verbatim by the real app" ;;
     ci)            echo "release integrity (0.7): .github/workflows/regression.yml exists, is well-formed YAML, and is wired to a macOS runner running the engine-free suite on push + PR" ;;
     vs)            echo "the /vs/ comparison pages (0.7): all six files exist; the overclaim tripwire (sitewide + competitor-overreach phrases) is clean over docs/vs/; every competitor page is headed DRAFT and keeps its concession + both audience sections; wispr-flow.md keeps the §Risks item 6 qualifiers (anonymous reporter, Privacy Mode off-by-default, the BLOB correction if screenshots are mentioned); handy.md names the same-Parakeet-engine fact directly; every page states the WER synthetic-corpus caveat next to warble's numbers" ;;
+    strings)       echo "the stranger test, made permanent (0.7): strings over the compiled binary shows only the disclosed hosts (loopback + bun.sh/k2-fsa/huggingface.co) and never the appcast host (which lives only in Info.plist)" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -1745,6 +1746,44 @@ check_vs() {
       bad "$p.md: synthetic-corpus caveat + docs/benchmarks.md link"
     fi
   done
+}
+
+# The stranger test, made permanent (ROADMAP 0.7's own exit criterion): `strings` over the
+# ACTUAL compiled binary — the exact command in docs/transparency.md's "How to verify" #6 — must
+# show only the disclosed hosts (loopback + Setup's three download hosts), and the appcast host
+# must live only in Info.plist, never baked into the executable. Debug and release binaries carry
+# identical string literals (compile-time constants; optimization level never touches them — a
+# freshly built swift build -c release binary was checked by hand during 0.7's own audit and
+# matched byte-for-byte in URL content), so the CLI checks' existing debug binary is the real
+# proof, not a stand-in — a stray host literal can never sneak into a release without failing
+# this gate first.
+check_strings() {
+  require_bin || return
+  SG_URLS=$(strings "$BIN" | grep -oE 'https?://[A-Za-z0-9._~:/%#@!$&'"'"'()*+,;=-]+' | sort -u)
+  SG_BAD=""
+  while IFS= read -r sg_u; do
+    [ -z "$sg_u" ] && continue
+    case "$sg_u" in
+      http://127.0.0.1:*) ;;
+      https://bun.sh/install*) ;;
+      https://github.com/k2-fsa/sherpa-onnx/releases/download*) ;;
+      https://huggingface.co/*) ;;
+      *) SG_BAD="$SG_BAD $sg_u" ;;
+    esac
+  done <<SGEOF
+$SG_URLS
+SGEOF
+  if [ -z "$SG_BAD" ]; then
+    ok "strings over the compiled binary shows only the disclosed hosts (loopback + bun.sh/k2-fsa/huggingface.co)"
+  else
+    bad "strings found an undisclosed URL literal in the binary:$SG_BAD"
+  fi
+
+  if strings "$BIN" | grep -q "raw.githubusercontent.com"; then
+    bad "the appcast host (raw.githubusercontent.com) must live only in Info.plist, never the compiled binary"
+  else
+    ok "the appcast host never appears in the compiled binary (SUFeedURL lives only in Info.plist)"
+  fi
 }
 
 # Warm-engine extras — the only checks that need the premium engines installed. Gated behind

@@ -30,7 +30,16 @@ stickiest surface, with zero telemetry), and the same suite consolidation: the m
 claim proven only by a doc-comment — that captured context is architecturally unable to reach the
 network — is now a structural regression check, not just an assertion, and the exact by-hand demo
 the ROADMAP exit criterion describes (a live capture in Mail/Terminal, watched against Little
-Snitch) is scripted step by step.*
+Snitch) is scripted step by step. And 0.7, in full — "the trust dossier": the transparency doc
+(every hook and stored byte disclosed, with the command that lets you check each claim yourself),
+release integrity (a SHA-256 checksum beside every notarized dmg, CI running the engine-free
+suite on every push and PR), the Wispr Flow import tool (bring your dictionary when you switch),
+Apple's SpeechAnalyzer absorbed as a fifth dictation engine, the `/vs/` comparison pages drafted
+fair enough to survive Hacker News, and the whole milestone closed out by its own exit criterion —
+**the stranger test**: a repo-wide grep audit for overclaim language, `strings` over a freshly
+built release binary confirming no undisclosed host (now a permanent regression check, not a
+one-time pass), and every one of transparency.md's verify-it-yourself commands actually run, not
+just read.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -539,6 +548,30 @@ Snitch) is scripted step by step.*
   (structure as a proxy for fairness), the Wispr page's binding qualifiers and the Handy page's
   same-engine admission are grepped for directly, and every page's WER number must carry the
   synthetic-corpus caveat next to it.
+- **The trust dossier, folded into the durable suite (0.7 complete).** ROADMAP 0.7's own exit
+  criterion — an adversarial stranger armed with Little Snitch, `strings`, and the transparency
+  doc finds nothing undisclosed — run as far as it can be automated. A repo-wide grep audit of
+  every absolute-claim phrase (`never`, `nothing`, `no network`, `only`, `100%`, plus the sharper
+  "leaves your Mac/machine" and "phones home" family) across README, CHANGELOG, ROADMAP, DESIGN,
+  CONTRIBUTING, and every doc/source comment turned up nothing beyond what the transparency commit
+  had already found and fixed — every "nothing leaves your Mac" instance left in the app and docs
+  is scoped to *content* (audio/transcripts/context), never to "no network activity at all," and
+  the two previously-found overclaim phrases stay banned repo-wide by the `transparency` check,
+  extended over `docs/vs/` by `vs`. `strings` over a freshly built `swift build -c release` binary
+  shows exactly the disclosed set and nothing else — the loopback prefix plus Setup's three
+  download hosts (`bun.sh`, `github.com/k2-fsa/sherpa-onnx`, `huggingface.co`) — confirming the
+  appcast URL lives only in `Info.plist` (`plutil -extract SUFeedURL raw`), never compiled into
+  the binary a stranger would actually `strings`; **that check is now permanent** (a new `strings`
+  regression check, run against the same debug binary every other CLI check already builds, so a
+  stray host literal can never ship unnoticed again). Every headlessly-runnable command in
+  transparency.md's "How to verify" section was executed for real during this pass, not just
+  read: the suite itself, the `log stream` predicate, the `defaults` domain check. `--list` now
+  names **37** checks. [docs/testing.md](docs/testing.md) gains the full 0.7 coverage map and a
+  new **stranger test** manual-list entry naming the residue only a human can close —
+  `codesign`/`spctl`/`strings` against the real signed, notarized, installed app (this pass could
+  only prove the equivalent against a fresh unsigned dev build), a full Little Snitch day of
+  dogfood, and a real Sparkle update check against the live appcast. README's Development section
+  and this changelog both now carry the 0.7 shape.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

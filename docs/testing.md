@@ -1,11 +1,14 @@
 # warble — testing
 
-*How warble's promises are proven. One deterministic command covers everything 0.3, 0.4, 0.5, and
-0.6 shipped — context awareness's three halves (capture, apply, and inspect) and the dashboard
-retention pass — plus 0.7's transparency tripwires (the trust dossier's grep-falsifiable claims);
-this page maps what it checks, the seams it uses, and the short list that still
-needs a human — headed by the fresh-account five-minute test (0.4's exit criterion) and the Little
-Snitch silence test (0.6's), both scripted step by step.*
+*How warble's promises are proven. One deterministic command covers everything 0.3 through 0.7
+shipped — context awareness's three halves (capture, apply, and inspect) and the dashboard
+retention pass, plus the whole 0.7 trust dossier: the transparency doc's grep-falsifiable claims,
+release integrity (checksums + CI), the Wispr Flow import switch path, the SpeechAnalyzer engine,
+the `/vs/` comparison pages, and `strings` over the compiled binary itself; this page maps what it
+checks, the seams it uses, and the short list that still needs a human — headed by the
+fresh-account five-minute test (0.4's exit criterion), the Little Snitch silence test (0.6's), and
+the stranger test (0.7's — ROADMAP 0.7's own exit criterion, run as far as automatable, residue
+below), all scripted step by step.*
 
 ## The one command
 
@@ -68,6 +71,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `import` | the Wispr Flow switch path (ROADMAP 0.7): `scripts/import-wispr.ts` reads a leaving user's **local** Wispr SQLite (opened read-only, on-device only — nothing to do with Wispr's servers) and merges the custom-dictionary words into warble's dictionary. The bun suite (`bun:sqlite`, built in — no new deps) proves extraction (a distinctively-cased word → self-casing fix, a replacement → correction, a bare all-lowercase word skipped not invented), dedupe/merge (added / already-present / conflicts, conflicts never overwritten), the `--write` round-trip into a `WARBLE_HOME` sandbox, the schema probe finding a dictionary table under an unexpected name/columns (and returning nothing on an unrecognizable schema), and corrupt/missing-db non-zero exits. The check adds the seams a unit test can't: a dry run over the committed `scripts/fixtures/wispr/flow-sample.sqlite` that writes nothing, a `--write` that leaves Wispr's file byte-identical (SHA-256 before/after), and the load-bearing proof — the imported dictionary applied verbatim by the real app (`WARBLE_DICTIONARY=<imported> --apply`) | 0.7 switch path |
 | `ci` | release integrity's other half — the CI file itself can't run inside the suite it gates, so this checks what's staticly provable: `.github/workflows/regression.yml` exists, is well-formed YAML (`ruby -ryaml`, stock on every macOS box this suite runs on), and is wired to a macOS runner that runs `sh scripts/regression.sh` on both `push` and `pull_request` | 0.7 release integrity / CI |
 | `vs` | the `/vs/` comparison pages (ROADMAP 0.7), drafted ahead of the public launch — a site's pages can't be fully regression-tested, but their grep-falsifiable core is held to the same discipline as `transparency`: all **six** `docs/vs/` files exist (five competitor pages — wispr-flow, superwhisper, voiceink, handy, apple-built-ins — plus the index README); the overclaim tripwire is extended explicitly over `docs/vs/` — the sitewide banned phrases **plus** three that are only ever overreach in a competitor comparison (`screenshots every` — the Wispr forensic record's screenshot-BLOB column was **not** populated, so that framing is never earned; `spyware` and `steals your` — characterizations the fact-checked record never uses); structure stands in as a proxy for fairness (product.md §4.9's "concede rivals' real strengths") — every competitor page still opens with a **DRAFT** header and still carries all three of "What they do better" / "Who should pick them" / "Who should pick warble", so a page that quietly dropped its concession fails the gate; `wispr-flow.md` keeps the binding qualifiers from [wispr-flow.md §Risks item 6](competitive/wispr-flow.md) (the banned reporter stays **anonymous**, the training-use claim keeps its "Privacy Mode… off by default" qualifier, and any screenshot mention carries the **BLOB**-not-populated correction, not the debunked framing); `handy.md` faces the same-Parakeet-engine fact head-on ("same core engine" / "same Parakeet family"), never around it; and every page's WER number carries the **synthetic-corpus** caveat next to warble's own numbers and links `docs/benchmarks.md`, so the figures are never left implying a fair fight on their own | 0.7 trust dossier |
+| `strings` | the stranger test, made permanent (ROADMAP 0.7): `strings` over the CLI checks' own compiled binary — the exact command in [transparency.md](transparency.md)'s "How to verify" #6 — must show **only** the disclosed hosts (the loopback prefix `http://127.0.0.1:` plus Setup's three download hosts, `bun.sh/install`, `github.com/k2-fsa/sherpa-onnx/releases/download`, `huggingface.co`); any other URL literal fails the gate. Also confirms the appcast host (`raw.githubusercontent.com`) never appears in the compiled executable itself — only in `Info.plist`'s `SUFeedURL`, exactly as transparency.md claims. Debug and release binaries carry identical string literals (compile-time constants); a freshly built `swift build -c release` was diffed against the debug binary by hand during 0.7's own audit and matched byte-for-byte in URL content, so the debug binary already built for every other CLI check is the real proof, not a stand-in | 0.7 trust dossier |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
@@ -208,6 +212,57 @@ half promises, both History entries show their context row, and Home reads as a 
 without squinting. **Fail:** any warble entry in the connection log, a missing or wrong context
 row, or output that doesn't actually differ per app — write down the exact step; that's the
 milestone's bug list, the same discipline as the five-minute test above.
+
+### The stranger test — 0.7's exit criterion
+
+**The milestone gate (ROADMAP 0.7):** an adversarial stranger armed with Little Snitch, `strings`,
+and [transparency.md](transparency.md) finds nothing undisclosed; the repo could be flipped public
+tomorrow without embarrassment. Run as far as automatable — this is what that pass actually did,
+and the residue only a human (with the real signed artifact, or a day to spend) can still close.
+
+**Already run, for real, as part of 0.7's own consolidation (not just described):**
+
+1. **The overclaim grep, repo-wide.** Beyond the `transparency`/`vs` checks' two known-phrase
+   tripwire, every absolute-claim word (`never`, `nothing`, `no network`, `only`, `100%`) and the
+   sharper "leaves your Mac/machine" and "phones home" family were grepped across README,
+   CHANGELOG, ROADMAP, DESIGN, CONTRIBUTING, `docs/`, and every source-comment tree, then read in
+   context by hand. Nothing beyond what the transparency commit had already found and fixed
+   turned up — every "nothing leaves your Mac" instance (in-app copy, docs, code comments) is
+   scoped to *content* (audio/transcripts/context), never to "warble has no network activity at
+   all," and each sits next to (or links) the three-behavior disclosure that says otherwise.
+2. **`strings` over the actual compiled binary.** Run against a freshly built `swift build -c
+   release` (not just the debug binary CI uses) — the exact command in transparency.md's "How to
+   verify" #6. The only URLs present: the loopback prefix and Setup's three disclosed download
+   hosts (`bun.sh/install`, `github.com/k2-fsa/sherpa-onnx/releases/download`, `huggingface.co`) —
+   nothing else. Confirmed the appcast URL (`raw.githubusercontent.com`) lives only in
+   `Info.plist`'s `SUFeedURL` (`plutil -extract SUFeedURL raw`), never in the executable a
+   stranger would actually `strings`. **This is now a permanent regression check** (`strings`,
+   above) — a stray host literal can never sneak into a release without failing the suite first.
+3. **Every headlessly-runnable command in transparency.md's "How to verify" section, actually
+   executed**, not just read: `sh scripts/regression.sh` (this pass's own full run, both
+   summaries below); `log stream --predicate 'subsystem == "io.github.sethmed7.voz"' --level
+   info` (the predicate is well-formed and the stream opens clean); `defaults domains | grep
+   io.github.sethmed7.voz` (the settings domain resolves, without dumping its contents into a
+   report — the command itself is the proof, not this pass's business with the data).
+
+**What remains for a human** — the parts that need the real signed, notarized, installed artifact,
+a live network monitor over real time, or a real update feed, none of which this pass may touch
+(the installed `/Applications/warble.app` and the user's real `~/.warble` are off-limits to any
+automated or agent-run pass, by standing rule, not just this one):
+
+- **`codesign -dv --verbose=2` / `spctl -a -vv` / `strings … | grep -E 'https?://'` against the
+  real `/Applications/warble.app`** — this pass proved the equivalent against a freshly built,
+  unsigned dev binary (item 2 above); confirming the exact same absence of undisclosed hosts in
+  the actual shipped, notarized bits is a by-hand step after the next real release.
+- **A full Little Snitch day of dogfood**, not just the scripted demo above — a deny-all rule set
+  worn for real for a day, the way transparency.md's own "How to verify" #2 describes.
+- **A real Sparkle update check** (`Check for Updates…` against the live published appcast) — the
+  one disclosed network behavior that can't be exercised headlessly or against a fixture; the
+  other two (Setup's downloads, the loopback links) already have byte-level or structural
+  regression proof (`setup-resume`, `context`, `strings`).
+- **`ls -leA ~/.warble`** against a real, lived-in store, and **`nettop -p $(pgrep -x warble)`**
+  while dictating for real — the permission bits and the loopback-only traffic pattern are already
+  proven against sandboxes and structurally; this is the same claim on the real machine, once.
 
 ### The rest of the by-hand list
 

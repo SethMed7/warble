@@ -468,6 +468,23 @@ Snitch) is scripted step by step.*
   hostnames — clean enough to flip public as-is, with that one binary-string finding named
   precisely instead of quietly ignored.
 
+- **The Wispr import tool — the switch path (0.7 continues).** Leaving Wispr Flow? A new
+  `bun scripts/import-wispr.ts` reads the custom dictionary out of Wispr's **local** SQLite (the
+  file already on your Mac under `~/Library/Application Support/Wispr Flow/`) and merges those words
+  into warble's dictionary — so the names and terms you taught Wispr keep working here. It is a
+  local-file-to-local-file tool: it opens Wispr's database **read-only**, never modifies it, and
+  talks to no network and no Wispr account — nothing to do with their servers. Wispr's on-disk
+  schema is undocumented, so the tool **probes** the database (via `sqlite_master`), finds the
+  dictionary table by name/column heuristics, and **reports what it found** rather than assuming —
+  if it can't find one, it says so and stops instead of guessing. **Dry-run by default** (prints
+  exactly what it would import); `--write` commits; existing warble entries are never overwritten
+  (conflicts are reported and left as-is) and a bare all-lowercase word with nothing to correct is
+  reported as skipped, not invented. `--history` reports (count only) how much dictation history
+  exists — deliberately not imported in this version. Proven end-to-end in the regression suite
+  (`--only import`): a bun `bun:sqlite` suite for extraction/dedupe/schema-probe/corrupt+missing, a
+  dry-run that writes nothing, a `--write` that leaves Wispr's file byte-identical, and the
+  load-bearing check — the imported dictionary applied verbatim by the real app.
+
 ## 0.2.0 — 2026-07-10 · the rename release
 
 **voz is now warble** — *to sing with trills, the way a songbird does.* New name, new mark

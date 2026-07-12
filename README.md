@@ -287,6 +287,35 @@ verified by size and never fetched twice. The small **runtimes** stay warble-loc
 better engines…** shows the **source and path of each engine** and asks before each step, so nothing
 installs without your yes.
 
+## Switching from Wispr Flow?
+
+Bring your **custom dictionary** with you. `scripts/import-wispr.ts` reads the words you taught
+Wispr out of its **local** database — the SQLite file already sitting on your Mac under
+`~/Library/Application Support/Wispr Flow/` — and merges them into warble's dictionary, so your
+names and terms keep working here.
+
+To be plain about what this touches: it reads Wispr's **local** file on your own machine, opened
+**read-only** (it never modifies Wispr's data), and it talks to **no network and no Wispr account** —
+this has nothing to do with their servers. Wispr's on-disk schema is undocumented and can change
+between versions, so the tool **probes** the database and **reports exactly what it found** rather
+than assuming; if it can't find a dictionary table, it says so and stops instead of guessing.
+
+```sh
+# dry run — prints what it would import, changes nothing (the default):
+bun scripts/import-wispr.ts
+bun scripts/import-wispr.ts --history      # also report how much history exists (count only)
+
+# commit the import into warble's dictionary:
+bun scripts/import-wispr.ts --write
+
+# or point at a specific database / backup:
+bun scripts/import-wispr.ts --db "/path/to/flow.sqlite" --write
+```
+
+Existing warble entries are never overwritten (conflicts are reported and left as-is). Dictation
+**history text is not imported** in this version — `--history` only counts it, so you can see what
+Wispr kept before you move on.
+
 ## Built on the memex standard
 
 warble follows **[memex](https://github.com/SethMed7/memex)** — a local-first, text-only knowledge +

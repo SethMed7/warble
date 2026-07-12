@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums ci warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums import ci warm"
 
 describe() {
   case "$1" in
@@ -57,6 +57,7 @@ describe() {
     gallery)       echo "the card gallery: scripts/onboarding-gallery.sh renders every onboarding card, Setup state, and pill state in one command" ;;
     transparency)  echo "the trust dossier (0.7): overclaim phrases banned repo-wide; docs/transparency.md exists, is linked from README, and still discloses every sensitive mechanism; curl's --noproxy sits in the real arguments array; every dictation-abort path drops the captured context" ;;
     checksums)     echo "release integrity (0.7): scripts/checksum.sh over fixture artifacts — shasum-compatible line, shasum -a 256 -c verifies it, a second artifact appends, re-running the same filename replaces its line instead of duplicating" ;;
+    import)        echo "Wispr import (0.7): scripts/import-wispr.ts bun suite (extraction/dedupe/schema-probe/corrupt+missing), a dry-run over the committed fixture writes nothing, --write creates warble's dictionary while leaving Wispr's file byte-identical, and the imported file is applied verbatim by the real app" ;;
     ci)            echo "release integrity (0.7): .github/workflows/regression.yml exists, is well-formed YAML, and is wired to a macOS runner running the engine-free suite on push + PR" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
@@ -1514,6 +1515,68 @@ check_checksums() {
   else
     bad "re-running for the same filename replaces its line (got $CK_LINES3 lines; content: $(tr '\n' ';' < "$CKDIR/checksums.txt" 2>/dev/null))"
   fi
+}
+
+# The Wispr import tool (ROADMAP 0.7 — the concrete switch path). scripts/import-wispr.ts reads a
+# leaving user's LOCAL Wispr Flow SQLite (read-only, on-device only — nothing to do with Wispr's
+# servers), probes for the dictionary table by name/columns, and merges the custom words into
+# warble's dictionary. The bun suite (bun:sqlite is built in) proves extraction, dedupe/merge,
+# dry-run-no-write, the --write round-trip into a WARBLE_HOME sandbox, the schema-probe fallback on
+# an unexpected/absent schema, and corrupt/missing-db failures. Here we add the seams a unit test
+# can't: a dry run over the COMMITTED fixture, the read-only guarantee (Wispr's file byte-identical
+# after --write), and the load-bearing proof — the imported file is applied verbatim by the real app.
+check_import() {
+  step "import-wispr: bun test (extraction, dedupe, schema probe, corrupt/missing, round-trip)" \
+    "cd \"$ROOT/scripts\" && bun test import-wispr.test.ts"
+
+  IMP_FIXTURE="$ROOT/scripts/fixtures/wispr/flow-sample.sqlite"
+  if [ ! -f "$IMP_FIXTURE" ]; then
+    bad "import-wispr fixture present at scripts/fixtures/wispr/flow-sample.sqlite (regenerate: bun scripts/fixtures/wispr/build-fixture.ts)"
+    return
+  fi
+
+  # (1) Dry run over the committed fixture reports the plan and writes NOTHING.
+  IMP_HOME="$REGTMP/import-home"
+  mkdir -p "$IMP_HOME"
+  IMP_DRY=$(env WARBLE_HOME="$IMP_HOME" bun "$ROOT/scripts/import-wispr.ts" --db "$IMP_FIXTURE" --history 2>&1)
+  IMP_DSTATUS=$?
+  if [ "$IMP_DSTATUS" -eq 0 ] \
+    && printf '%s\n' "$IMP_DRY" | grep -q "new (would import):     6" \
+    && printf '%s\n' "$IMP_DRY" | grep -q "DRY RUN" \
+    && printf '%s\n' "$IMP_DRY" | grep -q 'table "history" holds 3 entries' \
+    && [ ! -f "$IMP_HOME/dictionary.json" ]; then
+    ok "import-wispr dry-run reports 6 new entries + history count and writes nothing"
+  else
+    bad "import-wispr dry-run (exit $IMP_DSTATUS; dict written: $([ -f "$IMP_HOME/dictionary.json" ] && echo YES || echo no); out: \"$IMP_DRY\")"
+  fi
+
+  # (2) --write creates warble's dictionary while leaving Wispr's file byte-for-byte unchanged.
+  IMP_DICT="$REGTMP/import-dict.json"
+  IMP_BEFORE=$(shasum -a 256 "$IMP_FIXTURE" | awk '{print $1}')
+  bun "$ROOT/scripts/import-wispr.ts" --db "$IMP_FIXTURE" --dict "$IMP_DICT" --write >/dev/null 2>&1
+  IMP_WSTATUS=$?
+  IMP_AFTER=$(shasum -a 256 "$IMP_FIXTURE" | awk '{print $1}')
+  if [ "$IMP_WSTATUS" -eq 0 ] && [ -f "$IMP_DICT" ] && [ "$IMP_BEFORE" = "$IMP_AFTER" ]; then
+    ok "import-wispr --write creates warble's dictionary and never touches Wispr's file (read-only)"
+  else
+    bad "import-wispr --write (exit $IMP_WSTATUS; dict created: $([ -f "$IMP_DICT" ] && echo yes || echo NO); wispr db changed: $([ "$IMP_BEFORE" = "$IMP_AFTER" ] && echo no || echo YES))"
+  fi
+
+  # (3) Corrupt (non-SQLite) source fails loudly with a non-zero exit.
+  IMP_BAD="$REGTMP/import-garbage.sqlite"
+  printf 'this is not a sqlite database — not even close\n' > "$IMP_BAD"
+  if bun "$ROOT/scripts/import-wispr.ts" --db "$IMP_BAD" >/dev/null 2>&1; then
+    bad "import-wispr exits non-zero on a corrupt database"
+  else
+    ok "import-wispr exits non-zero on a corrupt (non-SQLite) database"
+  fi
+
+  # (4) The load-bearing proof only the real app can give: the imported dictionary is applied
+  # verbatim by warble's own engine — a replacement plus two casing fixes in one sentence.
+  require_bin || return
+  expect "the imported dictionary is consumed verbatim by the real app (--apply)" \
+    "ship the machine learning engine for Myela and Parakeet" \
+    env WARBLE_DICTIONARY="$IMP_DICT" "$BIN" --apply "ship the ml engine for myela and parakeet"
 }
 
 # Release integrity, part two (ROADMAP 0.7): the CI workflow itself. It can't run here (no nested

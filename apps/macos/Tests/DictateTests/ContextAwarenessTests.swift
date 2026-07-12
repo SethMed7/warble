@@ -147,6 +147,44 @@ final class ContextAwarenessTests: XCTestCase {
         XCTAssertFalse(json.contains("w200"))
     }
 
+    // MARK: displayLine — the inspect half's record→display formatting (ROADMAP 0.6)
+
+    func testDisplayLineFormatsAppCategoryWordsAndPreview() {
+        XCTAssertEqual(record(words: 20).displayLine,
+                       "context: Mail (mail) · 20 words read · “w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12…”")
+    }
+
+    func testDisplayLineSingularWordIsNotPluralized() {
+        XCTAssertEqual(record(words: 1).displayLine, "context: Mail (mail) · 1 word read · “w1”")
+    }
+
+    func testDisplayLinePreservesTheTruncationMarkVerbatim() {
+        // The 12-word cap + "…" mark is ContextRecord's own structural truncation — displayLine
+        // must carry it through unchanged, never re-truncating or stripping it.
+        let line = record(words: 200).displayLine
+        XCTAssertTrue(line.hasSuffix("w12…”"), "got \"\(line)\"")
+        XCTAssertFalse(line.contains("w13"))
+        XCTAssertFalse(line.contains("w200"))
+    }
+
+    func testDisplayLineDropsTheQuotedClauseWhenNothingWasRead() {
+        // The missing-field case: an app-identity-only capture (an unreadable field, words: 0) has
+        // no preview to show — the line must say so plainly, never show empty quotes ("· “”").
+        let c = CapturedContext(appBundleId: "com.apple.mail", appName: "Mail", category: .mail, text: "")
+        let r = ContextRecord(c)
+        XCTAssertEqual(r.displayLine, "context: Mail (mail) · 0 words read")
+        XCTAssertFalse(r.displayLine.contains("“"), "no quoted clause at all when the preview is empty")
+    }
+
+    func testDisplayLineFallsBackToBundleIdThenUnknownForTheAppName() {
+        let byBundleId = ContextRecord(CapturedContext(appBundleId: "com.example.mystery", appName: nil,
+                                                        category: .other, text: "hello there"))
+        XCTAssertEqual(byBundleId.displayLine, "context: com.example.mystery (other) · 2 words read · “hello there”")
+
+        let unknown = ContextRecord(CapturedContext(appBundleId: nil, appName: nil, category: .other, text: "hi"))
+        XCTAssertEqual(unknown.displayLine, "context: unknown (other) · 1 word read · “hi”")
+    }
+
     // MARK: the apply half (ROADMAP 0.6) — the polish prompt's category hint + the verbatim gate
     // (The deterministic tone rules themselves live in BasicCleanerTests, twin-for-twin with
     // clean.test.ts; the end-to-end leg order is regression.sh's context-apply check.)
@@ -193,5 +231,16 @@ final class ContextAwarenessTests: XCTestCase {
         let legacy = #"{"id":"x","ts":1,"day":"2026-07-11","text":"so the report","words":3,"durationMs":900,"engine":"test","kind":"dictate"}"#
         let e = try JSONDecoder().decode(DictationEvent.self, from: Data(legacy.utf8))
         XCTAssertNil(e.context, "a pre-0.6 line has no context note — it must decode as nil")
+    }
+
+    /// The fuller 0.3–0.5 shape (raw + status joined the schema — see ca664d9/7fefresc) still has
+    /// no `context` key at all. The committed multi-line fixture (scripts/fixtures/history-legacy.jsonl)
+    /// proves the same claim end to end through the real store (regression.sh's `context-inspect`
+    /// check, `--history-count`); this is the inline unit twin for the schema shape itself.
+    func testFullerPre06ShapeWithRawAndStatusStillDecodesWithNoContext() throws {
+        let legacy = #"{"id":"y","ts":2,"day":"2026-07-11","text":"so the quarterly numbers","raw":"um so the the quarterly numbers","words":4,"durationMs":2200,"appBundleId":"com.tinyspeck.slackmacgap","appName":"Slack","engine":"parakeet","kind":"dictate"}"#
+        let e = try JSONDecoder().decode(DictationEvent.self, from: Data(legacy.utf8))
+        XCTAssertEqual(e.raw, "um so the the quarterly numbers")
+        XCTAssertNil(e.context, "the 0.3-0.5 schema (raw + status) still predates context — must decode as nil")
     }
 }

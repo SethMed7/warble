@@ -163,4 +163,16 @@ struct ContextRecord: Codable, Hashable {
             ? toks.prefix(Self.previewWords).joined(separator: " ") + "…"
             : toks.joined(separator: " ")
     }
+
+    /// The inspect half (ROADMAP 0.6): the quiet one-line disclosure History shows for any
+    /// dictation that captured context — "context: Mail (mail) · 42 words read · “Re: the Q3
+    /// numbers…”". Pure and unit-tested (ContextAwarenessTests): the preview is already bounded to
+    /// ≤12 words by the only initializer above, so this never un-caps it, it only formats what's
+    /// already there. An app-identity-only capture (words: 0, an unreadable field) drops the
+    /// quoted clause instead of showing empty quotes — the missing-field case.
+    var displayLine: String {
+        let read = "\(words) word\(words == 1 ? "" : "s") read"
+        let base = "context: \(app) (\(category)) · \(read)"
+        return preview.isEmpty ? base : "\(base) · “\(preview)”"
+    }
 }

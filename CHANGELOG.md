@@ -18,10 +18,12 @@ multi-shortcut + mouse bindings (put push-to-talk on a thumb button), the dictat
 read-back proofreading loop (⌃R as a dictation lands reads it back with the follow-along —
 the loop only a bidirectional voice app can close), and the same suite consolidation, extended:
 the auto-send and read-back secure-field claims are now unit-tested, not just documented. And
-0.6 begins — "context, locally": context awareness, opt-in, bounded, and inspectable, off by
-default — the capture half (what was read is always visible) and the apply half (the captured
+0.6 continues — "context, locally": context awareness, opt-in, bounded, and inspectable, off by
+default — the capture half (what was read is always visible), the apply half (the captured
 category shapes per-app tone: casual in chat, code-aware in terminals, formal in mail — with
-context off, output is provably byte-identical to before).*
+context off, output is provably byte-identical to before), and now the inspect half: any dictation
+that read context shows exactly what, right in History, next to the raw-transcript reveal — and
+Clear history takes it all with it.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -343,6 +345,26 @@ context off, output is provably byte-identical to before).*
   unit-tested twin-for-twin (clean.test.ts + BasicCleanerTests), the prompt hint + None-gate
   unit-tested, and a `context-apply` regression check covering the goldens, every category, and
   the dictionary/snippets precedence end to end.
+- **Inspectable, not just promised — the inspect half (0.6 continues).** Any dictation that
+  captured context now shows exactly what, right in **History**: open it, and a quiet line sits
+  next to *"what you actually said"* — `context: Mail (mail) · 42 words read · "Re: the Q3
+  numbers…"` — mist text, no accent, no box, no toggle; a dictation made with the setting off
+  shows nothing there at all (no empty-state noise). **Data & Privacy** gains the verification
+  line the toggle deserves: *"Check any dictation in History to see exactly what was read."*
+  **Clear all history** takes every one of those notes with it — the record rides
+  `DictationEvent`, so clearing history clears it too; turning **Context awareness** off (it stays
+  off) stops any new capture, and the notes already made stay inspectable until you clear them.
+  Codable backward compatibility keeps holding: pre-0.6 history lines (0.3 through 0.5 — none of
+  them ever had a `context` field) still decode in full, proven against a committed fixture, not
+  just an inline case. Headless proof: a new `--render-history` (DEBUG) seam rasterizes the real
+  History detail — the exact WARBLE_HOME → InsightStore → view wiring, not a fixture view in
+  isolation — so a legacy dictation renders with no context row and a context-bearing one renders
+  the row; `--history-count` proves the decode count off a seeded store; `--clear-history` (DEBUG)
+  proves the record dies with the rest. `scripts/regression.sh` gains a `context-inspect` check
+  covering all three claims, and the record→display formatting (truncation preserved verbatim, the
+  singular/plural word count, the empty-preview/missing-field case, the app-name → bundle-id →
+  "unknown" fallback) is unit-tested (ContextAwarenessTests). ROADMAP 0.6's context-awareness
+  bullet — capture, apply, inspect — is now complete.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

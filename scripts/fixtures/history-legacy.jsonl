@@ -1,0 +1,3 @@
+{"id":"legacy-p1","ts":1719500000,"day":"2025-06-27","text":"let's ship this by friday afternoon","words":6,"durationMs":2400,"appBundleId":"com.apple.Notes","appName":"Notes","engine":"Apple Speech","kind":"dictate"}
+{"id":"legacy-failed","ts":1720100000,"day":"2025-07-04","text":"","words":0,"durationMs":1800,"appBundleId":"com.apple.Terminal","appName":"Terminal","engine":"whisper","kind":"dictate","status":"failed"}
+{"id":"legacy-raw","ts":1720700000,"day":"2025-07-11","text":"so the quarterly numbers look strong","raw":"um so the the quarterly numbers look strong","words":6,"durationMs":3100,"appBundleId":"com.tinyspeck.slackmacgap","appName":"Slack","engine":"parakeet","kind":"dictate"}

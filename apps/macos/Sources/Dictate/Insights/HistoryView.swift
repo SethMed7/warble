@@ -157,149 +157,169 @@ struct DictationDetailView: View {
     @State private var rawHovered = false
     @State private var retranscribing = false
     @State private var recoverNote = ""
+    /// --render-history only: ImageRenderer can't resolve a SwiftUI ScrollView's content height
+    /// without a bounded viewport, so the seam swaps the scroll container for a plain stack sized
+    /// to its own ideal height — the content is identical (the SetupView `renderSeam` idiom).
+    var renderSeam = false
 
-    init(store: InsightStore, event: DictationEvent, onClose: @escaping () -> Void) {
+    init(store: InsightStore, event: DictationEvent, onClose: @escaping () -> Void, renderSeam: Bool = false) {
         self.store = store
         self.event = event
         self.onClose = onClose
+        self.renderSeam = renderSeam
         _editedText = State(initialValue: event.text)
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Button { onClose() } label: {
-                    Label("History", systemImage: "chevron.left")
-                        .font(.system(size: 13))
-                        .foregroundStyle(backHovered ? WarbleTheme.textHi : WarbleTheme.mist)
-                }
-                .buttonStyle(.plain)
-                .onHover { backHovered = $0 }
-
-                HStack(spacing: 12) {
-                    AppIconView(bundleId: event.appBundleId, size: 30)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(event.appName ?? (event.kind == "read" ? "Read aloud" : "Dictation"))
-                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
-                        Text(metaLine).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
-                    }
-                    Spacer()
-                }
-
-                // The replay strip sits directly on the background — the play glyph is the affordance.
-                if let url = store.audioURL(for: event) {
-                    HStack(spacing: 12) {
-                        Button { audio.toggle(url) } label: {
-                            Image(systemName: audio.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                .font(.system(size: 28)).foregroundStyle(WarbleTheme.electric)
-                        }
-                        .buttonStyle(.plain)
-                        ProgressView(value: audio.progress).tint(WarbleTheme.electric)
-                        Text("recording").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
-                    }
-                } else if event.kind == "dictate" {
-                    Text("No saved recording for this one.").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
-                }
-
-                // A FAILED dictation: the words aren't transcribed yet, but the recording is kept.
-                // Re-transcribe runs the normal pipeline again and resolves this item in place —
-                // History only, never a paste. Warn + glyph per the failure styling (DESIGN.md).
-                if current.isFailed {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 12)).foregroundStyle(WarbleTheme.warn)
-                        Text("transcription failed — the recording is kept")
-                            .font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
-                        Spacer()
-                        Button(retranscribing ? "Re-transcribing…" : "Re-transcribe") { retranscribe() }
-                            .disabled(retranscribing || store.audioURL(for: current) == nil)
-                    }
-                    if !recoverNote.isEmpty {
-                        Text(recoverNote).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
-                    }
-                }
-
-                SectionHeader(title: "Transcript").padding(.top, 8)
-                // The editor keeps a border — it's a real text field, the one place a box is earned.
-                TextEditor(text: $editedText)
-                    .font(.system(size: 14))
-                    .foregroundStyle(WarbleTheme.textHi)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 110)
-                    .padding(8)
-                    .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(WarbleTheme.line, lineWidth: 1))
-                HStack {
-                    Spacer()
-                    Button("Save text") { store.updateText(event.id, to: editedText); note = "Saved." }
-                        .disabled(editedText == current.text)
-                }
-
-                // Undo-polish: the verbatim transcript, one quiet disclosure away (product.md §4 —
-                // anything that rewrites must be undoable to the raw words). Mist text, no box.
-                if let raw = current.raw {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Button { rawShown.toggle() } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 8, weight: .semibold))
-                                    .rotationEffect(.degrees(rawShown ? 90 : 0))
-                                Text("what you actually said")
-                            }
-                            .font(.system(size: 11))
-                            .foregroundStyle(rawHovered ? WarbleTheme.textHi : WarbleTheme.mist)
-                        }
-                        .buttonStyle(.plain)
-                        .onHover { rawHovered = $0 }
-                        if rawShown {
-                            Text(raw)
-                                .font(.system(size: 13))
-                                .foregroundStyle(WarbleTheme.mist)
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Button { editedText = raw } label: {
-                                Text("use this as the transcript")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(WarbleTheme.electricText)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                SectionHeader(title: "Teach the dictionary").padding(.top, 8)
-                Text("Heard a word wrong? Add the fix so future dictations get it right — that's how you train it.")
-                    .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
-                HStack(spacing: 8) {
-                    TextField("warble heard…", text: $heard).textFieldStyle(.roundedBorder)
-                    Image(systemName: "arrow.right").foregroundStyle(WarbleTheme.mist)
-                    TextField("should be…", text: $correct).textFieldStyle(.roundedBorder)
-                    Button("Add") { addCorrection() }.disabled(heard.isEmpty || correct.isEmpty)
-                }
-                if !note.isEmpty {
-                    Text(note).font(.system(size: 11)).foregroundStyle(WarbleTheme.electricText)
-                }
-
-                Hairline().padding(.top, 8)
-                // Destructive stays neutral (One-Accent Rule: no red) — the trash glyph carries the
-                // meaning, hover brightens mist to text-hi, same as every ghost affordance.
-                Button(role: .destructive) {
-                    audio.stop(); store.delete(event); onClose()
-                } label: {
-                    Label("Delete this dictation", systemImage: "trash")
-                        .font(.system(size: 13))
-                        .foregroundStyle(deleteHovered ? WarbleTheme.textHi : WarbleTheme.mist)
-                }
-                .buttonStyle(.plain)
-                .onHover { deleteHovered = $0 }
-            }
-            .padding(.horizontal, 28)
-            .padding(.top, 20)
-            .padding(.bottom, 28)
+        Group {
+            if renderSeam { detail } else { ScrollView { detail } }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WarbleTheme.black)
         .onDisappear { audio.stop() }
+    }
+
+    private var detail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Button { onClose() } label: {
+                Label("History", systemImage: "chevron.left")
+                    .font(.system(size: 13))
+                    .foregroundStyle(backHovered ? WarbleTheme.textHi : WarbleTheme.mist)
+            }
+            .buttonStyle(.plain)
+            .onHover { backHovered = $0 }
+
+            HStack(spacing: 12) {
+                AppIconView(bundleId: event.appBundleId, size: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.appName ?? (event.kind == "read" ? "Read aloud" : "Dictation"))
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(WarbleTheme.textHi)
+                    Text(metaLine).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                }
+                Spacer()
+            }
+
+            // The replay strip sits directly on the background — the play glyph is the affordance.
+            if let url = store.audioURL(for: event) {
+                HStack(spacing: 12) {
+                    Button { audio.toggle(url) } label: {
+                        Image(systemName: audio.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.system(size: 28)).foregroundStyle(WarbleTheme.electric)
+                    }
+                    .buttonStyle(.plain)
+                    ProgressView(value: audio.progress).tint(WarbleTheme.electric)
+                    Text("recording").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                }
+            } else if event.kind == "dictate" {
+                Text("No saved recording for this one.").font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+            }
+
+            // A FAILED dictation: the words aren't transcribed yet, but the recording is kept.
+            // Re-transcribe runs the normal pipeline again and resolves this item in place —
+            // History only, never a paste. Warn + glyph per the failure styling (DESIGN.md).
+            if current.isFailed {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 12)).foregroundStyle(WarbleTheme.warn)
+                    Text("transcription failed — the recording is kept")
+                        .font(.system(size: 13)).foregroundStyle(WarbleTheme.textHi)
+                    Spacer()
+                    Button(retranscribing ? "Re-transcribing…" : "Re-transcribe") { retranscribe() }
+                        .disabled(retranscribing || store.audioURL(for: current) == nil)
+                }
+                if !recoverNote.isEmpty {
+                    Text(recoverNote).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                }
+            }
+
+            SectionHeader(title: "Transcript").padding(.top, 8)
+            // The editor keeps a border — it's a real text field, the one place a box is earned.
+            TextEditor(text: $editedText)
+                .font(.system(size: 14))
+                .foregroundStyle(WarbleTheme.textHi)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 110)
+                .padding(8)
+                .background(WarbleTheme.ink, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(WarbleTheme.line, lineWidth: 1))
+            HStack {
+                Spacer()
+                Button("Save text") { store.updateText(event.id, to: editedText); note = "Saved." }
+                    .disabled(editedText == current.text)
+            }
+
+            // Undo-polish: the verbatim transcript, one quiet disclosure away (product.md §4 —
+            // anything that rewrites must be undoable to the raw words). Mist text, no box.
+            if let raw = current.raw {
+                VStack(alignment: .leading, spacing: 8) {
+                    Button { rawShown.toggle() } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .rotationEffect(.degrees(rawShown ? 90 : 0))
+                            Text("what you actually said")
+                        }
+                        .font(.system(size: 11))
+                        .foregroundStyle(rawHovered ? WarbleTheme.textHi : WarbleTheme.mist)
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { rawHovered = $0 }
+                    if rawShown {
+                        Text(raw)
+                            .font(.system(size: 13))
+                            .foregroundStyle(WarbleTheme.mist)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button { editedText = raw } label: {
+                            Text("use this as the transcript")
+                                .font(.system(size: 11))
+                                .foregroundStyle(WarbleTheme.electricText)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            // Context awareness's inspect half (ROADMAP 0.6): what was read for THIS
+            // dictation, right next to the raw-transcript reveal — quiet mist text, no
+            // accent, no box, no toggle (the preview is already bounded, nothing more to
+            // hide). Absent entirely when nothing was captured — no empty-state noise.
+            if let ctx = current.context {
+                Text(ctx.displayLine)
+                    .font(.system(size: 11))
+                    .foregroundStyle(WarbleTheme.mist)
+                    .textSelection(.enabled)
+            }
+
+            SectionHeader(title: "Teach the dictionary").padding(.top, 8)
+            Text("Heard a word wrong? Add the fix so future dictations get it right — that's how you train it.")
+                .font(.system(size: 13)).foregroundStyle(WarbleTheme.mist)
+            HStack(spacing: 8) {
+                TextField("warble heard…", text: $heard).textFieldStyle(.roundedBorder)
+                Image(systemName: "arrow.right").foregroundStyle(WarbleTheme.mist)
+                TextField("should be…", text: $correct).textFieldStyle(.roundedBorder)
+                Button("Add") { addCorrection() }.disabled(heard.isEmpty || correct.isEmpty)
+            }
+            if !note.isEmpty {
+                Text(note).font(.system(size: 11)).foregroundStyle(WarbleTheme.electricText)
+            }
+
+            Hairline().padding(.top, 8)
+            // Destructive stays neutral (One-Accent Rule: no red) — the trash glyph carries the
+            // meaning, hover brightens mist to text-hi, same as every ghost affordance.
+            Button(role: .destructive) {
+                audio.stop(); store.delete(event); onClose()
+            } label: {
+                Label("Delete this dictation", systemImage: "trash")
+                    .font(.system(size: 13))
+                    .foregroundStyle(deleteHovered ? WarbleTheme.textHi : WarbleTheme.mist)
+            }
+            .buttonStyle(.plain)
+            .onHover { deleteHovered = $0 }
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 20)
+        .padding(.bottom, 28)
     }
 
     /// Run the normal pipeline over the kept recording; success resolves the FAILED mark in place

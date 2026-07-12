@@ -321,6 +321,14 @@ dictation controller, the dictation's in-memory context, and that bounded note i
 history — and the Dictate module's only network I/O is the loopback link to warble's own local
 engines.
 
+**Inspectable, not just promised:** open any dictation that captured context in **History**, and a
+quiet line right next to *"what you actually said"* names exactly what was read — the app, its
+category, the word count, and the same capped preview — mist text, no accent, no box; a dictation
+made with the toggle off shows nothing there at all. Data & Privacy says so plainly too: *"Check any
+dictation in History to see exactly what was read."* **Clear all history** takes every one of those
+notes with it — they live on the history lines themselves. Turning **Context awareness** off stops
+any new capture; the notes already made stay inspectable in History until you clear them.
+
 ## Repository layout
 
 ```
@@ -400,15 +408,19 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --render-pill listening /tmp/pill.png  # (DEBUG) render a pill state offscreen at 2x
                                             #   states: listening | listening+hint | listening+cap | processing
                                             #   | processing+hint | landed | landed+sent | landed+readback | copied | error
+.build/debug/warble --history-count         # how many history.json lines InsightStore actually decoded (WARBLE_HOME)
+.build/debug/warble --render-history /tmp/detail.png  # (DEBUG) render the NEWEST event's History detail offscreen at 2x —
+                                            #   seed the scenario via WARBLE_HOME's history.json (a context note, or not)
+.build/debug/warble --clear-history         # (DEBUG) the dashboard's Clear-all-history, headless (WARBLE_HOME only, please)
 
-# the whole card gallery — every tour card, Setup state, and pill state — in one command:
-sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (28 @2x PNGs, for design review)
+# the whole card gallery — every tour card, Setup state, pill state, and History-detail scenario — in one command:
+sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (30 @2x PNGs, for design review)
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the
 `core/` acceptance suite, a debug `swift build`, the Swift unit tests (`swift test`), the headless
-CLI checks above with exact-output assertions (every onboarding card, Setup state, and pill state
-rendered offscreen to real @2x PNGs), and a smoke of the benchmark harness; it exits non-zero on
+CLI checks above with exact-output assertions (every onboarding card, Setup state, pill state, and
+History-detail scenario rendered offscreen to real @2x PNGs), and a smoke of the benchmark harness; it exits non-zero on
 any failure and needs **no premium engines installed** (`WARBLE_REGRESSION_FULL=1` adds the
 warm-engine extras; `--list` names every check, `--only <check>` runs one). The full guide —
 coverage map, the env + render seams (`WARBLE_FAULT`, `WARBLE_HOME`, `--render-onboarding`…), and

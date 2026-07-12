@@ -1,13 +1,15 @@
 import AppKit
 import ApplicationServices
 import AVFoundation
+import SwiftUI
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--clean-in-context`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`,
 /// `--engine`, `--apply`, `--expand`, `--snippet-set`, `--autosend`, `--bindings`,
 /// `--readback-state`, `--context-sim`, `--selftest`, `--axcheck`, `--learn-test`,
 /// `--recover-scan`, `--retranscribe`, `--hold-cap`, `--hold-cap-sim`, `--bench-e2e`,
-/// `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
+/// `--practice-sim`, `--sounds`, `--history-count`, `--render-pill` (DEBUG),
+/// `--render-history` (DEBUG), `--clear-history` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -41,6 +43,47 @@ public enum DictateCLI {
         if args.contains("--render-pill") {
             // Never fall through into launching the app because a QA flag hit a release build.
             FileHandle.standardError.write(Data("--render-pill exists in DEBUG builds only\n".utf8))
+            exit(2)
+        }
+        #endif
+        if args.contains("--history-count") {
+            // A plain, harmless read of InsightStore's loaded event count (WARBLE_HOME honored,
+            // like every other store-facing flag) — regression.sh's decode-compat proof for
+            // ROADMAP 0.6's inspect half: seed a WARBLE_HOME history.json (a committed pre-0.6
+            // fixture, or a hand-written 0.6 line) and this reports how many lines actually
+            // decoded, so a malformed/rejected line shows up as a count that's short.
+            print(InsightStore.shared.events.count)
+            return true
+        }
+        #if DEBUG
+        if let i = args.firstIndex(of: "--render-history"), i + 1 < args.count {
+            // History detail's inspect seam (ROADMAP 0.6): renders the NEWEST event straight off
+            // InsightStore's real load path — no fixture DictationEvent handed in — so the seam
+            // proves the actual WARBLE_HOME -> InsightStore -> ContextRecord -> DictationDetailView
+            // wiring, not just the view in isolation. regression.sh seeds a WARBLE_HOME with one
+            // history.json line per scenario (a context-bearing line, or the committed pre-0.6
+            // fixture) and calls this once per seed.
+            guard let e = InsightStore.shared.events.last else {
+                FileHandle.standardError.write(Data("no history events in WARBLE_HOME — seed one first\n".utf8))
+                exit(2)
+            }
+            MainActor.assumeIsolated { renderHistoryDetail(e, to: URL(fileURLWithPath: args[i + 1])) }
+            return true
+        }
+        if args.contains("--clear-history") {
+            // The Data & Privacy "Clear all history" button, headless: context records live on
+            // DictationEvent, so clearing history must take them with it — regression.sh seeds a
+            // context-bearing event, calls this, and asserts both the in-memory record and
+            // history.json itself are gone. DEBUG-only: a real "nuke history, no confirm" flag has
+            // no place in a shipped release build.
+            let before = InsightStore.shared.events.count
+            InsightStore.shared.clearAll()
+            print("cleared \(before) event\(before == 1 ? "" : "s")")
+            return true
+        }
+        #else
+        if args.contains("--render-history") || args.contains("--clear-history") {
+            FileHandle.standardError.write(Data("this flag exists in DEBUG builds only\n".utf8))
             exit(2)
         }
         #endif
@@ -537,4 +580,30 @@ public enum DictateCLI {
 
         print(fails == 0 ? "ALL PASS" : "\(fails) FAILED")
     }
+
+    #if DEBUG
+    /// --render-history's rasterizer: the same ImageRenderer seam as --render-setup/--render-pill
+    /// (no window, nothing flashes on screen), pinned to the dashboard's real detail-pane width
+    /// (940pt window − the 200pt sidebar). `onClose` is a no-op — the seam never needs to navigate.
+    @MainActor private static func renderHistoryDetail(_ e: DictationEvent, to out: URL) {
+        let width: CGFloat = 740
+        let renderer = ImageRenderer(content: DictationDetailView(store: InsightStore.shared, event: e,
+                                                                   onClose: {}, renderSeam: true)
+            .frame(width: width)
+            .environment(\.colorScheme, .dark))
+        renderer.scale = 2
+        guard let cg = renderer.cgImage else {
+            FileHandle.standardError.write(Data("couldn't rasterize the history detail view\n".utf8))
+            exit(1)
+        }
+        let rep = NSBitmapImageRep(cgImage: cg)
+        rep.size = NSSize(width: width, height: CGFloat(cg.height) / 2)
+        guard let png = rep.representation(using: .png, properties: [:]),
+              (try? png.write(to: out)) != nil else {
+            FileHandle.standardError.write(Data("couldn't write \(out.path)\n".utf8))
+            exit(1)
+        }
+        print("rendered \(e.id) → \(out.path)")
+    }
+    #endif
 }

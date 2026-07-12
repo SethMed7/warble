@@ -31,9 +31,12 @@ struct DataPrivacyView: View {
                               get: { store.excludeSecureFields }, set: { store.excludeSecureFields = $0 })
                     Hairline()
                     // Context awareness (ROADMAP 0.6) — OFF by default, and only this switch ever
-                    // turns it on or off (product.md §4.5: it never re-enables itself).
+                    // turns it on or off (product.md §4.5: it never re-enables itself). The second
+                    // sentence is the inspect half's verification line: the proof this is safe to
+                    // turn on lives one click away in History, not in a promise (product.md-plain,
+                    // no accent, no separate row — same idiom as the Updates toggle's multi-line copy).
                     toggleRow("Context awareness",
-                              "warble reads a little text around your cursor to match the app's tone — decided on this Mac, kept only as a small note of what was read, never sent anywhere.",
+                              "warble reads a little text around your cursor to match the app's tone — decided on this Mac, kept only as a small note of what was read, never sent anywhere. Check any dictation in History to see exactly what was read.",
                               get: { ContextAwareness.enabled }, set: { ContextAwareness.enabled = $0 })
                 }
 

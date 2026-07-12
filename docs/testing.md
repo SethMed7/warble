@@ -1,8 +1,8 @@
 # warble — testing
 
 *How warble's promises are proven. One deterministic command covers everything 0.3, 0.4, and 0.5
-shipped — plus 0.6's context awareness, both halves: capture and apply; this page maps what it
-checks, the seams it uses, and the short list that still needs a human — headed by the
+shipped — plus 0.6's context awareness, all three halves: capture, apply, and inspect; this page
+maps what it checks, the seams it uses, and the short list that still needs a human — headed by the
 fresh-account five-minute test, 0.4's exit criterion.*
 
 ## The one command
@@ -33,7 +33,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | --- | --- | --- |
 | `core` | the canonical TS cleaner's acceptance suite (`core/clean.test.ts`, via `bun test`) | cleanup foundation |
 | `build` | a debug `swift build` succeeds and produces the CLI binary | — |
-| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing), the listening contract's pure halves (ping synthesis: subtle-by-construction, click-free, decaying, tiny; the pill's gesture-hint copy), the read-back availability machine (landed → available → expired/consumed, one-shot consume, the speak-off gate), and context awareness's pure halves (the off/secure zero-gates, the category map + fallbacks, the 200-word/12-word caps, the record's structural schema — plus the apply half: the per-category tone rules run twin-for-twin with `clean.test.ts`, the polish prompt's category hint with its nil/other byte-identical golden, and the None-level verbatim gate) | cleanup / cap logic / 0.4 onboarding + engine setup + listening contract / 0.5 read-back / 0.6 context |
+| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing), the listening contract's pure halves (ping synthesis: subtle-by-construction, click-free, decaying, tiny; the pill's gesture-hint copy), the read-back availability machine (landed → available → expired/consumed, one-shot consume, the speak-off gate), and context awareness's pure halves (the off/secure zero-gates, the category map + fallbacks, the 200-word/12-word caps, the record's structural schema, pre-0.6 history decoding — plus the apply half: the per-category tone rules run twin-for-twin with `clean.test.ts`, the polish prompt's category hint with its nil/other byte-identical golden, and the None-level verbatim gate — plus the inspect half: the record→display formatting, truncation preserved verbatim, singular/plural word counts, the empty-preview and app-name/bundle-id/"unknown" fallback cases) | cleanup / cap logic / 0.4 onboarding + engine setup + listening contract / 0.5 read-back / 0.6 context |
 | `version` | `--version` matches `Info.plist` | — |
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
@@ -44,6 +44,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `readback` | the dictate → read-back loop's availability story, told verbatim by `--readback-state` running the REAL machine against a synthetic clock: landed → available (the transient ⌃R claim arms), the 15s grace window expires (released), a press consumes it exactly once, read-aloud off never arms it (per-mode law), and a secure-field landing never arms it either (`ReadBackAvailability.landed`'s `secure` gate, even with read-aloud on) — plus the landed pill's "⌃R to hear it back" affordance rendering wider than the textless landed base. Stats honesty is structural: a read-back routes through the Speak one-shot pipeline whose single `onRead` callback is the only Insights logging path (one read event, never two) | 0.5 read-back |
 | `context` | local-only context awareness, the capture half (0.6): `--context-sim` runs the REAL capture gate over a fixture text file standing in for the AX read — the toggle's absent-default is OFF and prints "context: off — nothing read" with **no setup** (the load-bearing negative), ON captures the bounded sliver (the word cap keeps the **last** 200 words — nearest the cursor — and the persisted note carries only app / locally-derived category / word count / a ≤12-word preview, never the full text), a simulated secure field (`--secure`) captures nothing at all even with the toggle on, and off **stays** off across processes (product.md §4.5). The pure gates, category map + keyword fallback + AXTextArea nudge, both caps, the record's exact `{app, category, words, preview}` JSON schema ("the 13th word is unencodable" — the cap is structural), the DictationEvent round-trip, and pre-0.6 history decoding are unit-tested (`swift test`, ContextAwarenessTests); the live AX read against a real focused app is by-hand | 0.6 context awareness (capture) |
 | `context-apply` | the apply half of 0.6: the captured category shapes output deterministically, and not capturing one is provably free. **The golden no-change:** with context off (the default), a fixed input set through every cleanup level is byte-identical to goldens generated from the pre-apply binary — and even the toggle flipped ON changes nothing headlessly (only a live capture carries a category). **Per-category rules** via `--clean-in-context <category> "text"` (the exact BasicCleaner call the live path makes): editor/terminal and chat drop the ASR's trailing period on a short one-liner (≤6-word commands, ≤12-word messages; technical dots like "main.py" are not sentence boundaries; `!` and `?` always stay; longer prose keeps its period), mail/document keep full punctuation, `other` equals `--clean`, and casing/contractions are never touched. **Precedence:** the dictionary and snippets run AFTER the tone pass (the real leg order), so a learned casing and a snippet's own trailing period always survive — chained end to end through `--clean-in-context` → `--apply` → `--expand`. At Medium/High the category becomes one hint line in the polish prompt, still guarded by `LLMPolish.accept` (the hint construction + prompt golden are unit-tested; a real polished run needs the LLM engine and is by-hand) | 0.6 context awareness (apply) |
+| `context-inspect` | the inspect half of 0.6 — the trust half: what was read must always be visible. **Backward compatibility:** the committed `scripts/fixtures/history-legacy.jsonl` (three real pre-0.6 shapes — the bare original, a FAILED-status recovery-era line, an undo-polish line with `raw` — none carry `context`) decodes in full through the real store (`--history-count`), proving 0.3-0.5 `history.json` files still load. **The render proof:** `--render-history <out.png>` (DEBUG seam) rasterizes the NEWEST event's real History detail exactly as the dashboard shows it — a legacy dictation renders with no context row at all, a context-bearing one renders the quiet `context: <app> (<category>) · N words read · "<preview>"` line right under the raw-transcript reveal (mist, no accent, no box). **Clear removes it too:** `--clear-history` (DEBUG) wipes a context-bearing store down to zero events and deletes `history.json`, proving the record dies with the rest of history. The record→display formatting itself (truncation preserved verbatim, the singular/plural word count, the empty-preview/missing-field case, the app-name → bundle-id → "unknown" fallback) is unit-tested (`swift test`, ContextAwarenessTests) | 0.6 context awareness (inspect) |
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
@@ -98,9 +99,10 @@ of these seams; the regression checks above assert real pixels through them.
 | `--render-onboarding <step[+variant]> <out.png>` | one tour card — step ids from `--onboarding-state`; variants inject preview state: `mic+granted`, `ax+granted`, `meter+nomic`, `practice+done`, `practice+nomic`, `read+done`, `read+noax` |
 | `--render-setup <state> <out.png>` | the Setup window in one state: `fresh` \| `installing` \| `installed` \| `failed` |
 | `--render-pill <state> <out.png>` | the pill: `listening` \| `listening+hint` \| `listening+cap` \| `processing` \| `processing+hint` \| `landed` \| `landed+sent` \| `landed+readback` \| `copied` \| `error` |
+| `--render-history <out.png>` | the History detail for the NEWEST event in `WARBLE_HOME` — no state argument; seed the scenario by pointing `WARBLE_HOME` at a `history.json` with (or without) a `context` note before calling it |
 
 For human design review, one command renders all of them — every tour card and variant, every
-Setup state, every pill state (28 PNGs, `@2x`):
+Setup state, every pill state, and both History-detail scenarios (30 PNGs, `@2x`):
 
 ```sh
 sh scripts/onboarding-gallery.sh          # → /tmp/warble-onboarding-qa (pass a dir to override)
@@ -227,11 +229,17 @@ the tour must not reappear (only **menu → Welcome tour…** brings it back).
   awareness**, then dictate into a real app with text around the cursor (Mail, Notes) — the new
   history line (in a sandboxed `WARBLE_HOME`, or your real store if you mean it) must carry a
   compact `context` note: the app, its category, a word count ≤200, and a ≤12-word preview —
-  never more. Dictate into an app that exposes nothing to AX (most browsers) — the note degrades
-  to app + category with `words: 0`. Turn the toggle off and dictate — no note at all; focus a
-  real password field with it on and dictate — no note, and nothing read. (The gates, caps, and
-  category logic are the scripted twins — ContextAwarenessTests + `--context-sim`; this pass is
-  the real focused-field read.) Then the apply half, live: with the toggle on and cleanup at
+  never more. Open that dictation's History detail — the inspect half (ROADMAP 0.6): a quiet
+  `context: <app> (<category>) · N words read · "<preview>"` row sits right under *"what you
+  actually said"* (mist text, no accent, no box); a dictation made with the toggle off shows no row
+  at all. Dictate into an app that exposes nothing to AX (most browsers) — the note degrades
+  to app + category with `words: 0`, and the row drops its quoted clause rather than showing empty
+  quotes. Turn the toggle off and dictate — no note at all; focus a
+  real password field with it on and dictate — no note, and nothing read. Then **Clear all
+  history** — the row (and everything else) is gone. (The gates, caps, category logic, and the
+  record→display formatting are the scripted twins — ContextAwarenessTests + `--context-sim` +
+  `--history-count`/`--render-history`, the `context-inspect` check; this pass is the real
+  focused-field read and the dashboard UI.) Then the apply half, live: with the toggle on and cleanup at
   Light, dictate a short command into a real terminal — it lands without a trailing period —
   and the same words into Mail land with it; with the toggle off both land identically. At
   Medium/High with the polish model installed, the category rides the prompt as one hint line —

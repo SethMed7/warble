@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
@@ -39,6 +39,7 @@ describe() {
     readback)      echo "--readback-state: the availability story (landed -> available/expired/consumed; speak-off + secure-field gates); the landed+readback pill renders" ;;
     context)       echo "--context-sim: context awareness defaults OFF (nothing read); on -> bounded capture (last 200 words, 12-word preview note); a secure field captures nothing; off stays off" ;;
     context-apply) echo "--clean-in-context: per-category tone (editor/chat drop a short one-liner's trailing period; mail/document unchanged); context off = pre-0.6 goldens at every level; dictionary+snippets outrank tone" ;;
+    context-inspect) echo "the inspect half: a committed pre-0.6 fixture still decodes in full (--history-count), a legacy dictation's History detail renders with no context row and a context-bearing one renders with it (--render-history), and Clear history removes the context record along with everything else" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -628,6 +629,81 @@ GOLDENS
   fi
 }
 
+# Context awareness — the INSPECT half (ROADMAP 0.6): the trust half. What was read must always be
+# visible, Codable backward compatibility must hold (0.3-0.5 history.json lines predate `context`
+# entirely and must still decode), and Clear history must take context records with it (they live
+# on DictationEvent, so wiping history wipes them too). Three claims, all against the REAL store
+# (WARBLE_HOME) and the REAL view (DictationDetailView), via two DEBUG seams:
+#   --history-count     how many lines InsightStore actually decoded off disk (a malformed/rejected
+#                        line would come up short — the decode-compat proof)
+#   --render-history     rasterizes the NEWEST event's History detail exactly as the dashboard would
+#                        show it (context row present/absent, formatting) — dims asserted here;
+#                        content is eyeballed by hand against DESIGN.md (mist, no accent, no box)
+# The record→display formatting itself (truncation, missing fields, the singular/plural word count,
+# the app-name/bundle-id/"unknown" fallback) is unit-tested (swift test, ContextAwarenessTests); this
+# check proves the wiring end to end, not the formatting rules again.
+check_context_inspect() {
+  require_bin || return
+
+  # (1) decode-compat: the COMMITTED pre-0.6 fixture (three real 0.3-0.5 shapes — the bare original,
+  # a FAILED-status recovery-era line, and an undo-polish line with `raw` — none carry `context`)
+  # must decode in full, through the real store.
+  LEGACY_HOME="$REGTMP/context-inspect-legacy"
+  mkdir -p "$LEGACY_HOME"
+  cp "$ROOT/scripts/fixtures/history-legacy.jsonl" "$LEGACY_HOME/history.json"
+  LEGACY_LINES=$(wc -l < "$ROOT/scripts/fixtures/history-legacy.jsonl" | tr -d ' ')
+  expect "the committed pre-0.6 fixture ($LEGACY_LINES lines, no context field) decodes in full" \
+    "$LEGACY_LINES" env WARBLE_HOME="$LEGACY_HOME" "$BIN" --history-count
+
+  HI_DIR="$REGTMP/history-renders"
+  mkdir -p "$HI_DIR"
+  LEGACY_PNG="$HI_DIR/legacy.png"
+  if env WARBLE_HOME="$LEGACY_HOME" "$BIN" --render-history "$LEGACY_PNG" >/dev/null 2>&1 && [ -s "$LEGACY_PNG" ]; then
+    LEGACY_W=$(sips -g pixelWidth "$LEGACY_PNG" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+    LEGACY_H=$(sips -g pixelHeight "$LEGACY_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ "$LEGACY_W" = "1480" ] && [ "${LEGACY_H:-0}" -ge 900 ]; then
+      ok "a legacy (pre-0.6) dictation renders its History detail with no context row (1480x$LEGACY_H PNG)"
+    else
+      bad "legacy History detail renders offscreen at 2x (dims: ${LEGACY_W:-none}x${LEGACY_H:-none})"
+    fi
+  else
+    bad "legacy History detail renders a nonzero PNG"
+  fi
+
+  # (2) a context-bearing (modern) line renders its History detail WITH the quiet context row —
+  # hand-planted like make_orphan's WAV: the exact shape InsightStore.record() would have written.
+  CTX_HOME="$REGTMP/context-inspect-modern"
+  mkdir -p "$CTX_HOME"
+  printf '%s\n' '{"id":"ctx-modern","ts":1799800000,"day":"2026-07-11","text":"following up on the q3 numbers now","words":7,"durationMs":2900,"appBundleId":"com.apple.mail","appName":"Mail","engine":"parakeet","kind":"dictate","context":{"app":"Mail","category":"mail","words":42,"preview":"Re: the Q3 numbers are in and they look good for the…"}}' \
+    > "$CTX_HOME/history.json"
+  expect "a context-bearing history line decodes" "1" env WARBLE_HOME="$CTX_HOME" "$BIN" --history-count
+
+  CTX_PNG="$HI_DIR/context.png"
+  if env WARBLE_HOME="$CTX_HOME" "$BIN" --render-history "$CTX_PNG" >/dev/null 2>&1 && [ -s "$CTX_PNG" ]; then
+    CTX_W=$(sips -g pixelWidth "$CTX_PNG" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+    CTX_H=$(sips -g pixelHeight "$CTX_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ "$CTX_W" = "1480" ] && [ "${CTX_H:-0}" -ge 900 ]; then
+      ok "a context-bearing dictation renders its History detail with the context row (1480x$CTX_H PNG)"
+    else
+      bad "context-bearing History detail renders offscreen at 2x (dims: ${CTX_W:-none}x${CTX_H:-none})"
+    fi
+  else
+    bad "context-bearing History detail renders a nonzero PNG"
+  fi
+
+  # (3) Clear history takes the context record with it — it lives on DictationEvent, so clearing
+  # the whole store must clear it too. Reuses the modern context-bearing home.
+  expect "clear-history reports the one context-bearing event it removed" "cleared 1 event" \
+    env WARBLE_HOME="$CTX_HOME" "$BIN" --clear-history
+  if [ ! -e "$CTX_HOME/history.json" ]; then
+    ok "history.json (and its context record) is gone after Clear history"
+  else
+    bad "history.json (and its context record) is gone after Clear history"
+  fi
+  expect "the store is empty after Clear history" "0" \
+    env WARBLE_HOME="$CTX_HOME" "$BIN" --history-count
+}
+
 check_selftest() {
   require_bin || return
   SELFTEST=$("$BIN" --selftest 2>&1)
@@ -1135,7 +1211,7 @@ check_gallery() {
   GAL_OUT=$(sh "$ROOT/scripts/onboarding-gallery.sh" "$GAL_DIR" 2>&1)
   GAL_STATUS=$?
   GAL_STEPS=$("$BIN" --onboarding-state 2>/dev/null | grep -c '^step ')
-  GAL_WANT=$((GAL_STEPS + 7 + 4 + 10)) # steps + onboarding variants + setup states + pill states
+  GAL_WANT=$((GAL_STEPS + 7 + 4 + 10 + 2)) # steps + onboarding variants + setup states + pill states + history detail
   GAL_GOT=$(ls "$GAL_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
   if [ "$GAL_STATUS" -eq 0 ] && [ "$GAL_GOT" = "$GAL_WANT" ] \
     && printf '%s\n' "$GAL_OUT" | grep -q "^gallery: $GAL_WANT/$GAL_WANT renders"; then

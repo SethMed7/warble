@@ -68,6 +68,26 @@ for s in listening listening+hint listening+cap processing processing+hint lande
   render --render-pill "$s" "pill-$s.png"
 done
 
+echo "history detail (context awareness's inspect half):"
+# --render-history has no state argument of its own — the scenario lives in the seeded WARBLE_HOME
+# (like every other WARBLE_HOME-sandboxed check), so it can't use the generic render() helper above.
+HIST_GAL_HOME="$(mktemp -d "${TMPDIR:-/tmp}/warble-gallery-history.XXXXXX")"
+trap 'rm -rf "$HIST_GAL_HOME"' EXIT
+mkdir -p "$HIST_GAL_HOME/legacy" "$HIST_GAL_HOME/context"
+cp "$ROOT/scripts/fixtures/history-legacy.jsonl" "$HIST_GAL_HOME/legacy/history.json"
+printf '%s\n' '{"id":"ctx-modern","ts":1799800000,"day":"2026-07-11","text":"following up on the q3 numbers now","words":7,"durationMs":2900,"appBundleId":"com.apple.mail","appName":"Mail","engine":"parakeet","kind":"dictate","context":{"app":"Mail","category":"mail","words":42,"preview":"Re: the Q3 numbers are in and they look good for the…"}}' \
+  > "$HIST_GAL_HOME/context/history.json"
+for s in legacy context; do
+  TOTAL=$((TOTAL + 1))
+  if env WARBLE_HOME="$HIST_GAL_HOME/$s" "$BIN" --render-history "$OUT/history-$s.png" >/dev/null 2>&1 \
+    && [ -s "$OUT/history-$s.png" ]; then
+    printf '  history-%s.png\n' "$s"
+  else
+    FAIL=$((FAIL + 1))
+    printf '  FAILED: history-%s.png\n' "$s"
+  fi
+done
+
 printf 'gallery: %d/%d renders → %s\n' "$((TOTAL - FAIL))" "$TOTAL" "$OUT"
 [ "$FAIL" -eq 0 ] || exit 1
 exit 0

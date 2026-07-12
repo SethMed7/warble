@@ -4,9 +4,9 @@ import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--expand`, `--snippet-set`, `--autosend`, `--bindings`, `--selftest`, `--axcheck`,
-/// `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`, `--hold-cap-sim`,
-/// `--bench-e2e`, `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
+/// `--expand`, `--snippet-set`, `--autosend`, `--bindings`, `--readback-state`, `--selftest`,
+/// `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
+/// `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -215,6 +215,16 @@ public enum DictateCLI {
             let r = AutoSend.apply(args[i + 1])
             print("send: \(r.send ? "yes" : "no")")
             print("pasted: \(r.pasted)")
+            return true
+        }
+        if args.contains("--readback-state") {
+            // Dictate → read-back (ROADMAP 0.5), headless: the availability machine's whole
+            // story — landed → available (⌃R armed) → expired/consumed (released), plus the
+            // per-mode gate (read-aloud off → never armed) — told by the REAL machine against a
+            // synthetic clock. Asserted verbatim by regression.sh; the live ⌃R claim and the
+            // actual read are by-hand (docs/testing.md). No hotkey is ever registered here —
+            // CLI modes are UI-free by construction.
+            ReadBackAvailability.printStory()
             return true
         }
         if args.contains("--selftest") {

@@ -15,6 +15,13 @@ public final class SpeakController: NSObject {
     /// to Insights — read-aloud lives in a different module than the stats store.
     public var onRead: ((_ text: String, _ appBundleId: String?, _ appName: String?, _ voice: String) -> Void)?
 
+    /// Fired when the whole capability is toggled on/off, so the coordinator can tear down
+    /// anything gated on it (dictate's transient read-back ⌃R claim — per-mode law, §4.5).
+    public var onEnabledChanged: ((Bool) -> Void)?
+
+    /// Whether read-aloud is on — read by the coordinator so dictate's read-back can gate on it.
+    public var isEnabled: Bool { speakEnabled }
+
     private var started = false
 
     /// Whether read-aloud is on at all. When off, ⌃V is unregistered and the Services entry
@@ -131,6 +138,7 @@ public final class SpeakController: NSObject {
             endSessionHard()        // stops watching + speaking, closes the bar, drops the esc hotkey
             unregisterHotKey()
         }
+        onEnabledChanged?(speakEnabled)
         onMenuRebuild?()
     }
 
@@ -244,6 +252,12 @@ public final class SpeakController: NSObject {
     }
 
     // MARK: one-shot reads (Services / menu) — unchanged behavior
+
+    /// The direct-read seam: one text straight through the one-shot pipeline — the same entry the
+    /// Services "Read Aloud with warble" item uses, and the route dictate's read-back arrives by
+    /// (via the app coordinator). Fires onRead exactly once, so Insights logs exactly one
+    /// read-aloud usage per read-back — never two. No-op while read-aloud is off.
+    public func readAloud(_ text: String) { readOneShot(text) }
 
     func readOneShot(_ text: String) {
         guard speakEnabled else { return } // disabled capability is inert, incl. the Services entry

@@ -53,5 +53,6 @@ final class PillHintTests: XCTestCase {
         XCTAssertEqual(PillHint.listening(handsFree: true), "double-tap Fn to stop · Esc cancels")
         XCTAssertEqual(PillHint.processing, "Esc cancels")
         XCTAssertEqual(PillHint.idle, "hold Fn to dictate")
+        XCTAssertEqual(PillHint.readBack, "⌃R to hear it back")
     }
 }

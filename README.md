@@ -51,7 +51,7 @@ on-device engine, so it lands in well under a second — and nothing ever leaves
 - **Near-instant** — a warm NVIDIA Parakeet engine transcribes in ~0.08 s instead of reloading the model every clip.
 - **Learns your words** — correct a name a couple of times, or just spell it out loud (*"Dhaval, that's D H A V A L"*), and it sticks in your dictionary, everywhere — even in terminals.
 - **Hands-free, hold — or a thumb button** — double-tap **Fn** to toggle, or hold **Fn**; **Esc** cancels mid-dictation. And Fn needn't be alone: bind up to three more triggers (right ⌘ / right ⌥ / F13–F19 / mouse buttons 3–10) as push-to-talk or double-tap under **Dashboard ▸ Shortcuts** — dictation on a mouse thumb button, built for RSI-friendly setups.
-- **Reads back, too** — select any text + **⌃V** for warm, on-device neural read-aloud that follows along word by word.
+- **Reads back, too — and closes the loop** — select any text + **⌃V** for warm, on-device neural read-aloud that follows along word by word. And because warble works in both directions, a dictation can proofread itself: press **⌃R** right as one lands and warble reads your just-dictated words back, follow-along and all — ears catch what eyes skim, and no dictation-only app can offer it.
 - **A real dashboard, a real app** — a proper dashboard window (toolbar search, per-app filters, Export), a **Dock icon while it's open** (or always/never — your call), a full menu bar with the shortcuts you expect (⌘W, ⌘,, copy/paste), and a menu bar kept short: mode toggles up top, details tucked into **Dictate ▸** / **Read Aloud ▸** submenus.
 - **Stays current** — a built-in *Check for Updates* (plus a quiet daily check) installs new versions in place, each verified by signature. No App Store, no manual re-download, no visiting GitHub.
 
@@ -119,6 +119,17 @@ enter here it submits") and it's left exactly as spoken — only the *final* pos
 pill's checkmark says so when it fires ("sent — said 'press enter'"), and it never fires in a
 password field.
 
+And then the part only warble can do — **the proofreading loop**. The moment a dictation lands,
+the pill's checkmark carries a quiet *⌃R to hear it back*: press **⌃R** (within ~15 seconds) and
+warble reads your just-landed words aloud, the follow-along panel tracking word by word, your
+voice and your dictionary's pronunciations, **Esc** stops. Speak to type, then hear what you
+typed — your ears proofread what your eyes would skim, and a dictation-only app can't offer the
+second half. The hotkey is transient by design: it's claimed only for that brief window after a
+landing, so the rest of the time ⌃R stays whatever your apps want it to be (your terminal's
+reverse-search included). **Menu → Dictate → Read Last Dictation Back** reads the last dictation
+any time, no window; a read-back counts as exactly one read-aloud in your stats; and if Read
+aloud is switched off, nothing arms — the menu item just waits, disabled.
+
 ### Read aloud (text → voice)
 Press **⌃V** to start watching, then highlight anything — drag-select, double/triple-click, or
 **Shift-click to extend** — and each selection is queued in order and read aloud while a **dark
@@ -128,6 +139,11 @@ identity — a black surface with a single electric-blue accent, the same card a
 and its **waveform only ripples while audio is actually playing** (motion, not a second color, is
 what tells you it's live). Collapse to a compact player — waveform · play/pause · expand — with **⤡**;
 it never steals focus. Or right-click → **Services → Read Aloud with warble** for a one-shot read.
+
+This same pipeline is the back half of **the proofreading loop**: press **⌃R** right after a
+dictation lands and your just-dictated words come straight back through it — same voice, same
+follow-along, same Esc. Dictate with your voice, proofread with your ears; the two modes aren't
+just neighbors, they finish each other's work.
 
 ### Look & feel
 One identity across both modes: a **black surface with a single electric-blue accent** (`#2E74FF`),
@@ -344,12 +360,14 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --sounds                # the listening pings' toggle: prints on|off (set: --sounds off)
 .build/debug/warble --autosend "ship it press enter"  # "press enter" auto-send: prints send: yes|no + pasted: <text>
                                             #   (reads the persisted toggle — off by default, so send: no until it's turned on)
+.build/debug/warble --readback-state        # dictate → read-back: the ⌃R availability story (landed → available →
+                                            #   expired/consumed, plus the read-aloud-off gate), told by the real machine
 .build/debug/warble --render-pill listening /tmp/pill.png  # (DEBUG) render a pill state offscreen at 2x
                                             #   states: listening | listening+hint | listening+cap | processing
-                                            #   | processing+hint | landed | landed+sent | copied | error
+                                            #   | processing+hint | landed | landed+sent | landed+readback | copied | error
 
 # the whole card gallery — every tour card, Setup state, and pill state — in one command:
-sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (27 @2x PNGs, for design review)
+sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (28 @2x PNGs, for design review)
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the

@@ -64,7 +64,7 @@ for s in fresh installing installed failed; do
 done
 
 echo "pill states:"
-for s in listening listening+hint listening+cap processing processing+hint landed landed+sent copied error; do
+for s in listening listening+hint listening+cap processing processing+hint landed landed+sent landed+readback copied error; do
   render --render-pill "$s" "pill-$s.png"
 done
 

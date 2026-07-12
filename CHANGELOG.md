@@ -13,8 +13,10 @@ first five minutes" — in full: the welcome tour with permission cards that nev
 guaranteed first success for both verbs, engine setup without the wait trap, the listening
 contract, and the whole milestone folded into the same regression suite. And 0.5 — "cheap
 parity" — continues: Snippets (spoken trigger phrases that expand into saved text), "press
-enter" auto-send (end a dictation with the phrase and warble sends it, off by default), and
-multi-shortcut + mouse bindings (put push-to-talk on a thumb button).*
+enter" auto-send (end a dictation with the phrase and warble sends it, off by default),
+multi-shortcut + mouse bindings (put push-to-talk on a thumb button), and the dictate →
+read-back proofreading loop (⌃R as a dictation lands reads it back with the follow-along —
+the loop only a bidirectional voice app can close).*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -258,6 +260,25 @@ multi-shortcut + mouse bindings (put push-to-talk on a thumb button).*
   default (Fn only), the defaults-seam and add/remove round-trips across processes, every
   rejection reason, and that a hand-planted invalid array degrades to Fn-only instead of wedging
   the tap.
+- **Dictate → read-back — the proofreading loop (0.5 continues).** The moment a dictation lands,
+  the pill's checkmark carries a quiet *"⌃R to hear it back"* — press **⌃R** and warble reads
+  your just-landed words aloud through the real read-aloud pipeline: the follow-along panel
+  tracking word by word, your chosen voice, your dictionary's pronunciations, **Esc** stops.
+  Speak to type, then hear what you typed — the bidirectional loop as a single workflow, and the
+  one feature a dictation-only app can't copy. The hotkey is **transient by design** (product.md
+  §4.6): the ⌃R claim registers only when a dictation lands and releases on use, on a new
+  dictation, or after a **15-second grace window** — long enough to re-read what landed and want
+  it in your ears, short enough that ⌃R (your terminal's reverse-search) is never shadowed a
+  minute later. **Dictate ▸ Read Last Dictation Back** reads the last dictation any time (no
+  window) so the loop is discoverable and hotkey-optional. Per-mode law throughout: with Read
+  aloud off, the menu item sits disabled, the pill shows no hint, and ⌃R never registers — and a
+  read-back never arms after a secure-field dictation (a spoken password is never read out
+  loud). Stats stay honest by construction: a read-back routes through the same one-shot read
+  path as the Services entry, so it logs exactly **one** read-aloud usage — never two. Headless
+  proof: the availability machine is pure and unit-tested (`swift test` ReadBackTests), a new
+  `--readback-state` flag tells its whole story for `scripts/regression.sh` (asserted verbatim),
+  and the landed pill's new affordance renders via `--render-pill landed+readback` into the
+  design-review gallery.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

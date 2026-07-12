@@ -11,6 +11,13 @@ public final class DictateController: NSObject {
     public var onIcon: ((Int, String) -> Void)?
     public var onMenuRebuild: (() -> Void)?
 
+    /// Read-back (ROADMAP 0.5): the coordinator routes a fired read-back into the Speak module's
+    /// one-shot read pipeline (dictate never talks to Speak directly). Nil → read-back never arms.
+    public var onReadBack: ((String) -> Void)?
+    /// Whether the read-aloud capability is on — read-back's target. Off → the menu row disables
+    /// and ⌃R never registers (per-mode law, product.md §4.5). Wired by the coordinator.
+    public var readAloudIsOn: (() -> Bool)?
+
     private var started = false
 
     /// idle -> listening (key held, recording) -> finishing (transcribe + paste) -> idle
@@ -34,6 +41,12 @@ public final class DictateController: NSObject {
     // "Copy Last Dictation" / "Recent Dictations".
     private var recentTranscripts: [String] = []
     private let maxRecent = 10
+
+    // Read-back (ROADMAP 0.5): the availability machine plus the timer that releases the
+    // transient ⌃R claim at the grace window's end. The machine is pure; everything Carbon lives
+    // in ReadBackKey and is registered ONLY between armReadBack and disarmReadBack.
+    private var readBack = ReadBackAvailability()
+    private var readBackExpiry: DispatchWorkItem?
 
     /// The last failure, named (the taxonomy in DictateError). Shown as a disabled row in the
     /// Dictate submenu until the next successful dictation, so a missed pill is still explained.
@@ -160,6 +173,21 @@ public final class DictateController: NSObject {
             copyLast.target = self
             copyLast.toolTip = oneLine(last)
             sub.addItem(copyLast)
+            // The proofreading loop (ROADMAP 0.5): hear the last dictation back through the real
+            // read-aloud pipeline — the menu twin of the transient ⌃R, minus the grace window, so
+            // the loop stays discoverable and hotkey-optional. Disabled (never hidden) while
+            // read-aloud is off — the same idiom as the LLM-less cleanup levels; ⌃R doesn't arm
+            // then either (per-mode law).
+            let readBackItem = NSMenuItem(title: "Read Last Dictation Back",
+                                          action: #selector(readLastDictationBack), keyEquivalent: "")
+            readBackItem.target = self
+            if readAloudIsOn?() ?? false {
+                readBackItem.toolTip = "⌃R right after a dictation lands does the same"
+            } else {
+                readBackItem.isEnabled = false
+                readBackItem.toolTip = "Turn on Read aloud to hear it back"
+            }
+            sub.addItem(readBackItem)
             if recentTranscripts.count > 1 {
                 let recent = NSMenuItem(title: "Recent Dictations", action: nil, keyEquivalent: "")
                 let recentMenu = NSMenu()
@@ -242,6 +270,7 @@ public final class DictateController: NSObject {
             capClock?.cancel(); capClock = nil
             processingWatchdog?.cancel(); processingWatchdog = nil
             unregisterEsc() // and don't leave Esc consumed if we were recording
+            disarmReadBack() // an off mode registers nothing — the transient ⌃R claim included
             micWentHot = false // torn down, not cleanly stopped — no ping
             if let clip = recorder.stop() { try? FileManager.default.removeItem(at: clip.url) }
             state = .idle
@@ -342,6 +371,64 @@ public final class DictateController: NSObject {
         s.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
     }
 
+    // MARK: read-back — the proofreading loop (ROADMAP 0.5)
+    // Speak it, hear it back: deliver() arms a transient ⌃R claim for the grace window after a
+    // dictation lands; firing routes the text (via the coordinator) into the Speak module's
+    // one-shot read. The availability machine is pure (ReadBackAvailability — unit-tested,
+    // storied by --readback-state); this block is only the live wiring around it.
+
+    /// Arm read-back for a just-landed dictation. Returns true when ⌃R actually registered —
+    /// false when read-aloud is off (an off mode registers nothing, product.md §4.5).
+    private func armReadBack(_ text: String) -> Bool {
+        guard readBack.landed(text, at: Date().timeIntervalSince1970,
+                              speakEnabled: readAloudIsOn?() ?? false) else {
+            releaseReadBackKey()
+            return false
+        }
+        ReadBackKey.shared.register { [weak self] in self?.readBackKeyFired() }
+        readBackExpiry?.cancel()
+        let w = DispatchWorkItem { [weak self] in self?.disarmReadBack() }
+        readBackExpiry = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + ReadBackAvailability.graceSeconds, execute: w)
+        return true
+    }
+
+    /// ⌃R inside the grace window: consume the availability (one-shot), release the claim, and
+    /// hand the text to the coordinator for the real read.
+    private func readBackKeyFired() {
+        let text = readBack.consume(at: Date().timeIntervalSince1970)
+        disarmReadBack()
+        guard let text else { return } // expired between the press and the hop to main — stale, drop it
+        onReadBack?(text)
+    }
+
+    /// Withdraw any read-back availability and release the ⌃R claim (new session, mode off, expiry).
+    private func disarmReadBack() {
+        readBack.cancel()
+        releaseReadBackKey()
+    }
+
+    private func releaseReadBackKey() {
+        readBackExpiry?.cancel(); readBackExpiry = nil
+        ReadBackKey.shared.unregister()
+    }
+
+    /// The read-aloud capability was toggled off (the coordinator relays it): per-mode law —
+    /// an off mode registers nothing — so an armed ⌃R claim releases immediately, not at expiry.
+    public func readBackModeOff() {
+        disarmReadBack()
+    }
+
+    /// Menu "Read Last Dictation Back" — the loop, hotkey-optional: reads whatever "Copy Last
+    /// Dictation" would copy, through the same one-shot pipeline ⌃R uses. Works any time a last
+    /// dictation exists (no grace window); an armed ⌃R claim is spent — the read it promised is
+    /// happening.
+    @objc private func readLastDictationBack() {
+        guard let t = recentTranscripts.first, readAloudIsOn?() ?? false else { return }
+        disarmReadBack()
+        onReadBack?(t)
+    }
+
     // Hold Fn: press starts, release stops.
     private func hotKeyPressed() {
         guard state == .idle else { return } // debounce key-repeat / re-press
@@ -377,6 +464,7 @@ public final class DictateController: NSObject {
         // dictation (the user left the tour mid-card) — recorded and pasted normally.
         dictationSandbox = PracticeSandbox.shared.isActive && isSelf
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt
+        disarmReadBack() // …and any armed read-back — this session re-arms it when it lands
         workGen &+= 1 // a fresh session; any straggler completion from before is now stale
         sessionCapped = false
         micWentHot = false
@@ -628,6 +716,11 @@ public final class DictateController: NSObject {
         }
         remember(cleaned)                                                // in-memory safety net for a mis-targeted paste
         InsightStore.shared.record(cleaned, raw: raw, ctx: ctx, audioSource: audio) // local stats + history (+ saved recording)
+        // Read-back (ROADMAP 0.5): the just-landed words are available to hear back — ⌃R for the
+        // grace window (a transient claim, never standing), the menu item any time. Never armed
+        // for a secure-field dictation (a spoken password must not be read out loud) — the same
+        // ctx.secure gate auto-send and the store already honor.
+        let readBackArmed = !ctx.secure && armReadBack(cleaned)
         if Paster.paste(cleaned) {
             // Auto-send (ROADMAP 0.5): the Return keystroke fires only after this successful
             // paste, and NEVER in a secure field — reusing ctx.secure, the same signal
@@ -645,7 +738,9 @@ public final class DictateController: NSObject {
             } else if shouldNoteAppleFloor(ctx) {
                 Overlay.shared.flash(message: DictateError.engineMissing.message) // notice, not a failure
             } else {
-                Overlay.shared.showLanded()
+                // The quiet affordance line — shown only while ⌃R is actually armed, so the pill
+                // can never advertise a dead key (read-aloud off, secure field).
+                Overlay.shared.showLanded(readBackHint: readBackArmed)
             }
             startLearning(pasted: cleaned)
         } else {

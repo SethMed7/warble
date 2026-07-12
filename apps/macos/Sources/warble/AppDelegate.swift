@@ -48,6 +48,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             InsightStore.shared.recordRead(text: text, appBundleId: bid, appName: name, voice: voice)
             NotificationCenter.default.post(name: .warbleDidRead, object: nil)
         }
+        // The proofreading loop (ROADMAP 0.5): a just-landed dictation can be heard back — ⌃R
+        // inside the grace window, or Dictate ▸ Read Last Dictation Back any time. The route is
+        // the Speak module's one-shot pipeline (same follow-along panel, same voice/dictionary,
+        // same Esc), whose single onRead callback above is the ONLY Insights logging path — so a
+        // read-back counts as exactly one read-aloud usage, never two. Read-aloud off → the gate
+        // below reports it (menu row disables, ⌃R never arms) and the toggle relay tears down an
+        // already-armed claim immediately (per-mode law, product.md §4.5).
+        dictate.onReadBack = { [weak self] text in self?.speak.readAloud(text) }
+        dictate.readAloudIsOn = { [weak self] in self?.speak.isEnabled ?? false }
+        speak.onEnabledChanged = { [weak self] on in if !on { self?.dictate.readBackModeOff() } }
 
         speak.start()
         dictate.start()

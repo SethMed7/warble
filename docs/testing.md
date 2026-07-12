@@ -32,7 +32,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | --- | --- | --- |
 | `core` | the canonical TS cleaner's acceptance suite (`core/clean.test.ts`, via `bun test`) | cleanup foundation |
 | `build` | a debug `swift build` succeeds and produces the CLI binary | — |
-| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing), and the listening contract's pure halves (ping synthesis: subtle-by-construction, click-free, decaying, tiny; the pill's gesture-hint copy) | cleanup / cap logic / 0.4 onboarding + engine setup + listening contract |
+| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing), the listening contract's pure halves (ping synthesis: subtle-by-construction, click-free, decaying, tiny; the pill's gesture-hint copy), and the read-back availability machine (landed → available → expired/consumed, one-shot consume, the speak-off gate) | cleanup / cap logic / 0.4 onboarding + engine setup + listening contract / 0.5 read-back |
 | `version` | `--version` matches `Info.plist` | — |
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
@@ -40,6 +40,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `snippets` | `--expand` over a fixture `WARBLE_HOME`: trigger-alone replaces the whole dictation, trigger-in-sentence replaces only its span, no snippets defined is verbatim passthrough, a dictionary correction can still trigger a snippet (order proof + negative control), and `--snippet-set` writes an owner-only (0600) file a later process reads back | 0.5 snippets |
 | `autosend` | `--autosend` over the persisted toggle: off is verbatim passthrough even with the phrase, on strips a FINAL-position "press enter"/"press return" and reports `send: yes`, trailing punctuation is tolerated, a mid-sentence occurrence never fires — plus the `landed+sent` pill renders wider than the textless `landed` base | 0.5 auto-send |
 | `bindings` | `--bindings` prints the active trigger table: the default is Fn only (built in, never stored); a binding seeded with a plain `defaults write warble dictateBindings -array "right-command:hold"` shows in the next process's table; `add`/`remove` (the dashboard editor's headless twins — same validation path) round-trip across processes; a duplicate, Esc, a click button (mouse-2), and a fourth binding are each rejected with their plain reason and a non-zero exit; a hand-planted invalid array degrades to Fn-only on load. The model's pure halves — parse/format round-trips, conflict reasons, load hygiene, the event-matching key codes/device bits, and HotKey's monitor teardown — are unit-tested (`swift test`, BindingsTests) | 0.5 multi-shortcut + mouse bindings |
+| `readback` | the dictate → read-back loop's availability story, told verbatim by `--readback-state` running the REAL machine against a synthetic clock: landed → available (the transient ⌃R claim arms), the 15s grace window expires (released), a press consumes it exactly once, and read-aloud off never arms it (per-mode law) — plus the landed pill's "⌃R to hear it back" affordance rendering wider than the textless landed base. Stats honesty is structural: a read-back routes through the Speak one-shot pipeline whose single `onRead` callback is the only Insights logging path (one read event, never two) | 0.5 read-back |
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
@@ -93,10 +94,10 @@ of these seams; the regression checks above assert real pixels through them.
 | --- | --- |
 | `--render-onboarding <step[+variant]> <out.png>` | one tour card — step ids from `--onboarding-state`; variants inject preview state: `mic+granted`, `ax+granted`, `meter+nomic`, `practice+done`, `practice+nomic`, `read+done`, `read+noax` |
 | `--render-setup <state> <out.png>` | the Setup window in one state: `fresh` \| `installing` \| `installed` \| `failed` |
-| `--render-pill <state> <out.png>` | the pill: `listening` \| `listening+hint` \| `listening+cap` \| `processing` \| `processing+hint` \| `landed` \| `landed+sent` \| `copied` \| `error` |
+| `--render-pill <state> <out.png>` | the pill: `listening` \| `listening+hint` \| `listening+cap` \| `processing` \| `processing+hint` \| `landed` \| `landed+sent` \| `landed+readback` \| `copied` \| `error` |
 
 For human design review, one command renders all of them — every tour card and variant, every
-Setup state, every pill state (27 PNGs, `@2x`):
+Setup state, every pill state (28 PNGs, `@2x`):
 
 ```sh
 sh scripts/onboarding-gallery.sh          # → /tmp/warble-onboarding-qa (pass a dir to override)
@@ -198,6 +199,17 @@ the tour must not reappear (only **menu → Welcome tour…** brings it back).
   registered at all. Also verify honesty: the bound key/click still performs its normal action in
   apps — warble listens, never swallows. (The model, persistence, conflicts, and teardown are the
   scripted twins — `swift test` BindingsTests + `--bindings`; this pass is the live tap.)
+- **Read-back, the live loop**: dictate a sentence into any app; as it lands the pill's checkmark
+  carries *⌃R to hear it back* — press **⌃R** within ~15 seconds and the REAL read fires (the
+  follow-along panel tracks word by word, your voice + pronunciations, Esc stops). Verify the
+  transient claim: after ~15 seconds (or after one use) ⌃R must be a normal key again — in a
+  terminal it must reverse-search, not read. **Dictate ▸ Read Last Dictation Back** must read the
+  same text any time after, no window. Toggle **Read aloud** off: the menu item greys out, the
+  landed pill shows no hint, and ⌃R right after a dictation does nothing. Then check the stats
+  stay honest: one read-back = exactly ONE new "read" row in the dashboard's History. (The
+  availability machine and the pill state are the scripted twins — `swift test` ReadBackTests +
+  `--readback-state` + `--render-pill landed+readback`; this pass is the live claim and the
+  handoff.)
 - **Read-aloud**: ⌃V watch → selection queue → follow-along highlighting → collapse → Esc.
 - **The welcome tour, end to end**: `WARBLE_FORCE_ONBOARDING=1 .build/debug/warble` (or, for the
   true first-run path, clear the debug domain's keys first: `defaults delete warble

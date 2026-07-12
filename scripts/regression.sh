@@ -22,13 +22,13 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
     core)          echo "core/ acceptance suite (bun install + bun test)" ;;
     build)         echo "swift build (debug) — the binary every CLI check runs" ;;
-    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine, resume matrix, ping synthesis)" ;;
+    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine, resume matrix, ping synthesis, read-back availability)" ;;
     version)       echo "--version matches Info.plist" ;;
     cleanup)       echo "cleanup levels: --clean + all four --cleanup levels, engine-free" ;;
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
@@ -36,6 +36,7 @@ describe() {
     snippets)      echo "--expand over a fixture WARBLE_HOME: trigger-alone, in-sentence, no-snippets passthrough, dictionary+snippet order, 0600 storage" ;;
     autosend)      echo "--autosend: toggle off -> verbatim passthrough; toggle on -> final-position strip + send, mid-sentence untouched; the landed+sent pill renders" ;;
     bindings)      echo "--bindings: default = Fn only; adds persist via the defaults seam + add/remove; conflicts/reserved rejected with a plain reason; invalid entries dropped on load" ;;
+    readback)      echo "--readback-state: the availability story (landed -> available/expired/consumed; speak-off gate); the landed+readback pill renders" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -421,6 +422,43 @@ check_bindings() {
     defaults write warble dictateBindings "$PIN_BINDINGS" >/dev/null 2>&1
   else
     defaults delete warble dictateBindings >/dev/null 2>&1
+  fi
+}
+
+# Dictate → read-back proofread (ROADMAP 0.5): one keystroke after a dictation lands reads it
+# back through the normal read-aloud pipeline. The availability machine's whole story — landed →
+# available (⌃R armed) → expired/consumed (released), plus the per-mode gate (read-aloud off →
+# ⌃R never arms) — is printed by the REAL machine via --readback-state and asserted verbatim
+# (the machine itself is also unit-tested in swift test, ReadBackTests). Stats honesty is by
+# construction: a read-back routes through the Speak module's one-shot pipeline, whose single
+# onRead callback is the only Insights logging path — one read event per read-back, never two.
+# The landed pill's "⌃R to hear it back" affordance renders via --render-pill landed+readback
+# and must out-width the textless landed base (the check_listening idiom). The live transient
+# ⌃R claim and the actual read are by-hand: docs/testing.md.
+check_readback() {
+  require_bin || return
+  READBACK_WANT='grace 15s
+landed (speak on) -> available · ⌃R armed
++15s -> expired · ⌃R released
+landed again -> available · ⌃R armed
+⌃R -> consumed · read fired once · ⌃R released
+⌃R again -> nothing (already consumed)
+landed (speak off) -> idle · ⌃R never armed'
+  expect "--readback-state tells the availability story (landed/expired/consumed/mode-off)" \
+    "$READBACK_WANT" "$BIN" --readback-state
+
+  RB_DIR="$REGTMP/readback-pill"
+  mkdir -p "$RB_DIR"
+  if "$BIN" --render-pill "landed+readback" "$RB_DIR/landed-readback.png" >/dev/null 2>&1 && [ -s "$RB_DIR/landed-readback.png" ]; then
+    RB_W=$(sips -g pixelWidth "$RB_DIR/landed-readback.png" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+    RB_H=$(sips -g pixelHeight "$RB_DIR/landed-readback.png" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ "$RB_H" = "64" ] && [ "${RB_W:-0}" -gt 220 ]; then
+      ok "pill state 'landed+readback' renders wider than the textless landed pill (${RB_W}x64 PNG)"
+    else
+      bad "pill state 'landed+readback' renders wider than landed (dims: ${RB_W:-none}x${RB_H:-none}, want >220 x64)"
+    fi
+  else
+    bad "pill state 'landed+readback' renders a nonzero PNG"
   fi
 }
 
@@ -931,7 +969,7 @@ check_gallery() {
   GAL_OUT=$(sh "$ROOT/scripts/onboarding-gallery.sh" "$GAL_DIR" 2>&1)
   GAL_STATUS=$?
   GAL_STEPS=$("$BIN" --onboarding-state 2>/dev/null | grep -c '^step ')
-  GAL_WANT=$((GAL_STEPS + 7 + 4 + 9)) # steps + onboarding variants + setup states + pill states
+  GAL_WANT=$((GAL_STEPS + 7 + 4 + 10)) # steps + onboarding variants + setup states + pill states
   GAL_GOT=$(ls "$GAL_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
   if [ "$GAL_STATUS" -eq 0 ] && [ "$GAL_GOT" = "$GAL_WANT" ] \
     && printf '%s\n' "$GAL_OUT" | grep -q "^gallery: $GAL_WANT/$GAL_WANT renders"; then

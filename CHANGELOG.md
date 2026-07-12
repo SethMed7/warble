@@ -18,15 +18,19 @@ multi-shortcut + mouse bindings (put push-to-talk on a thumb button), the dictat
 read-back proofreading loop (⌃R as a dictation lands reads it back with the follow-along —
 the loop only a bidirectional voice app can close), and the same suite consolidation, extended:
 the auto-send and read-back secure-field claims are now unit-tested, not just documented. And
-0.6 continues — "context, locally": context awareness, opt-in, bounded, and inspectable, off by
+0.6, in full — "context, locally": context awareness, opt-in, bounded, and inspectable, off by
 default — the capture half (what was read is always visible), the apply half (the captured
 category shapes per-app tone: casual in chat, code-aware in terminals, formal in mail — with
 context off, output is provably byte-identical to before), the inspect half (any dictation that
 read context shows exactly what, right in History, next to the raw-transcript reveal — and Clear
-history takes it all with it), and now the dashboard retention pass: WPM framed against published
-typing averages, "corrections cleaned for you," word counts in human units, a streak heatmap,
-visible dictionary learning in the recent feed, and a locally-rendered "Save a stats card" — Wispr
-Flow's stickiest surface, with zero telemetry.*
+history takes it all with it), the dashboard retention pass (WPM framed against published typing
+averages, "corrections cleaned for you," word counts in human units, a streak heatmap, visible
+dictionary learning in the recent feed, and a locally-rendered "Save a stats card" — Wispr Flow's
+stickiest surface, with zero telemetry), and the same suite consolidation: the milestone's one
+claim proven only by a doc-comment — that captured context is architecturally unable to reach the
+network — is now a structural regression check, not just an assertion, and the exact by-hand demo
+the ROADMAP exit criterion describes (a live capture in Mail/Terminal, watched against Little
+Snitch) is scripted step by step.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -394,6 +398,22 @@ Flow's stickiest surface, with zero telemetry.*
   seams rasterize Home — now showing the corrections-cleaned line — for both an empty and a fully
   populated WARBLE_HOME, and the share card itself at its real fixed size —
   `scripts/regression.sh` gains a `retention` check and the card gallery grows to 33 renders.
+- **Context, locally — folded into the durable suite (0.6 complete).** Auditing the milestone
+  against the regression suite surfaced one real gap: "captured context is architecturally unable
+  to reach the network" (the milestone's whole soul) was true and documented in a doc-comment, but
+  proven only by the off/secure behavioral cases, never by the code itself. The `context` check
+  now greps `ContextAwareness.swift` for any networking-capable symbol (`URLSession`, sockets,
+  `URLRequest`…) and fails if it finds one — a static guarantee, not a runtime gate, and the same
+  proof an adversarial stranger with `strings` would go looking for (ROADMAP 0.7). Everything else
+  the milestone shipped was already covered as it landed: the capture gates and bounds, the
+  per-category tone rules and their golden no-change, the dictionary/snippets precedence, the
+  inspect half's decode-compat fixture and render proof, and the retention math — `--list` still
+  names 30 checks and the card gallery already carried all three of the milestone's new renderable
+  states (History detail × 2, Home × 2, the share card) the moment each shipped, confirmed intact
+  at 33/33. [docs/testing.md](docs/testing.md) gains the exact by-hand demo ROADMAP 0.6's exit
+  criterion describes — **the Little Snitch silence test**: a real context-aware dictation in Mail
+  and a Terminal, watched against a live connection log, the per-app output visibly differing
+  while nothing crosses the wire — scripted step by step alongside 0.4's fresh-account test.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

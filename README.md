@@ -435,13 +435,16 @@ sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (33 
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the
 `core/` acceptance suite, a debug `swift build`, the Swift unit tests (`swift test`), the headless
-CLI checks above with exact-output assertions (every onboarding card, Setup state, pill state, and
-History-detail scenario rendered offscreen to real @2x PNGs), and a smoke of the benchmark harness; it exits non-zero on
+CLI checks above with exact-output assertions (every onboarding card, Setup state, pill state,
+History-detail scenario, and dashboard retention render — Home empty/populated + the share card —
+rendered offscreen to real @2x PNGs, plus a structural grep proving the context-capture module
+carries zero networking symbols), and a smoke of the benchmark harness; it exits non-zero on
 any failure and needs **no premium engines installed** (`WARBLE_REGRESSION_FULL=1` adds the
 warm-engine extras; `--list` names every check, `--only <check>` runs one). The full guide —
 coverage map, the env + render seams (`WARBLE_FAULT`, `WARBLE_HOME`, `--render-onboarding`…), and
-what still needs a human, headed by the fresh-account **five-minute test** (0.4's exit
-criterion, scripted step by step) — is [docs/testing.md](docs/testing.md).
+what still needs a human, headed by the fresh-account **five-minute test** (0.4's exit criterion)
+and the **Little Snitch silence test** (0.6's), both scripted step by step — is
+[docs/testing.md](docs/testing.md).
 
 **Benchmarks:** every public performance claim is measured, dated, and reproducible — method,
 caveats, and this machine's actual numbers live in [docs/benchmarks.md](docs/benchmarks.md); the
@@ -463,6 +466,10 @@ The full staged plan lives in [ROADMAP.md](ROADMAP.md) (and the product definiti
   dictation *and* first read-aloud, and a painless premium-engine setup path.
 - **0.5 — cheap parity + the loop:** snippets, "press enter" auto-send, mouse-button push-to-talk,
   and the **dictate → read-back** proofreading loop only a bidirectional app can offer.
+- **0.6 — context, locally:** local-only per-app tone (casual in chat, code-aware in terminals,
+  formal in mail) read via Accessibility, off by default and always inspectable in History, plus
+  the dashboard retention pass (WPM vs typists, a streak heatmap, "Save a stats card") — zero
+  telemetry throughout, provable with Little Snitch watching.
 
 ## License
 

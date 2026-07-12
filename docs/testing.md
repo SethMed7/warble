@@ -1,9 +1,10 @@
 # warble — testing
 
-*How warble's promises are proven. One deterministic command covers everything 0.3, 0.4, and 0.5
-shipped — plus 0.6's context awareness (all three halves: capture, apply, and inspect) and the
-dashboard retention pass; this page maps what it checks, the seams it uses, and the short list that
-still needs a human — headed by the fresh-account five-minute test, 0.4's exit criterion.*
+*How warble's promises are proven. One deterministic command covers everything 0.3, 0.4, 0.5, and
+0.6 shipped — context awareness's three halves (capture, apply, and inspect) and the dashboard
+retention pass; this page maps what it checks, the seams it uses, and the short list that still
+needs a human — headed by the fresh-account five-minute test (0.4's exit criterion) and the Little
+Snitch silence test (0.6's), both scripted step by step.*
 
 ## The one command
 
@@ -42,7 +43,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `autosend` | `--autosend` over the persisted toggle: off is verbatim passthrough even with the phrase, on strips a FINAL-position "press enter"/"press return" and reports `send: yes`, trailing punctuation is tolerated, a mid-sentence occurrence never fires, and `--secure` proves the safety gate (`AutoSend.mayFireReturn`): the phrase still strips but `send` is always `no` — plus the `landed+sent` pill renders wider than the textless `landed` base | 0.5 auto-send |
 | `bindings` | `--bindings` prints the active trigger table: the default is Fn only (built in, never stored); a binding seeded with a plain `defaults write warble dictateBindings -array "right-command:hold"` shows in the next process's table; `add`/`remove` (the dashboard editor's headless twins — same validation path) round-trip across processes; a duplicate, Esc, a click button (mouse-2), and a fourth binding are each rejected with their plain reason and a non-zero exit; a hand-planted invalid array degrades to Fn-only on load. The model's pure halves — parse/format round-trips, conflict reasons, load hygiene, the event-matching key codes/device bits, and HotKey's monitor teardown — are unit-tested (`swift test`, BindingsTests) | 0.5 multi-shortcut + mouse bindings |
 | `readback` | the dictate → read-back loop's availability story, told verbatim by `--readback-state` running the REAL machine against a synthetic clock: landed → available (the transient ⌃R claim arms), the 15s grace window expires (released), a press consumes it exactly once, read-aloud off never arms it (per-mode law), and a secure-field landing never arms it either (`ReadBackAvailability.landed`'s `secure` gate, even with read-aloud on) — plus the landed pill's "⌃R to hear it back" affordance rendering wider than the textless landed base. Stats honesty is structural: a read-back routes through the Speak one-shot pipeline whose single `onRead` callback is the only Insights logging path (one read event, never two) | 0.5 read-back |
-| `context` | local-only context awareness, the capture half (0.6): `--context-sim` runs the REAL capture gate over a fixture text file standing in for the AX read — the toggle's absent-default is OFF and prints "context: off — nothing read" with **no setup** (the load-bearing negative), ON captures the bounded sliver (the word cap keeps the **last** 200 words — nearest the cursor — and the persisted note carries only app / locally-derived category / word count / a ≤12-word preview, never the full text), a simulated secure field (`--secure`) captures nothing at all even with the toggle on, and off **stays** off across processes (product.md §4.5). The pure gates, category map + keyword fallback + AXTextArea nudge, both caps, the record's exact `{app, category, words, preview}` JSON schema ("the 13th word is unencodable" — the cap is structural), the DictationEvent round-trip, and pre-0.6 history decoding are unit-tested (`swift test`, ContextAwarenessTests); the live AX read against a real focused app is by-hand | 0.6 context awareness (capture) |
+| `context` | local-only context awareness, the capture half (0.6): `--context-sim` runs the REAL capture gate over a fixture text file standing in for the AX read — the toggle's absent-default is OFF and prints "context: off — nothing read" with **no setup** (the load-bearing negative), ON captures the bounded sliver (the word cap keeps the **last** 200 words — nearest the cursor — and the persisted note carries only app / locally-derived category / word count / a ≤12-word preview, never the full text), a simulated secure field (`--secure`) captures nothing at all even with the toggle on, and off **stays** off across processes (product.md §4.5). Structural, not just behavioral (product.md §4.1/§4.9): `ContextAwareness.swift` is grepped for any networking-capable symbol (`URLSession`, sockets, `URLRequest`…) and must carry none — a static guarantee that the capture module is architecturally unable to leave the machine, the same proof an adversarial stranger with `strings` would go looking for (ROADMAP 0.7), not just a behavioral off/secure case. The pure gates, category map + keyword fallback + AXTextArea nudge, both caps, the record's exact `{app, category, words, preview}` JSON schema ("the 13th word is unencodable" — the cap is structural), the DictationEvent round-trip, and pre-0.6 history decoding are unit-tested (`swift test`, ContextAwarenessTests); the live AX read against a real focused app is by-hand | 0.6 context awareness (capture) |
 | `context-apply` | the apply half of 0.6: the captured category shapes output deterministically, and not capturing one is provably free. **The golden no-change:** with context off (the default), a fixed input set through every cleanup level is byte-identical to goldens generated from the pre-apply binary — and even the toggle flipped ON changes nothing headlessly (only a live capture carries a category). **Per-category rules** via `--clean-in-context <category> "text"` (the exact BasicCleaner call the live path makes): editor/terminal and chat drop the ASR's trailing period on a short one-liner (≤6-word commands, ≤12-word messages; technical dots like "main.py" are not sentence boundaries; `!` and `?` always stay; longer prose keeps its period), mail/document keep full punctuation, `other` equals `--clean`, and casing/contractions are never touched. **Precedence:** the dictionary and snippets run AFTER the tone pass (the real leg order), so a learned casing and a snippet's own trailing period always survive — chained end to end through `--clean-in-context` → `--apply` → `--expand`. At Medium/High the category becomes one hint line in the polish prompt, still guarded by `LLMPolish.accept` (the hint construction + prompt golden are unit-tested; a real polished run needs the LLM engine and is by-hand) | 0.6 context awareness (apply) |
 | `context-inspect` | the inspect half of 0.6 — the trust half: what was read must always be visible. **Backward compatibility:** the committed `scripts/fixtures/history-legacy.jsonl` (three real pre-0.6 shapes — the bare original, a FAILED-status recovery-era line, an undo-polish line with `raw` — none carry `context`) decodes in full through the real store (`--history-count`), proving 0.3-0.5 `history.json` files still load. **The render proof:** `--render-history <out.png>` (DEBUG seam) rasterizes the NEWEST event's real History detail exactly as the dashboard shows it — a legacy dictation renders with no context row at all, a context-bearing one renders the quiet `context: <app> (<category>) · N words read · "<preview>"` line right under the raw-transcript reveal (mist, no accent, no box). **Clear removes it too:** `--clear-history` (DEBUG) wipes a context-bearing store down to zero events and deletes `history.json`, proving the record dies with the rest of history. The record→display formatting itself (truncation preserved verbatim, the singular/plural word count, the empty-preview/missing-field case, the app-name → bundle-id → "unknown" fallback) is unit-tested (`swift test`, ContextAwarenessTests) | 0.6 context awareness (inspect) |
 | `retention` | the dashboard retention pass — zero telemetry, every number derived from stats already on disk. **The math** (WPM vs published TYPING averages — never a fabricated dictation-population percentile, product.md §4.9 — human-unit word counts, and the streak heatmap's calendar bucketing including an empty history, a single busy day, and a real DST spring-forward boundary) is unit-tested (`swift test`, RetentionTests) engine-free and store-free (Heatmap/TypingBaseline/HumanUnits take their inputs as parameters, never touch InsightStore.shared, so DST is tested against an injected `America/New_York` calendar regardless of the host machine's timezone). **Corrections cleaned** (`BasicCleaner.correctionsCount`, BasicCleanerTests) counts the exact filler/false-start/duplicate removals the deterministic cleanup layer makes over the raw ASR text — re-proven headlessly via `--corrections-count "<text>"`, and a `correctionsCleaned`-bearing history line decodes without being rejected (`--history-count`, the same "still decodes" proof as `context`). **Visible learning**: a hand-planted `learned.json` line decodes (`--learned-count`, the same idiom as `--history-count`), and Clear history wipes it along with everything else. **The renders**: `--render-home <out.png>` (DEBUG) rasterizes Home for both an EMPTY WARBLE_HOME (the first-run look) and a POPULATED one (every retention feature at once — the WPM/typist line, human units, the streak heatmap, the merged recent+learned feed, the share-card button, per-app bars); `--render-share-card <out.png>` (DEBUG) refuses to render with nothing to share (exit 2) and otherwise renders the SAME PNG the live "Save a stats card" button produces (ShareCard.renderPNG isn't DEBUG-gated — only the CLI seam is), at its fixed 1920×1200 (@2x) size | 0.6 dashboard retention pass |
@@ -157,6 +158,47 @@ words, any dead-end card, or the clock passing 5:00 — write down the exact car
 is the milestone's bug list. **Afterwards, verify the sandbox:** open the dashboard — History
 must hold exactly the real dictation(s), never the practice rehearsal; then quit and relaunch —
 the tour must not reappear (only **menu → Welcome tour…** brings it back).
+
+### The Little Snitch silence test — 0.6's exit criterion
+
+**The milestone gate (ROADMAP 0.6):** context awareness demonstrably improves per-app output in
+dogfood *while Little Snitch shows nothing*. The regression suite already proves the capture
+module is grepped clean of every networking symbol (the `context` check's structural proof) and
+that a live capture never crosses a socket in principle — this pass is watching your actual Mac's
+actual network monitor confirm it, on a real dictation, in real apps. Run it on your real Mac (a
+sandboxed `WARBLE_HOME` is fine for where the history line lands; Little Snitch itself only sees
+the real machine).
+
+**Setup:**
+
+1. Open Little Snitch's connection log (Window ▸ Network Monitor, or the log itself) and filter it
+   to `warble` — if warble has an existing "allow" rule, that's fine, it just means you're
+   watching for a *connection*, not a *prompt*. Precision first (product.md §4.9): warble has
+   exactly two disclosed connections (README ▸ Privacy — Setup's engine downloads and the ~daily
+   update check), and either would legitimately show as warble in this log. Park them so zero
+   genuinely means zero: flip **Data & Privacy ▸ Install updates automatically** off for the demo
+   (restore it after) and don't open Setup mid-run — a hit from *before* you started isn't this
+   test's verdict either way.
+2. **Dashboard ▸ Data & Privacy** — confirm **Context awareness** reads off (the default), then
+   turn it on.
+3. Open two real apps with text already in them: **Mail** (a draft with a line or two above the
+   cursor) and a **Terminal** (a couple of prior commands on screen).
+
+**The demo — capture, apply, and inspect, back to back, product.md §4.1 + §4.4:**
+
+| Step | Do | Watch |
+| --- | --- | --- |
+| Capture | Hold Fn in Mail, dictate a rough sentence, release | Little Snitch's log stays completely empty for `warble` — the AX read, the category derivation, and the whole capture path never open a connection |
+| Apply | Hold Fn in the Terminal, dictate the same kind of short line ("check git status" style) | it lands **without** a trailing period (editor tone); the Mail dictation kept its punctuation — per-app output visibly differs, decided entirely on this Mac |
+| Inspect | Open **Dashboard ▸ History** for each of the two dictations | a quiet `context: <app> (<category>) · N words read · "<preview>"` row sits under *"what you actually said"* for both — nothing hidden, and nothing left the Mac to produce it |
+| The dashboard | Open **Dashboard ▸ Home** | a week's story reads at a glance — WPM vs typists, human-unit word counts, the streak heatmap, "corrections cleaned," any "warble learned" row — every number derived from the same on-disk store Little Snitch just watched stay silent |
+
+**Pass:** Little Snitch's log shows zero connections attributed to warble across the entire
+sequence (not even a DNS lookup), the two dictations' output differs by app exactly as the apply
+half promises, both History entries show their context row, and Home reads as a coherent week
+without squinting. **Fail:** any warble entry in the connection log, a missing or wrong context
+row, or output that doesn't actually differ per app — write down the exact step; that's the
+milestone's bug list, the same discipline as the five-minute test above.
 
 ### The rest of the by-hand list
 

@@ -37,7 +37,7 @@ describe() {
     autosend)      echo "--autosend: toggle off -> verbatim passthrough; toggle on -> final-position strip + send, mid-sentence untouched, secure field never sends; the landed+sent pill renders" ;;
     bindings)      echo "--bindings: default = Fn only; adds persist via the defaults seam + add/remove; conflicts/reserved rejected with a plain reason; invalid entries dropped on load" ;;
     readback)      echo "--readback-state: the availability story (landed -> available/expired/consumed; speak-off + secure-field gates); the landed+readback pill renders" ;;
-    context)       echo "--context-sim: context awareness defaults OFF (nothing read); on -> bounded capture (last 200 words, 12-word preview note); a secure field captures nothing; off stays off" ;;
+    context)       echo "--context-sim: context awareness defaults OFF (nothing read); on -> bounded capture (last 200 words, 12-word preview note); a secure field captures nothing; off stays off; ContextAwareness.swift is grepped for zero networking symbols (structural, not just behavioral)" ;;
     context-apply) echo "--clean-in-context: per-category tone (editor/chat drop a short one-liner's trailing period; mail/document unchanged); context off = pre-0.6 goldens at every level; dictionary+snippets outrank tone" ;;
     context-inspect) echo "the inspect half: a committed pre-0.6 fixture still decodes in full (--history-count), a legacy dictation's History detail renders with no context row and a context-bearing one renders with it (--render-history), and Clear history removes the context record along with everything else" ;;
     retention)     echo "dashboard retention pass: --corrections-count on fixture text, a seeded correctionsCleaned round-trips (--history-count), --learned-count decodes a hand-planted visible-learning fixture and Clear history wipes it too, and Home + the share card render real PNGs for both an empty and a populated WARBLE_HOME" ;;
@@ -525,6 +525,18 @@ check_context() {
   defaults write warble contextAwareness -bool false
   expect "off stays off across processes (§4.5 — nothing re-enables itself)" \
     "context: off — nothing read" "$BIN" --context-sim com.apple.mail "$CTX_FIX"
+
+  # Structural proof, not just behavioral (product.md §4.1/§4.9 — precision in every claim, and
+  # the milestone's whole soul): the capture module itself must be architecturally unable to
+  # reach the network, not merely gated at runtime by the checks above. Grep the actual source for
+  # any networking-capable symbol — a static guarantee no amount of off/secure behavioral coverage
+  # can give, and the same proof a stranger with `strings` would go looking for (ROADMAP 0.7).
+  CTX_SRC="$ROOT/apps/macos/Sources/Dictate/ContextAwareness.swift"
+  if [ -f "$CTX_SRC" ] && ! grep -Eq 'URLSession|NWConnection|CFSocket|NSURLConnection|URLRequest|DispatchIO' "$CTX_SRC"; then
+    ok "ContextAwareness.swift carries zero networking-capable symbols (architecturally can't leave)"
+  else
+    bad "ContextAwareness.swift carries zero networking-capable symbols (architecturally can't leave)"
+  fi
 
   if [ -n "$PIN_CONTEXT" ]; then
     defaults write warble contextAwareness -int "$PIN_CONTEXT" >/dev/null 2>&1

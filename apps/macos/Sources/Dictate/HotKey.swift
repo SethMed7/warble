@@ -112,8 +112,10 @@ final class HotKey {
         return machines
     }
 
-    /// The monitor mask grows only with the bindings that need it: no bindings = exactly the
-    /// original Fn mask; keyUp joins for F-keys, otherMouse for mouse buttons.
+    /// THIS tap's monitor mask grows only with the bindings that need it: no bindings = exactly
+    /// the original Fn mask; keyUp joins for F-keys, otherMouse for mouse buttons. (Scoped to
+    /// HotKey alone — the read-aloud watch session and KeystrokeLearner install their own,
+    /// separately-scoped mouse monitors; see docs/transparency.md for the full hook map.)
     private static func mask(for machines: [Machine]) -> NSEvent.EventTypeMask {
         var mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown]
         if machines.contains(where: { $0.trigger?.fkeyKeyCode != nil }) { mask.insert(.keyUp) }

@@ -128,6 +128,79 @@ final class ContextAwarenessTests: XCTestCase {
         XCTAssertEqual(record(words: 12).preview, "w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12")
     }
 
+    // The character cap (ROADMAP 0.7 precision follow-up): the word cap alone can't bound a
+    // whitespace-free run — one 500-char token is "one word" — so the initializer also cuts the
+    // preview at previewMaxChars. Structural like the word cap: no ContextRecord the app builds
+    // can carry a longer preview.
+    func testPreviewCharCapStopsAWhitespaceFreeTokenFromBallooning() {
+        let token = String(repeating: "x", count: 500) // a URL/minified-code style single token
+        let r = ContextRecord(CapturedContext(appBundleId: "com.apple.mail", appName: "Mail",
+                                              category: .mail, text: token))
+        XCTAssertEqual(r.words, 1, "still one word — the char cap is a second, independent bound")
+        XCTAssertEqual(r.preview.count, ContextRecord.previewMaxChars + 1, "120 chars + the mark")
+        XCTAssertTrue(r.preview.hasSuffix("…"), "a char-clipped preview carries the truncation mark")
+        XCTAssertEqual(String(r.preview.dropLast()), String(token.prefix(ContextRecord.previewMaxChars)))
+    }
+
+    func testPreviewCharCapAppliesAcrossLongWordsToo() {
+        // 12 words of 20 chars each joined = 251 chars: under the word cap, over the char cap.
+        let text = (1...12).map { _ in String(repeating: "y", count: 20) }.joined(separator: " ")
+        let r = ContextRecord(CapturedContext(appBundleId: "com.apple.mail", appName: "Mail",
+                                              category: .mail, text: text))
+        XCTAssertEqual(r.words, 12)
+        XCTAssertEqual(r.preview.count, ContextRecord.previewMaxChars + 1)
+        XCTAssertTrue(r.preview.hasSuffix("…"))
+    }
+
+    func testPreviewUnderBothCapsIsByteIdenticalToBefore() {
+        // The char cap must be invisible to every preview that was already legal (no drift).
+        let r = record(words: 12)
+        XCTAssertEqual(r.preview, "w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12")
+        XCTAssertLessThanOrEqual(r.preview.count, ContextRecord.previewMaxChars)
+    }
+
+    // MARK: SessionCapture — the sliver never outlives its dictation (ROADMAP 0.7 follow-up)
+    // DictateController holds the live capture in this machine: begin() at recording start,
+    // take() once on the deliver path, abort() on every abort path (mic error / no clip /
+    // too short / silent / Esc / mode off). These assert the post-abort and post-take states.
+
+    private var sliver: CapturedContext {
+        CapturedContext(appBundleId: "com.apple.mail", appName: "Mail", category: .mail, text: "w1 w2")
+    }
+
+    func testSessionCaptureAbortDropsTheCapture() {
+        var s = SessionCapture()
+        s.begin(sliver)
+        XCTAssertTrue(s.isHolding)
+        s.abort()
+        XCTAssertFalse(s.isHolding, "post-abort: nothing held")
+        XCTAssertNil(s.take(), "post-abort: nothing to take — the sliver died with its session")
+    }
+
+    func testSessionCaptureTakeIsOneShot() {
+        var s = SessionCapture()
+        s.begin(sliver)
+        XCTAssertNotNil(s.take(), "the deliver path gets the capture exactly once")
+        XCTAssertFalse(s.isHolding, "take empties the holder — structural, not a convention")
+        XCTAssertNil(s.take(), "a second take gets nothing")
+    }
+
+    func testSessionCaptureBeginReplacesAPriorSessionsLeftovers() {
+        var s = SessionCapture()
+        s.begin(sliver)
+        s.begin(nil) // e.g. the next session is sandboxed / gated — nothing may bleed across
+        XCTAssertNil(s.take(), "a new session never inherits an older session's capture")
+    }
+
+    func testSessionCaptureAbortIsIdempotentAndSafeWhenEmpty() {
+        var s = SessionCapture()
+        s.abort() // aborting with nothing held (mic error before any capture) must be a no-op
+        XCTAssertFalse(s.isHolding)
+        s.begin(sliver)
+        s.abort(); s.abort()
+        XCTAssertFalse(s.isHolding)
+    }
+
     func testRecordJSONSchemaIsExactlyAppCategoryWordsPreview() throws {
         let data = try JSONEncoder().encode(record(words: 20))
         let obj = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])

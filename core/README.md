@@ -2,12 +2,16 @@
 
 The parts of warble that have **nothing to do with Apple**: the on-device engines and
 text processing that any project can embed — a macOS app, a CLI, a Linux daemon, a
-web/TS tool. Everything here runs **100% locally**; the only network access is the
-one-time model download you trigger explicitly.
+web/TS tool. Everything here runs **100% locally**; network access is limited to the
+one-time model downloads you trigger explicitly, plus the warm servers' loopback-only
+listeners (each binds `127.0.0.1` and never reaches out — see the contract below).
 
 | File | Direction | What it does | Dependencies |
 | --- | --- | --- | --- |
 | `say.ts` | text → speech | Streams neural TTS with [Kokoro-82M](https://github.com/hexgrad/kokoro) (kokoro-js / ONNX). Emits audio chunks + the chunk text so a caller can follow along word-by-word. | `kokoro-js` (downloads an ~80 MB model once) |
+| `say-server.ts` | text → speech (warm) | The same Kokoro pipeline kept resident in a tiny HTTP server, so each read skips the per-spawn model reload. Binds `127.0.0.1` only. | `kokoro-js`, bun |
+| `asr-server.py` | speech → text (warm) | Warm Parakeet ASR server (sherpa-onnx kept loaded; ~0.05 s decodes). Binds `127.0.0.1` only. | `sherpa-onnx` |
+| `llm-server.py` | text → polished text (warm) | Warm MLX cleanup server (the pinned Qwen model kept loaded). Binds `127.0.0.1` only; run with `HF_HUB_OFFLINE=1` it cannot fetch anything at request time. | `mlx-lm` |
 | `clean.ts` | speech text → clean text | Deterministic transcript cleanup: drops fillers (`um`/`uh`), resolves self-corrections (`2 actually 3` → `3`), honors `scratch that`, collapses duplicate words. No LLM, no network. | none |
 | `clean.test.ts` | — | Acceptance suite for `clean.ts` (`bun test`). | none |
 
@@ -40,6 +44,11 @@ app's `setup` script, never bundled.
 
 ## The local-only contract
 
-This layer contains **no networking code**. Models are fetched once, by an explicit
-setup step you run — never silently at runtime, never per-use. Nothing you speak or
-read is ever sent anywhere.
+Stated precisely, because "no networking" would be false: this layer's only networking
+is the three warm servers it ships — `asr-server.py`, `llm-server.py`, `say-server.ts` —
+and each is a **loopback-only listener**: it binds `127.0.0.1` (read the bind call in
+each file), serves warble's own process on the same machine, and initiates no outbound
+connection (the LLM server additionally runs under `HF_HUB_OFFLINE=1`). Models are
+fetched once, by an explicit setup step you run — never silently at runtime, never
+per-use. Nothing you speak or read is ever sent anywhere; the full account is the app's
+[transparency doc](../docs/transparency.md).

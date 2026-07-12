@@ -17,7 +17,7 @@ struct DictationEvent: Codable, Identifiable, Hashable {
     let appBundleId: String?
     let appName: String?
     let engine: String
-    let kind: String          // "dictate" now; "read" reserved so read-aloud can share the log later
+    let kind: String          // "dictate" | "read" (read-aloud rows land via InsightStore.recordRead)
     let status: String?       // nil = delivered; "failed" = transcription failed and the recording
                               // is kept for recovery (replay + Re-transcribe in History).
                               // Optional so pre-recovery history lines still decode.

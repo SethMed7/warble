@@ -113,8 +113,9 @@ shows nothing; the dashboard tells a week's story at a glance.
 Wensen Wu forensic piece is the template of the audit warble should invite — pass it in advance.*
 
 - **The transparency doc.** What warble hooks and why (each API, each permission), exactly what
-  `~/.warble` stores with sizes/caps/export/clear, what never happens (no network but the two
-  disclosed calls), and how to verify each claim yourself.
+  `~/.warble` stores with sizes/caps/export/clear, what never happens (no network beyond the
+  disclosed behaviors — the update check, consented downloads, and the loopback-only engine
+  links), and how to verify each claim yourself.
 - **Release integrity.** Signed + notarized (done) plus published checksums, and document the
   path toward reproducible builds.
 - **`/vs/` comparison pages, drafted.** wispr-flow (scrupulously fair, primary-sourced, conceding

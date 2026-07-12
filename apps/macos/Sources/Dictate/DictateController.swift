@@ -64,9 +64,11 @@ public final class DictateController: NSObject {
     /// was frontmost at recording start) — the result goes to the card, never to paste/History.
     private var dictationSandbox = false
     /// Context awareness (ROADMAP 0.6, off by default): the bounded sliver read at recording
-    /// start. Lives in memory for exactly this dictation — snapshotted into the DictationContext,
-    /// then dropped; only the compact ContextRecord derived from it ever reaches the store.
-    private var dictationCaptured: CapturedContext?
+    /// start. Lives in memory for exactly this dictation — taken (once) into the DictationContext
+    /// on the deliver path, aborted on every path that ends the session without delivering
+    /// (mic error / no clip / too short / silent / Esc / mode off), so it can never outlive its
+    /// dictation; only the compact ContextRecord derived from it ever reaches the store.
+    private var dictationCapture = SessionCapture()
     private static let passwordManagerBundleIDs: Set<String> = [
         "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword",
         "com.bitwarden.desktop", "org.keepassxc.keepassxc", "com.lastpass.LastPass", "com.apple.keychainaccess",
@@ -88,7 +90,8 @@ public final class DictateController: NSObject {
         set { UserDefaults.standard.set(newValue, forKey: "dictateEnabled") }
     }
 
-    /// Watch the field after a paste and offer to learn spelling fixes. On by default; toggle in the menu.
+    /// Watch the keystrokes after a paste (KeystrokeLearner — no field read) and offer to learn
+    /// spelling fixes. On by default; toggle in the menu.
     private var learnEnabled: Bool {
         get { UserDefaults.standard.object(forKey: "learnFromEdits") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "learnFromEdits") }
@@ -276,6 +279,7 @@ public final class DictateController: NSObject {
             unregisterEsc() // and don't leave Esc consumed if we were recording
             disarmReadBack() // an off mode registers nothing — the transient ⌃R claim included
             micWentHot = false // torn down, not cleanly stopped — no ping
+            dictationCapture.abort() // the captured sliver dies with the session it was read for
             if let clip = recorder.stop() { try? FileManager.default.removeItem(at: clip.url) }
             state = .idle
             learner.stop(); LearnPill.shared.close()
@@ -473,10 +477,10 @@ public final class DictateController: NSObject {
         // category, and at most ~200 words near the cursor via the same AX read learn-from-edits
         // uses. The gates run BEFORE any AX read: toggle off or a secure field means nothing is
         // read at all, and a practice-card rehearsal never reads the tour's own text.
-        dictationCaptured = dictationSandbox ? nil
+        dictationCapture.begin(dictationSandbox ? nil
             : ContextAwareness.captureLive(secure: dictationSecure,
                                            bundleId: dictationApp?.bundleId,
-                                           name: dictationApp?.name)
+                                           name: dictationApp?.name))
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt
         disarmReadBack() // …and any armed read-back — this session re-arms it when it lands
         workGen &+= 1 // a fresh session; any straggler completion from before is now stale
@@ -495,6 +499,7 @@ public final class DictateController: NSObject {
         recorder.start(onError: { [weak self] err in
             self?.capClock?.cancel(); self?.capClock = nil
             self?.unregisterEsc() // don't leave Esc globally consumed if the mic couldn't start
+            self?.dictationCapture.abort() // no dictation happened — nothing may outlive the attempt
             self?.state = .idle
             self?.noteError(err)
         })
@@ -524,6 +529,7 @@ public final class DictateController: NSObject {
         micWentHot = false
         guard let clip = stopped else { // nothing captured
             unregisterEsc(); state = .idle
+            dictationCapture.abort() // aborted before delivery — the captured sliver dies here
             Log.dictate.info("reason=no-clip — recorder had nothing")
             Overlay.shared.close()
             return
@@ -535,6 +541,7 @@ public final class DictateController: NSObject {
         if clip.duration < minClipSeconds {
             try? FileManager.default.removeItem(at: clip.url)
             unregisterEsc(); state = .idle
+            dictationCapture.abort() // aborted before delivery — the captured sliver dies here
             Log.dictate.info("reason=too-short — \(clip.duration, privacy: .public)s clip dropped")
             Overlay.shared.close()
             return
@@ -542,6 +549,7 @@ public final class DictateController: NSObject {
         if clip.peak < silenceFloor {
             try? FileManager.default.removeItem(at: clip.url)
             unregisterEsc(); state = .idle
+            dictationCapture.abort() // aborted before delivery — the captured sliver dies here
             Log.dictate.info("reason=silent-clip — peak \(clip.peak, privacy: .public) under the floor")
             Overlay.shared.flash(message: "nothing heard")
             return
@@ -579,6 +587,7 @@ public final class DictateController: NSObject {
         unregisterEsc()
         handsFree = false
         micWentHot = false // cancelled — no stop ping (only clean stops chime)
+        dictationCapture.abort() // cancelled before delivery — the captured sliver dies here
         recorder.onLevel = nil
         if let clip = recorder.stop() { try? FileManager.default.removeItem(at: clip.url) }
         state = .idle
@@ -659,8 +668,8 @@ public final class DictateController: NSObject {
                                    appName: dictationApp?.name,
                                    secure: dictationSecure,
                                    sandbox: dictationSandbox,
-                                   context: dictationCaptured)
-        dictationCaptured = nil // session-scoped: the snapshot in ctx is the only copy from here on
+                                   context: dictationCapture.take()) // take-once: the snapshot in
+                                   // ctx is the only copy from here on (SessionCapture empties)
         let wav = clip.url
         Transcribers.run(wav, clipDuration: clip.duration) { [weak self] outcome in
             guard let self else { try? FileManager.default.removeItem(at: wav); return }
@@ -792,9 +801,9 @@ public final class DictateController: NSObject {
         return true
     }
 
-    /// After a paste, watch the field for a few seconds; if Seth fixes a word's spelling,
-    /// offer to remember it. Waits for the paste to land first, and bails if a new dictation
-    /// started in the meantime.
+    /// After a paste, watch the KEYSTROKES for a few seconds (KeystrokeLearner's shadow — never
+    /// an app's text); if Seth fixes a word's spelling, offer to remember it. Waits for the
+    /// paste to land first, and bails if a new dictation started in the meantime.
     private func startLearning(pasted: String) {
         guard learnEnabled else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
@@ -817,12 +826,15 @@ public final class DictateController: NSObject {
                     break
                 }
             }
-            // If warble can't read this app's text (most browsers/Electron apps), it can't learn edits
-            // here — say so once so it isn't silently mysterious. Native fields (Notes, TextEdit…) work.
+            // The keystroke watcher declines only when Accessibility went away between the paste
+            // and now, or nothing usable was pasted — rare, since the paste's own AX check just
+            // passed. Say so once so it isn't silently mysterious. (The old per-app limitation —
+            // apps that hide their text from AX — died with the AX-read watcher; the keystroke
+            // shadow works everywhere.)
             if !watching, !UserDefaults.standard.bool(forKey: "warnedNoWatch") {
                 UserDefaults.standard.set(true, forKey: "warnedNoWatch")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    LearnPill.shared.showNote("warble can’t watch this app to learn edits")
+                    LearnPill.shared.showNote("warble couldn’t watch for edits just now")
                 }
             }
         }

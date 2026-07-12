@@ -382,8 +382,12 @@ final class KokoroEngine: NSObject, SpeechEngine, AVAudioPlayerDelegate {
         let payload: Data
         if warm {
             p.executableURL = URL(fileURLWithPath: WarmTTS.curlPath())
-            p.arguments = ["-fsN", "--max-time", "300", "-X", "POST", "\(WarmTTS.shared.baseURL)/render",
-                           "-H", "Content-Type: application/json", "--data-binary", "@-"] // -f → HTTP errors are non-zero
+            // --noproxy '*': this is a 127.0.0.1 request and must NEVER traverse a configured
+            // proxy (curl honors http_proxy env vars) — the same proxies-hard-off rule
+            // LoopbackHTTP applies to every other warm-server request. -f → HTTP errors non-zero.
+            p.arguments = ["-fsN", "--noproxy", "*", "--max-time", "300", "-X", "POST",
+                           "\(WarmTTS.shared.baseURL)/render",
+                           "-H", "Content-Type: application/json", "--data-binary", "@-"]
             let body = ["text": pendingText, "voice": Speaker.shared.voiceId]
             payload = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
         } else {

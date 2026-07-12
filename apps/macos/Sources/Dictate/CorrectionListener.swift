@@ -1,68 +1,17 @@
 import ApplicationServices
 import Foundation
 
-/// Watches the field you dictated into for a few seconds after a paste. If you fix the spelling
-/// of a single word that dictado typed (an in-place swap, e.g. "Miele" → "Myela"), it surfaces
-/// that as a correction to learn. Everything is local: it reads the field's text via Accessibility
-/// only to diff it, and only the corrected word PAIR is ever kept (on your OK) — never the
-/// surrounding text. If the focused app doesn't expose its text to Accessibility, this does
-/// nothing (no pill), so it degrades cleanly.
-final class CorrectionListener {
-    private var timer: Timer?
-    private var element: AXUIElement?
-    private var baseline: [String] = []     // field words right after the paste landed
-    private var pasted: Set<String> = []    // lowercased words we inserted (only correct OUR output)
-    private var deadline = Date.distantPast
-    private var onDetect: ((String, String) -> Void)?
-    private var lastSeen: String?           // field text at the previous poll (for the settle check)
-    private var stableCount = 0             // consecutive polls with unchanged text
-
-    /// Begin watching. Returns false if there's nothing watchable (AX text unavailable) so the
-    /// caller knows not to bother. `onDetect(from, to)` fires at most once, on the main queue.
-    @discardableResult
-    func start(pasted text: String, onDetect: @escaping (String, String) -> Void) -> Bool {
-        stop()
-        guard AXIsProcessTrusted(),
-              let el = Self.focusedElement(),
-              let value = Self.value(of: el) else { return false }
-        let words = Self.words(text).map { $0.lowercased() }
-        guard !words.isEmpty else { return false }
-        element = el
-        baseline = Self.words(value)
-        pasted = Set(words)
-        lastSeen = value
-        stableCount = 0
-        self.onDetect = onDetect
-        // Watch long enough to actually read the pasted text, notice a wrong word, and fix it.
-        deadline = Date().addingTimeInterval(25)
-        timer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] _ in self?.poll() }
-        return true
-    }
-
-    func stop() {
-        timer?.invalidate(); timer = nil
-        element = nil; onDetect = nil; baseline = []; pasted = []
-        lastSeen = nil; stableCount = 0
-    }
-
-    private func poll() {
-        guard let el = element else { stop(); return }
-        if Date() > deadline { stop(); return }
-        guard let cur = Self.value(of: el) else { return }
-        // Wait for the field to settle before judging the edit, so we capture the FINAL corrected
-        // word, not a half-typed fragment ("Dhaval", not "De"). Two unchanged polls ≈ ~1.2s still.
-        if cur == lastSeen { stableCount += 1 } else { lastSeen = cur; stableCount = 0; return }
-        guard stableCount >= 2 else { return }
-        let current = Self.words(cur)
-        guard let (from, to) = Self.detectCorrection(baseline: baseline, current: current, pasted: pasted) else { return }
-        let cb = onDetect
-        stop()
-        cb?(from, to)
-    }
-
+/// The app's ONE focused-field Accessibility read, plus the correction-diff helpers — static
+/// only, nothing here runs on its own. Two consumers share this file so a single discipline
+/// governs both: `ContextAwareness.captureLive` (the opt-in context capture) uses the AX read,
+/// and `KeystrokeLearner` (the live learn-from-edits mechanism — see its header) uses the
+/// word/diff helpers to judge its keystroke shadow. This type's original AX-poll watcher — a
+/// timer re-reading the field after a paste — was never wired into the app and has been deleted;
+/// KeystrokeLearner is the one and only learn-from-edits watcher.
+enum CorrectionListener {
     // MARK: Accessibility
-    // These three are internal (not private) on purpose: ContextAwareness.captureLive reuses this
-    // exact focused-field read rather than growing a second AX surface — one place in the app
+    // Internal (not private) on purpose: ContextAwareness.captureLive reuses this exact
+    // focused-field read rather than growing a second AX surface — one place in the app
     // reads focused text, with one discipline.
 
     static func focusedElement() -> AXUIElement? {

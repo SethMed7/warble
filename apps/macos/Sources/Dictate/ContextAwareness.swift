@@ -13,7 +13,7 @@ import Foundation
 ///
 /// Lifecycle (product.md §4.8 — local data is also a privacy surface): the captured text lives in
 /// memory for the one dictation (CapturedContext, deliberately NOT Codable), and only a compact
-/// note of what was read — app, category, word count, a ≤12-word preview — persists on the
+/// note of what was read — app, category, word count, a ≤12-word (≤120-char) preview — persists on the
 /// DictationEvent (ContextRecord, whose only initializer derives that preview, so no field can
 /// hold the full text). Precision (product.md §4.9): captured context is never handed to any
 /// network-capable code path — its only consumers are DictateController → the in-memory
@@ -142,26 +142,58 @@ struct CapturedContext {
     let text: String   // already clipped to ≤ ContextAwareness.maxWords words; "" when unreadable
 }
 
+/// The session-scoped holder for the captured sliver (a ROADMAP 0.7 precision follow-up): the
+/// capture must never outlive its dictation. `begin` at recording start, `take` exactly once on
+/// the deliver path, `abort` on EVERY abort path (mic error, no clip, too short, silent, Esc,
+/// mode off). Take-once is structural — `take` empties the holder, so nothing can read the sliver
+/// twice — and the post-abort state is unit-tested (ContextAwarenessTests). DictateController
+/// owns the live wiring; regression.sh's `transparency` check counts the abort calls.
+struct SessionCapture {
+    private var captured: CapturedContext?
+
+    /// A new dictation session started — whatever a previous session left behind is replaced.
+    mutating func begin(_ c: CapturedContext?) { captured = c }
+
+    /// The deliver path's one read: hands the capture over and empties the holder.
+    mutating func take() -> CapturedContext? {
+        defer { captured = nil }
+        return captured
+    }
+
+    /// The session ended without delivering — drop the capture on the spot.
+    mutating func abort() { captured = nil }
+
+    /// Test seam only: is anything held right now? (The post-abort assertion.)
+    var isHolding: Bool { captured != nil }
+}
+
 /// The compact, inspectable note of what context awareness read for one dictation — app,
-/// category, word count, and a ≤12-word preview. Its ONLY initializer derives the preview from a
-/// CapturedContext, so no field can ever hold the full text: the cap is structural, not
-/// behavioral (the 13th word is unencodable by construction — asserted in ContextAwarenessTests).
+/// category, word count, and a ≤12-word, ≤120-character preview. Its ONLY initializer derives
+/// the preview from a CapturedContext, so no field can ever hold the full text: the caps are
+/// structural, not behavioral (the 13th word is unencodable by construction, and a
+/// whitespace-free run — a token the word cap alone couldn't bound — is cut at the character
+/// cap; both asserted in ContextAwarenessTests).
 struct ContextRecord: Codable, Hashable {
     let app: String        // the app's name (falling back to bundle id) — what the user recognizes
     let category: String   // AppCategory.rawValue: mail | chat | editor | document | other
     let words: Int         // how many words were read (≤ ContextAwareness.maxWords)
-    let preview: String    // the first ≤12 words of what was read, "…"-terminated when clipped
+    let preview: String    // the first ≤12 words (≤120 chars) of what was read, "…"-terminated when clipped
 
     static let previewWords = 12
+    static let previewMaxChars = 120 // so a single huge token (a URL, minified code) can't balloon the note
 
     init(_ captured: CapturedContext) {
         app = captured.appName ?? captured.appBundleId ?? "unknown"
         category = captured.category.rawValue
         let toks = captured.text.split(whereSeparator: { $0.isWhitespace })
         words = toks.count
-        preview = toks.count > Self.previewWords
-            ? toks.prefix(Self.previewWords).joined(separator: " ") + "…"
-            : toks.joined(separator: " ")
+        var p = toks.prefix(Self.previewWords).joined(separator: " ")
+        var clipped = toks.count > Self.previewWords
+        if p.count > Self.previewMaxChars {
+            p = String(p.prefix(Self.previewMaxChars))
+            clipped = true
+        }
+        preview = clipped ? p + "…" : p
     }
 
     /// The inspect half (ROADMAP 0.6): the quiet one-line disclosure History shows for any

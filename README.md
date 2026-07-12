@@ -307,10 +307,16 @@ cleanly, and it's bounded (a handful of clips at most; stale ones are cleaned at
 control in **Dashboard ▸ Data & Privacy**: turn **Keep history** off for stats-only
 (no transcript text stored), turn **Save recordings** off to delete audio after transcription as it
 always did, keep **Skip password fields** on so a spoken password is never written, and **Clear** or
-**Export** anytime — Clear removes the crash buffer too. Nothing is ever uploaded. warble reaches the network in only two ways, both benign and
-disclosed: a one-time, explicit model download when you opt into a premium engine, and a periodic **check
-for app updates** — a signed update feed (version info only, no accounts, no telemetry) that powers the
-in-app *Check for Updates*. The portable `core/` contains no networking code.
+**Export** anytime — Clear removes the crash buffer too. Nothing is ever uploaded. warble's network behavior is exactly three
+things, each disclosed and verifiable: a periodic **check for app updates** — a signed update
+feed (version info only, no accounts, no telemetry) that powers the in-app *Check for Updates*;
+**consented model downloads** when you opt into a premium engine in Setup; and **loopback-only
+links** (`127.0.0.1`, proxies hard-disabled) to warble's own local engine servers — including the
+warm servers the portable `core/` ships (`asr-server.py`, `llm-server.py`, `say-server.ts`),
+which bind `127.0.0.1` only and never reach out. Captured context never reaches any
+network-capable code path (structurally checked in the regression suite). The full audit-ready
+account — every input hook, every file warble stores, every network destination, and the
+command that verifies each claim — is **[docs/transparency.md](docs/transparency.md)**.
 
 **Context awareness** is **off by default** and opt-in per this Mac (**Dashboard ▸ Data & Privacy**;
 it never turns itself back on). When you switch it on, warble reads a small, bounded sliver of
@@ -324,7 +330,8 @@ consumes it. Never screenshots, never other windows or apps, and never a secure
 (password) field: when one is focused, nothing is captured at all. The captured text lives in
 memory for that one dictation and is never written to disk; History keeps only a compact,
 inspectable note of what was read — app, category, word count, and a preview capped at twelve
-words (a cap that is structural: the note's type has no field that can hold the full text).
+words and ~120 characters (caps that are structural: the note's type has no field that can hold
+the full text, and its only initializer enforces both bounds).
 Captured context is never handed to any network-capable code path — its only consumers are the
 dictation controller, the dictation's in-memory context, and that bounded note in your local
 history — and the Dictate module's only network I/O is the loopback link to warble's own local

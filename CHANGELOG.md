@@ -407,13 +407,44 @@ Snitch) is scripted step by step.*
   proof an adversarial stranger with `strings` would go looking for (ROADMAP 0.7). Everything else
   the milestone shipped was already covered as it landed: the capture gates and bounds, the
   per-category tone rules and their golden no-change, the dictionary/snippets precedence, the
-  inspect half's decode-compat fixture and render proof, and the retention math — `--list` still
-  names 30 checks and the card gallery already carried all three of the milestone's new renderable
+  inspect half's decode-compat fixture and render proof, and the retention math — `--list` named
+  30 checks at 0.6's close (0.7's `transparency` below makes it 31) and the card gallery already
+  carried all three of the milestone's new renderable
   states (History detail × 2, Home × 2, the share card) the moment each shipped, confirmed intact
   at 33/33. [docs/testing.md](docs/testing.md) gains the exact by-hand demo ROADMAP 0.6's exit
   criterion describes — **the Little Snitch silence test**: a real context-aware dictation in Mail
   and a Terminal, watched against a live connection log, the per-app output visibly differing
   while nothing crosses the wire — scripted step by step alongside 0.4's fresh-account test.
+- **The transparency doc (0.7 begins).** [docs/transparency.md](docs/transparency.md) is the
+  document an adversarial auditor reads first, written so every line can be verified without
+  trusting the prose: every input hook warble installs and why — the dictation triggers'
+  observe-only NSEvent monitors, the read-aloud watch session's two global mouse monitors and
+  its synthetic-⌘C grab loop (clipboard borrow-and-restore included), the three transient Carbon
+  hotkeys (⌃V / ⌃R / Esc), and, owned plainly as the most sensitive hook warble has, the
+  **learn-from-edits keystroke-shadow watcher**: after every paste, in every app, while the
+  (default-on) toggle is on, warble watches keystrokes system-wide for up to 25 seconds to catch
+  a single-word fix of its own output, with its exact bail conditions listed from the code —
+  plus the one opt-in Accessibility text read (context capture), the microphone's
+  hot-only-while-the-pill-shows lifecycle, what `~/.warble` stores with bounds and permissions,
+  the **complete preferences key list** (falsifiable by one `defaults read`, Sparkle's
+  bookkeeping and macOS window-frame autosaves disclosed alongside warble's own keys), the exact
+  model-weight destination per store choice, and the **complete network destination list** for
+  all three network behaviors — the signed update check, consented Setup downloads (Homebrew's
+  hosts on the Intel cleaner branch included), and the loopback-only engine links. Precision
+  fixes shipped with it: the README's claim that the portable `core/` carries **zero network
+  code** was false (core ships the three loopback-only warm servers) and is reworded everywhere
+  to the three-behavior truth; the context note's preview gains a structural **~120-character
+  cap** so a whitespace-free token can't balloon it (unit-tested); the captured context is now
+  dropped on **every** dictation-abort path — mic error, empty/too-short/silent clip, Esc, mode
+  off — via a take-once holder (`SessionCapture`, unit-tested), so the sliver can never outlive
+  its dictation; the warm-TTS curl call now passes `--noproxy` so a configured system proxy can
+  never see even a loopback request; and dead code that an earlier doc draft mistook for a live
+  mechanism is deleted (`CorrectionListener`'s never-wired AX-poll watcher — `KeystrokeLearner`
+  is the one real learn-from-edits mechanism; the shared AX-read/diff helpers stay). A new
+  `transparency` regression check keeps the dossier honest: the known-overclaim phrases are
+  banned repo-wide by grep, the doc must keep naming every sensitive mechanism it disclosed,
+  `--noproxy` must sit in curl's actual arguments array (a comment can't satisfy it), and every
+  abort path must still drop the capture.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

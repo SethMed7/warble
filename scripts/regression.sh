@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency warm"
 
 describe() {
   case "$1" in
@@ -55,6 +55,7 @@ describe() {
     setup-resume)  echo "engine setup: downloads resume a truncated .part, reuse a complete dest, restart on an ignored range — loopback fixture server, no external network" ;;
     listening)     echo "the listening contract: the sounds toggle round-trips (--sounds, default on); every pill state renders a real @2x PNG" ;;
     gallery)       echo "the card gallery: scripts/onboarding-gallery.sh renders every onboarding card, Setup state, and pill state in one command" ;;
+    transparency)  echo "the trust dossier (0.7): overclaim phrases banned repo-wide; docs/transparency.md exists, is linked from README, and still discloses every sensitive mechanism; curl's --noproxy sits in the real arguments array; every dictation-abort path drops the captured context" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -1371,6 +1372,98 @@ check_gallery() {
     ok "onboarding-gallery.sh renders every card/state in one command ($GAL_GOT PNGs)"
   else
     bad "onboarding-gallery.sh renders every card/state (exit $GAL_STATUS; want $GAL_WANT PNGs, got ${GAL_GOT:-0}; out: \"$GAL_OUT\")"
+  fi
+}
+
+# The trust dossier (ROADMAP 0.7). Docs precision can't be fully automated, but its
+# grep-falsifiable core can be — and one grep-falsifiable overclaim forfeits the moat
+# (product.md §4.9), so the falsifiable parts are gated here:
+#   (1) the known-overclaim phrases (the "core/ has zero network code" family, once in README)
+#       may appear NOWHERE in the repo's prose or comments — the tripwire that keeps them from
+#       creeping back;
+#   (2) docs/transparency.md exists and README's Privacy section links it;
+#   (3) the doc still names every sensitive mechanism it disclosed — the keystroke-shadow
+#       watcher, the watch session's mouse monitors, the runaway-ceiling slug, the defaults-read
+#       falsification command with the Sparkle/window-frame families, the Intel cleaner's
+#       Homebrew branch, the exact model-weight destinations, the loopback story, and the
+#       quiet-success log caveat — so stripping a disclosure fails the gate;
+#   (4) the TTS curl call carries --noproxy in its ACTUAL arguments array (grepped with context
+#       under the p.arguments line — a comment can't satisfy it);
+#   (5) every dictation-abort path drops the captured context (dictationCapture.abort() on
+#       mic-error / no-clip / too-short / silent / Esc / mode-off, and exactly one take()) —
+#       the take-once/post-abort semantics themselves are unit-tested (SessionCapture,
+#       ContextAwarenessTests).
+check_transparency() {
+  # (1) the overclaim tripwire — repo-wide over prose and code comments, excluding generated
+  # dirs and this script (whose patterns would self-match).
+  TRIP=$(grep -rn --exclude-dir=node_modules --exclude-dir=.build --exclude-dir=.git \
+    --exclude=regression.sh \
+    -e "no networking code" -e "contains no networking" \
+    "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$ROOT/ROADMAP.md" "$ROOT/DESIGN.md" \
+    "$ROOT/docs" "$ROOT/core" "$ROOT/apps" "$ROOT/brand" "$ROOT/scripts" 2>/dev/null)
+  if [ -z "$TRIP" ]; then
+    ok "the known-overclaim phrases appear nowhere in README/docs/core/apps/brand/scripts"
+  else
+    bad "overclaim phrase found — reword it per the three-behavior networking truth: $TRIP"
+  fi
+
+  # (2) the doc exists and is linked where the auditor starts.
+  TDOC="$ROOT/docs/transparency.md"
+  if [ -f "$TDOC" ]; then
+    ok "docs/transparency.md exists"
+  else
+    bad "docs/transparency.md exists"
+    return
+  fi
+  if grep -q "docs/transparency.md" "$ROOT/README.md"; then
+    ok "README links the transparency doc"
+  else
+    bad "README links the transparency doc"
+  fi
+
+  # (3) the disclosure anchors: each names a mechanism/claim the doc must keep owning.
+  while IFS= read -r ANCHOR; do
+    if grep -qF "$ANCHOR" "$TDOC"; then
+      ok "transparency.md still discloses: $ANCHOR"
+    else
+      bad "transparency.md lost its disclosure of: $ANCHOR"
+    fi
+  done <<'ANCHORS'
+KeystrokeLearner
+leftMouseDown
+25 second
+runaway-ceiling
+defaults read io.github.sethmed7.voz
+SULastCheckTime
+NSWindow Frame
+formulae.brew.sh
+~/.warble/llm/mlx-model
+model.gguf
+qwen2.5-1.5b-instruct-4bit
+127.0.0.1
+cold chain takes over
+HF_HUB_OFFLINE
+ANCHORS
+
+  # (4) --noproxy in the warm-TTS curl's REAL arguments array — the -A5 window starts at the
+  # p.arguments line itself, so a comment above it can never satisfy this.
+  SPEAKER_SRC="$ROOT/apps/macos/Sources/Speak/Speaker.swift"
+  if grep -F -A5 'p.arguments = ["-fsN"' "$SPEAKER_SRC" | grep -qF '"--noproxy", "*"'; then
+    ok "the warm-TTS curl passes --noproxy in its actual arguments array (loopback never proxied)"
+  else
+    bad "the warm-TTS curl passes --noproxy in its actual arguments array"
+  fi
+
+  # (5) the captured-context lifecycle wiring: one take() on the deliver path, an abort() on
+  # every path that ends a session without delivering (mic-error, no-clip, too-short, silent,
+  # Esc-cancel, mode-off).
+  DC_SRC="$ROOT/apps/macos/Sources/Dictate/DictateController.swift"
+  ABORTS=$(grep -c "dictationCapture.abort()" "$DC_SRC")
+  TAKES=$(grep -c "dictationCapture.take()" "$DC_SRC")
+  if [ "${ABORTS:-0}" -ge 6 ] && [ "${TAKES:-0}" -eq 1 ]; then
+    ok "every dictation-abort path drops the captured context ($ABORTS aborts, 1 take)"
+  else
+    bad "captured-context lifecycle wiring (want ≥6 aborts + exactly 1 take; got ${ABORTS:-0}/${TAKES:-0})"
   fi
 }
 

@@ -2,7 +2,8 @@
 
 *How warble's promises are proven. One deterministic command covers everything 0.3, 0.4, 0.5, and
 0.6 shipped — context awareness's three halves (capture, apply, and inspect) and the dashboard
-retention pass; this page maps what it checks, the seams it uses, and the short list that still
+retention pass — plus 0.7's transparency tripwires (the trust dossier's grep-falsifiable claims);
+this page maps what it checks, the seams it uses, and the short list that still
 needs a human — headed by the fresh-account five-minute test (0.4's exit criterion) and the Little
 Snitch silence test (0.6's), both scripted step by step.*
 
@@ -61,6 +62,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `setup-resume` | resumable downloads byte-for-byte against a loopback fixture server (`scripts/fixtures/range-server.ts`, 127.0.0.1 only — the suite never touches the real network) whose request log shows what crossed the wire: a truncated `.part` resumes with `Range: bytes=<n>-`, a complete dest costs one HEAD and zero data, a full-length partial verifies (416 + HEAD) and promotes without a refetch, an ignored range restarts honestly; the resume decision matrix itself is unit-tested (`swift test`) | 0.4 engine setup friction |
 | `listening` | the listening contract's headless halves: the start/stop pings' toggle round-trips through UserDefaults **across processes** via `--sounds` (default on — the ping is the contract; off *stays* off, product.md §4.5), and every pill state renders offscreen to a real @2x PNG via `--render-pill` (DEBUG seam — no panel, no mic; representative bar levels and a frozen spinner injected): the live listening waveform, the hover-revealed gesture hint, the cap countdown, the processing spinner, the landed checkmark, and the clipboard/error text pills — wave-pill dims asserted exactly, text-bearing states must out-width their textless base | 0.4 listening contract |
 | `gallery` | the card gallery stays runnable: `scripts/onboarding-gallery.sh` renders **every** onboarding card (+ variants), Setup state, and pill state into one directory in one command — the check runs the real script into a sandbox and asserts every PNG lands, recomputing the expected count from the machine's declared steps so a new card can't miss the gallery | 0.4 design review |
+| `transparency` | the trust dossier stays honest (ROADMAP 0.7): the two known-overclaim phrases (the "core/ carries zero network code" family — the exact strings live in the check) must appear **nowhere** in README/docs/core/apps/brand/scripts — a grep tripwire, since one grep-falsifiable overclaim forfeits the moat (product.md §4.9); `docs/transparency.md` exists, README's Privacy section links it, and the doc still names every sensitive mechanism it disclosed (the keystroke-shadow watcher, the watch session's mouse monitors, `reason=runaway-ceiling`, the `defaults read` falsification command with the Sparkle + window-frame families, the Homebrew branch of the Intel cleaner install, and the exact model-weight destinations incl. `~/.warble/llm/mlx-model` + `model.gguf`) — stripping a disclosure fails the gate; the TTS curl call carries `--noproxy` **in its actual arguments array** (grepped with context under `p.arguments`, never a comment); and DictateController funnels every dictation-abort path through `dictationCapture.abort()` (count ≥ 6: mic-error, no-clip, too-short, silent, Esc, mode-off — the take-once/post-abort semantics themselves are unit-tested, SessionCapture in ContextAwarenessTests) | 0.7 transparency |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
@@ -174,11 +176,13 @@ the real machine).
 1. Open Little Snitch's connection log (Window ▸ Network Monitor, or the log itself) and filter it
    to `warble` — if warble has an existing "allow" rule, that's fine, it just means you're
    watching for a *connection*, not a *prompt*. Precision first (product.md §4.9): warble has
-   exactly two disclosed connections (README ▸ Privacy — Setup's engine downloads and the ~daily
-   update check), and either would legitimately show as warble in this log. Park them so zero
-   genuinely means zero: flip **Data & Privacy ▸ Install updates automatically** off for the demo
-   (restore it after) and don't open Setup mid-run — a hit from *before* you started isn't this
-   test's verdict either way.
+   exactly two disclosed **remote** connections ([transparency.md](transparency.md) — Setup's
+   engine downloads and the ~daily update check), and either would legitimately show as warble in
+   this log; its third network behavior — the loopback-only links to its own local engine servers
+   on `127.0.0.1` — never leaves the machine (Little Snitch classes it as local traffic). Park
+   the remote two so zero genuinely means zero: flip **Data & Privacy ▸ Install updates
+   automatically** off for the demo (restore it after) and don't open Setup mid-run — a hit from
+   *before* you started isn't this test's verdict either way.
 2. **Dashboard ▸ Data & Privacy** — confirm **Context awareness** reads off (the default), then
    turn it on.
 3. Open two real apps with text already in them: **Mail** (a draft with a line or two above the
@@ -345,7 +349,7 @@ milestone's bug list, the same discipline as the five-minute test above.
   hit **Retry** — the bar must pick up near where it stopped, not at 0% (the byte-level twin is
   `setup-resume`; this proves it against real CDNs).
 - **Sparkle updates and engine Setup** — release-build territory (both involve the network by
-  design: the two disclosed calls).
+  design: the two disclosed remote behaviors — see [transparency.md](transparency.md)).
 
 ## Adding a check
 

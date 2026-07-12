@@ -71,10 +71,17 @@ echo "→ Notarizing the DMG…"
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$DMG"
 
+# 6. Record the DMG's SHA-256 in dist/checksums.txt — the download-integrity check independent
+#    of Sparkle's EdDSA signature (that one only covers the in-app auto-update path; this one
+#    covers someone who grabbed the .dmg straight off the GitHub release page). See
+#    scripts/checksum.sh and docs/transparency.md's "Release integrity" section for what each
+#    verifies and why they're different mechanisms.
+sh scripts/checksum.sh "$DMG"
+
 echo
 echo "✓ Notarized, ready to ship: $DMG"
 spctl -a -vv -t install "$DMG" 2>&1 || true
 echo "Ship it:"
-echo "  1. gh release create v$VER \"$DMG\" --title \"warble $VER\" --notes \"…\"   # host the DMG"
+echo "  1. gh release create v$VER \"$DMG\" dist/checksums.txt --title \"warble $VER\" --notes \"…\"   # host the DMG + its SHA-256"
 echo "  2. sh scripts/update-appcast.sh $VER \"$DMG\"                         # sign + add the appcast <item>"
 echo "  3. commit + push appcast.xml                                          # publishes the update to everyone"

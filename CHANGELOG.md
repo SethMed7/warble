@@ -445,6 +445,28 @@ Snitch) is scripted step by step.*
   banned repo-wide by grep, the doc must keep naming every sensitive mechanism it disclosed,
   `--noproxy` must sit in curl's actual arguments array (a comment can't satisfy it), and every
   abort path must still drop the capture.
+- **Release integrity, and the repo made ready to open source (0.7 continues).** Every release
+  now ships a **SHA-256 checksum** alongside its notarized `.dmg` (`scripts/checksum.sh`, called
+  from `release.sh`) — a download-integrity check independent of Sparkle's EdDSA signature (that
+  one only covers the in-app auto-update path; this one covers anyone who grabbed the `.dmg` a
+  different way and wants to confirm it's byte-for-byte what was published:
+  `shasum -a 256 -c checksums.txt`). `docs/transparency.md` gains an honest **Release integrity**
+  section laying out all three verification mechanisms (EdDSA for updates, SHA-256 for downloads,
+  notarization for the binary itself) plus a **reproducible-builds** accounting: what's
+  deterministic today (a SwiftPM release build from a tagged commit) and what isn't (the
+  signature's timestamp, the notarization ticket, and — a real finding this milestone's own
+  history audit surfaced and is disclosing rather than leaving for someone else to find —
+  SwiftPM's auto-generated resource-bundle fallback string, which bakes the local build path into
+  the release build — present since v0.1.7 (Package.swift gained `resources:` at v0.1.6+1; the
+  v0.1.0–v0.1.6 shipped binaries carry none of it); low severity, informational, not warble's own
+  code). CI now runs the same engine-free regression suite on every push to `main` and every PR
+  (`.github/workflows/regression.yml`, macOS runner, SwiftPM + bun caching). The repo also gains
+  `CONTRIBUTING.md`, plain bug/feature issue templates, and a PR template that points straight at
+  the regression gate. And the full-history
+  audit itself (`docs/repo-audit.md`, ROADMAP 0.7's report-only pass over every revision, not just
+  HEAD) found no secrets, no personal paths in committed history, no stray emails, and no internal
+  hostnames — clean enough to flip public as-is, with that one binary-string finding named
+  precisely instead of quietly ignored.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

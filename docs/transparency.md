@@ -392,6 +392,95 @@ and the menu's "Last error" row carry the user-facing failures.
 
 ---
 
+## Release integrity
+
+Three independent proofs travel with a release, each covering a different failure mode, plus a
+documented path toward a fourth (bit-for-bit reproducibility) that doesn't exist yet — stated
+honestly rather than claimed.
+
+### 1. The binary itself — Developer ID + notarization
+
+Every release is signed with a Developer ID Application certificate and notarized by Apple
+(`apps/macos/scripts/release.sh`) before it's stapled into the `.dmg`. This is what Gatekeeper
+checks on first launch, and what you can check yourself against the installed app:
+
+```sh
+codesign -dv --verbose=2 /Applications/warble.app   # signature + identifier
+spctl -a -vv -t install /Applications/warble.app     # Gatekeeper's own verdict (notarized?)
+```
+
+### 2. Updates — Sparkle's EdDSA signature
+
+The **in-app auto-updater** never trusts the network alone: every update is verified against the
+EdDSA public key pinned in `Info.plist` (`SUPublicEDKey`) before it installs, and the private key
+that signs each release (`sign_update`, run by `scripts/update-appcast.sh`) lives only in the
+maintainer's login Keychain — never in this repo. This covers exactly one path: **update
+delivery** through the app itself. See [Network behavior](#network-behavior) above for the full
+mechanics.
+
+### 3. Downloads — SHA-256 checksums
+
+EdDSA doesn't help someone who grabbed the `.dmg` a different way — the GitHub release page
+directly, a mirror, a friend's copy — and wants to confirm the bytes weren't altered. Since this
+milestone (0.7), `release.sh` also records the DMG's SHA-256 into `dist/checksums.txt`
+(`scripts/checksum.sh` — idempotent, one line per filename) and it ships as a release asset
+alongside the `.dmg`:
+
+```sh
+shasum -a 256 -c checksums.txt
+```
+
+**Precision note:** this practice started with 0.7 (2026-07). The ten releases before it
+(v0.1.0–v0.1.8, v0.2.0) each carry a signed, notarized `.dmg` but **no** `checksums.txt` asset —
+backfilling their hashes from the already-published bytes is a deliberate, tracked manual step
+(owner's call on timing), not a standing claim that every release has always shipped one. See
+[docs/repo-audit.md](repo-audit.md) for the exact backfill commands.
+
+These three mechanisms answer different questions and none substitutes for another: EdDSA proves
+*this came from the update feed I trust*; SHA-256 proves *this file is exactly the bytes that were
+published*; notarization proves *Apple scanned this and found nothing it blocks*.
+
+### 4. Building from source — what's reproducible today, and what isn't
+
+warble is **not** bit-for-bit reproducible yet, and this doc won't pretend otherwise. What *is*
+true today:
+
+- **Deterministic:** compiling the tagged source with the same Xcode/Swift toolchain
+  (swift-tools-version 5.9, currently built with Swift 6.2 — `swift --version`) and the same
+  `Package.resolved` (pinned dependency versions, Sparkle included) produces the same Swift
+  bytecode for the same inputs — ordinary compiler determinism, nothing warble-specific.
+- **Not deterministic — the signature and notarization ticket.** `codesign --timestamp` embeds a
+  trusted timestamp at signing time, so re-signing byte-identical unsigned output twice yields two
+  different signed Mach-O files; the notarization ticket Apple staples is issued per submission by
+  Apple's own servers. Neither is a warble decision — it's how Apple's code-signing trust chain
+  works everywhere.
+- **Not deterministic — one build-path string.** SwiftPM auto-generates
+  `resource_bundle_accessor.swift` per target, and it bakes the **absolute build directory path**
+  in as a fallback constant (only reached if the primary, relative resource lookup fails — which
+  it doesn't, in the shipped app). That means a build from a different checkout path (a different
+  machine, a CI runner's `/Users/runner/...`, even the same repo cloned somewhere else) differs
+  from Seth's own release build in that one literal. It's SwiftPM boilerplate, not warble code, and
+  it's disclosed in full — including where it actually shows up in a shipped binary — in
+  [docs/repo-audit.md](repo-audit.md).
+
+**What a stranger can actually verify from source**, today:
+
+```sh
+git clone https://github.com/SethMed7/warble && cd warble/apps/macos
+swift build -c release              # or: sh scripts/bundle.sh for an unsigned build/warble.app
+sh ../../scripts/regression.sh      # same suite, same PASS/FAIL — from the repo root
+```
+
+An unsigned build made this way won't byte-match the distributed `.dmg` (no Developer ID, no
+notarization — Gatekeeper will say so, correctly), but it lets anyone compare the thing that
+actually matters: **the source compiles to a binary that passes the identical regression suite**,
+and a `strings`/`diff` pass against the released binary turns up nothing beyond the differences
+named above (the signature, the timestamp, the notarization ticket, and that one build-path
+literal). Closing this gap fully — a deterministic, reproducible release pipeline — is future work,
+not a claim made here.
+
+---
+
 ## How to verify
 
 1. **Turn Wi-Fi off. Dictate. Select and press ⌃V.** Both verbs work — transcription, cleanup,

@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums ci warm"
 
 describe() {
   case "$1" in
@@ -56,6 +56,8 @@ describe() {
     listening)     echo "the listening contract: the sounds toggle round-trips (--sounds, default on); every pill state renders a real @2x PNG" ;;
     gallery)       echo "the card gallery: scripts/onboarding-gallery.sh renders every onboarding card, Setup state, and pill state in one command" ;;
     transparency)  echo "the trust dossier (0.7): overclaim phrases banned repo-wide; docs/transparency.md exists, is linked from README, and still discloses every sensitive mechanism; curl's --noproxy sits in the real arguments array; every dictation-abort path drops the captured context" ;;
+    checksums)     echo "release integrity (0.7): scripts/checksum.sh over fixture artifacts — shasum-compatible line, shasum -a 256 -c verifies it, a second artifact appends, re-running the same filename replaces its line instead of duplicating" ;;
+    ci)            echo "release integrity (0.7): .github/workflows/regression.yml exists, is well-formed YAML, and is wired to a macOS runner running the engine-free suite on push + PR" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -1464,6 +1466,87 @@ ANCHORS
     ok "every dictation-abort path drops the captured context ($ABORTS aborts, 1 take)"
   else
     bad "captured-context lifecycle wiring (want ≥6 aborts + exactly 1 take; got ${ABORTS:-0}/${TAKES:-0})"
+  fi
+}
+
+# Release integrity, part one (ROADMAP 0.7): scripts/checksum.sh is release.sh's checksum step,
+# extracted so it's smokeable without a Developer ID cert, notarization creds, or a real dist/ —
+# this check runs it directly against throwaway fixture files in the sandbox. Proves the format
+# is shasum-compatible (round-trips through the real `shasum -a 256 -c`, the exact command a
+# downloader runs), that a second artifact's line is appended rather than overwriting the file,
+# and that re-running for the SAME filename replaces its line rather than duplicating it — the
+# idempotence release.sh depends on when the same version is rebuilt.
+check_checksums() {
+  CKDIR="$REGTMP/checksums"
+  mkdir -p "$CKDIR"
+  printf 'fixture content for the checksum smoke\n' > "$CKDIR/fixture-1.0.0.dmg"
+  CK_STATUS=0
+  sh "$ROOT/apps/macos/scripts/checksum.sh" "$CKDIR/fixture-1.0.0.dmg" "$CKDIR/checksums.txt" >/dev/null 2>&1 || CK_STATUS=$?
+  CK_WANT_HASH=$(shasum -a 256 "$CKDIR/fixture-1.0.0.dmg" | awk '{print $1}')
+  if [ "$CK_STATUS" -eq 0 ] && [ -f "$CKDIR/checksums.txt" ] \
+    && [ "$(cat "$CKDIR/checksums.txt")" = "$CK_WANT_HASH  fixture-1.0.0.dmg" ]; then
+    ok "checksum.sh writes a shasum-compatible line for a fixture artifact"
+  else
+    bad "checksum.sh writes a shasum-compatible line (exit $CK_STATUS; got \"$(cat "$CKDIR/checksums.txt" 2>/dev/null)\"; want \"$CK_WANT_HASH  fixture-1.0.0.dmg\")"
+  fi
+
+  if ( cd "$CKDIR" && shasum -a 256 -c checksums.txt >/dev/null 2>&1 ); then
+    ok "shasum -a 256 -c independently verifies the recorded checksum against the real file"
+  else
+    bad "shasum -a 256 -c verifies the recorded checksum"
+  fi
+
+  printf 'a second, different fixture artifact\n' > "$CKDIR/fixture-2.0.0.dmg"
+  sh "$ROOT/apps/macos/scripts/checksum.sh" "$CKDIR/fixture-2.0.0.dmg" "$CKDIR/checksums.txt" >/dev/null 2>&1
+  CK_LINES2=$(wc -l < "$CKDIR/checksums.txt" | tr -d ' ')
+  if [ "$CK_LINES2" = "2" ]; then
+    ok "a second artifact's checksum is appended, not overwritten (2 lines)"
+  else
+    bad "a second artifact's checksum is appended (got $CK_LINES2 lines)"
+  fi
+
+  printf 'fixture content CHANGED for the same filename\n' > "$CKDIR/fixture-1.0.0.dmg"
+  sh "$ROOT/apps/macos/scripts/checksum.sh" "$CKDIR/fixture-1.0.0.dmg" "$CKDIR/checksums.txt" >/dev/null 2>&1
+  CK_LINES3=$(wc -l < "$CKDIR/checksums.txt" | tr -d ' ')
+  CK_NEW_HASH=$(shasum -a 256 "$CKDIR/fixture-1.0.0.dmg" | awk '{print $1}')
+  if [ "$CK_LINES3" = "2" ] && grep -q "^$CK_NEW_HASH  fixture-1.0.0.dmg\$" "$CKDIR/checksums.txt"; then
+    ok "re-running for the same filename replaces its line instead of duplicating (still 2 lines, updated hash)"
+  else
+    bad "re-running for the same filename replaces its line (got $CK_LINES3 lines; content: $(tr '\n' ';' < "$CKDIR/checksums.txt" 2>/dev/null))"
+  fi
+}
+
+# Release integrity, part two (ROADMAP 0.7): the CI workflow itself. It can't run here (no nested
+# Actions runner), so this checks what's staticly provable: the file exists, is well-formed YAML
+# (ruby's bundled Psych — stock on every macOS box this suite ever runs on, including the
+# workflow's own macos-14 runner; the first real run is a documented manual check,
+# docs/testing.md), and is wired to a macOS runner that runs the engine-free suite on push + PR.
+check_ci() {
+  CI_FILE="$ROOT/.github/workflows/regression.yml"
+  if [ -f "$CI_FILE" ]; then
+    ok "CI workflow exists at .github/workflows/regression.yml"
+  else
+    bad "CI workflow exists at .github/workflows/regression.yml"
+    return
+  fi
+
+  if command -v ruby >/dev/null 2>&1; then
+    CI_YAML_ERR="$REGTMP/ci-yaml-err.txt"
+    if ruby -ryaml -e 'YAML.safe_load(File.read(ARGV[0]))' "$CI_FILE" >"$CI_YAML_ERR" 2>&1; then
+      ok "regression.yml is well-formed YAML (ruby -ryaml)"
+    else
+      bad "regression.yml is well-formed YAML ($(cat "$CI_YAML_ERR" 2>/dev/null))"
+    fi
+  else
+    bad "regression.yml YAML well-formedness — no validator available (ruby not found on this machine)"
+  fi
+
+  if grep -q "runs-on: macos" "$CI_FILE" && grep -q "^on:" "$CI_FILE" \
+    && grep -q "push:" "$CI_FILE" && grep -q "pull_request:" "$CI_FILE" \
+    && grep -q "sh scripts/regression.sh" "$CI_FILE"; then
+    ok "CI runs the engine-free regression suite on a macOS runner, on push + PR"
+  else
+    bad "CI wiring (macOS runner + push/PR triggers + the regression command)"
   fi
 }
 

@@ -1,0 +1,54 @@
+name: regression
+
+# The single regression gate (docs/testing.md), running headless and engine-free — no premium
+# engines, no Speech authorization, no UI, no signing/notarization. Everything the suite touches
+# is sandboxed (WARBLE_HOME, WARBLE_DICTIONARY, the "warble" defaults domain), so a shared runner
+# is fine. First live run: a manual check, per docs/testing.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel a stale run on the same branch/PR when new commits land.
+concurrency:
+  group: regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    # Xcode + swift ship preinstalled; this is the only job, kept to one to stay free-tier-friendly.
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # SwiftPM's package cache (~/Library/Caches/org.swift.swiftpm) and the resolved build
+      # products both key off Package.resolved — a change there (e.g. bumping Sparkle) busts it.
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            apps/macos/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('apps/macos/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      # bun's install cache for core/'s one dependency (kokoro-js) and scripts/bench's fixtures.
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('core/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      # The one command (docs/testing.md): engine-free by default, exits non-zero on any failure.
+      - name: Run the regression suite
+        run: sh scripts/regression.sh

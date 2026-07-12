@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-2E74FF)](LICENSE)
 [![Platform](https://img.shields.io/badge/macOS-13%2B-161520)](#download)
 [![Privacy](https://img.shields.io/badge/voice-on--device-2E74FF)](#privacy)
+[![Regression](https://github.com/SethMed7/warble/actions/workflows/regression.yml/badge.svg)](https://github.com/SethMed7/warble/actions/workflows/regression.yml)
 
 </div>
 
@@ -459,8 +460,32 @@ harness (latency, WER, idle footprint) lives in `scripts/bench/`.
 
 **Cut a release:** `sh scripts/release.sh` builds a Developer-ID-signed, **notarized** `.dmg` in
 `dist/` (needs a Developer ID cert + a `voz-notary` notarytool profile in your Keychain — the
-profile name is a holdover from the voz era; no secrets ever live in the repo), then
-`gh release create v<ver> dist/warble-<ver>.dmg` and `sh scripts/update-appcast.sh <ver> <dmg>`.
+profile name is a holdover from the voz era; no secrets ever live in the repo), and now also
+records its **SHA-256** into `dist/checksums.txt` (`scripts/checksum.sh` — idempotent, replaces
+that filename's line rather than duplicating it). Then:
+
+```sh
+gh release create v<ver> dist/warble-<ver>.dmg dist/checksums.txt --title "warble <ver>" --notes "…"
+sh scripts/update-appcast.sh <ver> dist/warble-<ver>.dmg   # signs the dmg for Sparkle, updates appcast.xml
+git add appcast.xml && git commit -m "appcast: warble <ver>" && git push
+```
+
+Two *different* verifications ship with every release, and it's worth knowing which is which:
+Sparkle's **EdDSA signature** (`sign_update`, baked into the appcast `<enclosure>`) is what the
+**in-app auto-updater** checks before it installs anything — it proves the bytes came from
+whoever holds the private key, over the update path only. The **SHA-256 in `checksums.txt`** is
+for anyone who downloaded the `.dmg` a different way (the GitHub release page, a mirror, a
+friend's copy) and wants to confirm it's byte-for-byte what was published — run
+`shasum -a 256 -c checksums.txt` next to the file. Neither one substitutes for the other:
+EdDSA covers *update delivery*, SHA-256 covers *download integrity*, and Gatekeeper/notarization
+(`spctl -a -vv /Applications/warble.app`) is the third, separate proof that Apple itself scanned
+and vouches for the binary. All three, plus warble's reproducible-builds path (what's
+deterministic today and what isn't), are laid out in
+[docs/transparency.md](docs/transparency.md#release-integrity).
+
+**Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) — how to build, run the regression gate, the
+design law, and the docs-ship-with-code commit style. Every PR runs the same
+`sh scripts/regression.sh` CI does (`.github/workflows/regression.yml`, badge above).
 
 ## Roadmap
 

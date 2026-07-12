@@ -63,6 +63,8 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `listening` | the listening contract's headless halves: the start/stop pings' toggle round-trips through UserDefaults **across processes** via `--sounds` (default on — the ping is the contract; off *stays* off, product.md §4.5), and every pill state renders offscreen to a real @2x PNG via `--render-pill` (DEBUG seam — no panel, no mic; representative bar levels and a frozen spinner injected): the live listening waveform, the hover-revealed gesture hint, the cap countdown, the processing spinner, the landed checkmark, and the clipboard/error text pills — wave-pill dims asserted exactly, text-bearing states must out-width their textless base | 0.4 listening contract |
 | `gallery` | the card gallery stays runnable: `scripts/onboarding-gallery.sh` renders **every** onboarding card (+ variants), Setup state, and pill state into one directory in one command — the check runs the real script into a sandbox and asserts every PNG lands, recomputing the expected count from the machine's declared steps so a new card can't miss the gallery | 0.4 design review |
 | `transparency` | the trust dossier stays honest (ROADMAP 0.7): the two known-overclaim phrases (the "core/ carries zero network code" family — the exact strings live in the check) must appear **nowhere** in README/docs/core/apps/brand/scripts — a grep tripwire, since one grep-falsifiable overclaim forfeits the moat (product.md §4.9); `docs/transparency.md` exists, README's Privacy section links it, and the doc still names every sensitive mechanism it disclosed (the keystroke-shadow watcher, the watch session's mouse monitors, `reason=runaway-ceiling`, the `defaults read` falsification command with the Sparkle + window-frame families, the Homebrew branch of the Intel cleaner install, and the exact model-weight destinations incl. `~/.warble/llm/mlx-model` + `model.gguf`) — stripping a disclosure fails the gate; the TTS curl call carries `--noproxy` **in its actual arguments array** (grepped with context under `p.arguments`, never a comment); and DictateController funnels every dictation-abort path through `dictationCapture.abort()` (count ≥ 6: mic-error, no-clip, too-short, silent, Esc, mode-off — the take-once/post-abort semantics themselves are unit-tested, SessionCapture in ContextAwarenessTests) | 0.7 transparency |
+| `checksums` | release integrity's download-verification half (ROADMAP 0.7): `apps/macos/scripts/checksum.sh` — release.sh's SHA-256 step, extracted so it's smokeable without a Developer ID cert or a real `dist/` — run against throwaway fixture artifacts in the sandbox: the line it writes is `shasum -a 256 -c`-compatible (verified by actually running that command, the exact one a downloader runs), a second artifact's hash is appended rather than overwriting the file, and re-running for the same filename replaces its line instead of duplicating it (the idempotence a rebuilt version depends on) | 0.7 release integrity |
+| `ci` | release integrity's other half — the CI file itself can't run inside the suite it gates, so this checks what's staticly provable: `.github/workflows/regression.yml` exists, is well-formed YAML (`ruby -ryaml`, stock on every macOS box this suite runs on), and is wired to a macOS runner that runs `sh scripts/regression.sh` on both `push` and `pull_request` | 0.7 release integrity / CI |
 | `warm` | (opt-in) a premium engine is active and `--speak` renders a real read-aloud | — |
 
 Three layers, by design: **pure logic** lives in unit tests (`core/clean.test.ts` for TS,
@@ -350,6 +352,20 @@ milestone's bug list, the same discipline as the five-minute test above.
   `setup-resume`; this proves it against real CDNs).
 - **Sparkle updates and engine Setup** — release-build territory (both involve the network by
   design: the two disclosed remote behaviors — see [transparency.md](transparency.md)).
+- **The CI workflow's first live run** (ROADMAP 0.7): `.github/workflows/regression.yml` is
+  validated statically by the `ci` check (exists, well-formed YAML, wired to a macOS runner +
+  push/PR triggers running the real command) — but a GitHub Actions runner can't be exercised from
+  inside this repo's own suite. After the first push that includes it, confirm by hand: the
+  Actions tab shows a run, it lands on a `macos-14` runner, `sh scripts/regression.sh` executes
+  and reports the same PASS/FAIL counts a local run would, and the SwiftPM + bun caches populate
+  (a second run should be visibly faster). If it's red for a CI-only reason (a tool the runner
+  lacks, a path assumption that doesn't hold outside a local checkout), that's the bug this item
+  exists to catch.
+- **Checksum backfill for the ten pre-0.7 releases**: `checksums.txt` shipping with a release
+  starts this milestone — v0.1.0 through v0.1.8 and v0.2.0 predate it. Backfilling them (hashing
+  the already-published `.dmg` assets and uploading a `checksums.txt` to each release) is optional,
+  safe, and left to the owner's timing — the exact commands are in
+  [docs/repo-audit.md](repo-audit.md).
 
 ## Adding a check
 

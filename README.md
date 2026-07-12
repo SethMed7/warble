@@ -343,6 +343,8 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --engine                # which transcription engine would run
 .build/debug/warble --apply "ship the miele engine"  # apply your dictionary (dictation)
 .build/debug/warble --pronounce "read Myela aloud"   # apply your pronunciations (read-aloud)
+.build/debug/warble --expand "sign off"     # snippets: trigger phrase -> saved text (fixture: WARBLE_HOME)
+.build/debug/warble --snippet-set "my address" "123 Main St"  # the dashboard's Add path, headless
 .build/debug/warble --selftest              # learn-from-edits logic
 .build/debug/warble --errors                # the cause-naming error taxonomy (a copy contract)
 .build/debug/warble --recover-scan          # dictation recovery: recover an orphaned in-flight clip
@@ -358,10 +360,14 @@ sh scripts/install.sh                    # build, sign, install to /Applications
                                             #   states: fresh | installing | installed | failed
 .build/debug/warble --fetch-resume <url> <dest>  # (DEBUG) one resumable fetch, narrated (resume/restart/reuse)
 .build/debug/warble --sounds                # the listening pings' toggle: prints on|off (set: --sounds off)
+.build/debug/warble --bindings              # the active trigger table (Fn + any added shortcuts/mouse buttons)
+                                            #   (add/remove: --bindings add "right-command:hold" | remove "…")
 .build/debug/warble --autosend "ship it press enter"  # "press enter" auto-send: prints send: yes|no + pasted: <text>
-                                            #   (reads the persisted toggle — off by default, so send: no until it's turned on)
+                                            #   (reads the persisted toggle — off by default, so send: no until it's turned on;
+                                            #   append --secure to prove the Return keystroke never fires in a secure field)
 .build/debug/warble --readback-state        # dictate → read-back: the ⌃R availability story (landed → available →
-                                            #   expired/consumed, plus the read-aloud-off gate), told by the real machine
+                                            #   expired/consumed, plus the read-aloud-off and secure-field gates), told by the
+                                            #   real machine
 .build/debug/warble --render-pill listening /tmp/pill.png  # (DEBUG) render a pill state offscreen at 2x
                                             #   states: listening | listening+hint | listening+cap | processing
                                             #   | processing+hint | landed | landed+sent | landed+readback | copied | error

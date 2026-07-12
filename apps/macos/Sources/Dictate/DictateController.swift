@@ -378,10 +378,11 @@ public final class DictateController: NSObject {
     // storied by --readback-state); this block is only the live wiring around it.
 
     /// Arm read-back for a just-landed dictation. Returns true when ⌃R actually registered —
-    /// false when read-aloud is off (an off mode registers nothing, product.md §4.5).
-    private func armReadBack(_ text: String) -> Bool {
+    /// false when read-aloud is off (an off mode registers nothing, product.md §4.5) or the
+    /// field was secure (a spoken password is never read back aloud).
+    private func armReadBack(_ text: String, secure: Bool) -> Bool {
         guard readBack.landed(text, at: Date().timeIntervalSince1970,
-                              speakEnabled: readAloudIsOn?() ?? false) else {
+                              speakEnabled: readAloudIsOn?() ?? false, secure: secure) else {
             releaseReadBackKey()
             return false
         }
@@ -719,13 +720,15 @@ public final class DictateController: NSObject {
         // Read-back (ROADMAP 0.5): the just-landed words are available to hear back — ⌃R for the
         // grace window (a transient claim, never standing), the menu item any time. Never armed
         // for a secure-field dictation (a spoken password must not be read out loud) — the same
-        // ctx.secure gate auto-send and the store already honor.
-        let readBackArmed = !ctx.secure && armReadBack(cleaned)
+        // ctx.secure gate auto-send and the store already honor; armReadBack's `secure` parameter
+        // is the unit-tested twin of this exact gate (ReadBackAvailability.landed).
+        let readBackArmed = armReadBack(cleaned, secure: ctx.secure)
         if Paster.paste(cleaned) {
             // Auto-send (ROADMAP 0.5): the Return keystroke fires only after this successful
             // paste, and NEVER in a secure field — reusing ctx.secure, the same signal
             // InsightStore already gates on to keep secure-field dictations to metrics-only.
-            let sending = autoSendSaid != nil && !ctx.secure
+            // AutoSend.mayFireReturn is the unit-tested twin of this exact gate.
+            let sending = AutoSend.mayFireReturn(said: autoSendSaid, secure: ctx.secure)
             if sending { Paster.postReturn() }
             if sessionCapped {
                 sessionCapped = false

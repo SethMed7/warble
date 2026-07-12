@@ -132,4 +132,22 @@ final class AutoSendTests: XCTestCase {
         XCTAssertFalse(r.send)
         XCTAssertEqual(r.pasted, "please press enter and keep typing")
     }
+
+    // MARK: mayFireReturn — the final gate DictateController.deliver calls (pulled out so the
+    // safety claim is a unit test, not just a comment): the Return keystroke fires only when the
+    // phrase matched AND the field wasn't secure. A spoken password must never be submitted.
+
+    func testMayFireReturnWhenMatchedAndNotSecure() {
+        XCTAssertTrue(AutoSend.mayFireReturn(said: "press enter", secure: false))
+    }
+
+    func testMayFireReturnNeverFiresInASecureField() {
+        XCTAssertFalse(AutoSend.mayFireReturn(said: "press enter", secure: true),
+                        "a secure (password) field must never receive the Return keystroke, even when the phrase was said")
+    }
+
+    func testMayFireReturnNeverFiresWithoutThePhrase() {
+        XCTAssertFalse(AutoSend.mayFireReturn(said: nil, secure: false))
+        XCTAssertFalse(AutoSend.mayFireReturn(said: nil, secure: true))
+    }
 }

@@ -212,8 +212,13 @@ public enum DictateCLI {
             // proves the ON path, and the toggle's OFF default needs no setup at all. Runs on
             // already-cleaned input — the real pipeline runs cleanup -> dictionary -> snippets
             // first (see transcribeAndDeliver); this flag is the auto-send leg alone.
+            // An optional trailing `--secure` proves DictateController.deliver's final gate
+            // (AutoSend.mayFireReturn): the phrase still strips, but the Return keystroke must
+            // never fire — the same ctx.secure signal a real password field sets.
+            let secure = args.contains("--secure")
             let r = AutoSend.apply(args[i + 1])
-            print("send: \(r.send ? "yes" : "no")")
+            let willSend = AutoSend.mayFireReturn(said: r.send ? r.said : nil, secure: secure)
+            print("send: \(willSend ? "yes" : "no")")
             print("pasted: \(r.pasted)")
             return true
         }

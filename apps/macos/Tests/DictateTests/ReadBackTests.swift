@@ -84,4 +84,23 @@ final class ReadBackTests: XCTestCase {
                        "the mode went off between landings — nothing stays armed")
         XCTAssertEqual(m.phase(at: 1), .idle)
     }
+
+    // MARK: the secure-field gate (ROADMAP 0.5 safety claim) — a spoken password must never be
+    // read back aloud. `secure` defaults to false so every call site above is unaffected.
+
+    func testSecureFieldNeverArmsEvenWithSpeakOn() {
+        var m = ReadBackAvailability()
+        XCTAssertFalse(m.landed("hunter2", at: 0, speakEnabled: true, secure: true),
+                       "a secure (password) field must never arm ⌃R, even with read-aloud on")
+        XCTAssertEqual(m.phase(at: 0), .idle)
+        XCTAssertNil(m.consume(at: 1))
+    }
+
+    func testSecureLandingWithdrawsAPriorAvailability() {
+        var m = ReadBackAvailability()
+        _ = m.landed("first", at: 0, speakEnabled: true)
+        XCTAssertFalse(m.landed("hunter2", at: 1, speakEnabled: true, secure: true),
+                       "a secure dictation landing must withdraw whatever was armed before it")
+        XCTAssertEqual(m.phase(at: 1), .idle)
+    }
 }

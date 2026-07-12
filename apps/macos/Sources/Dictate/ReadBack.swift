@@ -31,9 +31,10 @@ struct ReadBackAvailability {
 
     /// A dictation landed. Returns true when read-back armed (the ⌃R claim should register) —
     /// false when read-aloud is off (per-mode law, product.md §4.5: an off mode registers
-    /// nothing) or there's nothing to read.
-    mutating func landed(_ t: String, at now: TimeInterval, speakEnabled: Bool) -> Bool {
-        guard speakEnabled, !t.isEmpty else { cancel(); return false }
+    /// nothing), the field was secure (a spoken password must never be read back aloud — the
+    /// same `ctx.secure` signal InsightStore and AutoSend gate on), or there's nothing to read.
+    mutating func landed(_ t: String, at now: TimeInterval, speakEnabled: Bool, secure: Bool = false) -> Bool {
+        guard speakEnabled, !secure, !t.isEmpty else { cancel(); return false }
         text = t
         armedAt = now
         used = false
@@ -79,6 +80,8 @@ struct ReadBackAvailability {
         print("⌃R again -> \(again ? "READ AGAIN (bug)" : "nothing (already consumed)")")
         let offArmed = m.landed("the words", at: now + 3, speakEnabled: false)
         print("landed (speak off) -> \(m.phase(at: now + 3).rawValue) · ⌃R \(offArmed ? "ARMED (bug)" : "never armed")")
+        let secureArmed = m.landed("the words", at: now + 4, speakEnabled: true, secure: true)
+        print("landed (secure field) -> \(m.phase(at: now + 4).rawValue) · ⌃R \(secureArmed ? "ARMED (bug)" : "never armed")")
     }
 }
 

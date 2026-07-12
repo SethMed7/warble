@@ -64,4 +64,14 @@ enum AutoSend {
     private static func core(_ token: String) -> String {
         token.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
     }
+
+    /// The final gate on the actual Return keystroke — pulled out of DictateController.deliver so
+    /// the safety claim in the doc comment above ("NEVER when a secure field was focused") is a
+    /// unit-tested function, not just inline glue: `said` is the phrase that fired (nil when
+    /// `apply` didn't match, or when the toggle is off), `secure` is `ctx.secure`. The phrase is
+    /// still stripped from the pasted text either way (that's `apply`, unconditional) — this only
+    /// decides whether the keystroke that submits it may fire.
+    static func mayFireReturn(said: String?, secure: Bool) -> Bool {
+        said != nil && !secure
+    }
 }

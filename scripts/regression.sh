@@ -34,9 +34,9 @@ describe() {
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
     dictionary)    echo "--apply/--pronounce over a fixture dictionary + learn-threshold promotion" ;;
     snippets)      echo "--expand over a fixture WARBLE_HOME: trigger-alone, in-sentence, no-snippets passthrough, dictionary+snippet order, 0600 storage" ;;
-    autosend)      echo "--autosend: toggle off -> verbatim passthrough; toggle on -> final-position strip + send, mid-sentence untouched; the landed+sent pill renders" ;;
+    autosend)      echo "--autosend: toggle off -> verbatim passthrough; toggle on -> final-position strip + send, mid-sentence untouched, secure field never sends; the landed+sent pill renders" ;;
     bindings)      echo "--bindings: default = Fn only; adds persist via the defaults seam + add/remove; conflicts/reserved rejected with a plain reason; invalid entries dropped on load" ;;
-    readback)      echo "--readback-state: the availability story (landed -> available/expired/consumed; speak-off gate); the landed+readback pill renders" ;;
+    readback)      echo "--readback-state: the availability story (landed -> available/expired/consumed; speak-off + secure-field gates); the landed+readback pill renders" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -333,6 +333,20 @@ check_autosend() {
     bad "mid-sentence occurrence left verbatim (got: \"$AUTOSEND_MID\")"
   fi
 
+  # The secure-field gate claim (product.md security-adjacent principle): with the toggle ON and
+  # the phrase said, a secure (password) field must still get NO Return keystroke — the phrase is
+  # stripped from the pasted text regardless (that's cleanup, not sending), only the keystroke
+  # itself is withheld. --secure exercises DictateController.deliver's exact gate
+  # (AutoSend.mayFireReturn), unit-tested directly in AutoSendTests; a REAL secure system field is
+  # by-hand (docs/testing.md).
+  AUTOSEND_SECURE=$("$BIN" --autosend "ship the report press enter" --secure)
+  if printf '%s\n' "$AUTOSEND_SECURE" | grep -qx "send: no" \
+    && printf '%s\n' "$AUTOSEND_SECURE" | grep -qx "pasted: ship the report"; then
+    ok "a secure field never sends, even with the toggle on and the phrase said (text still strips)"
+  else
+    bad "secure field never sends (got: \"$AUTOSEND_SECURE\")"
+  fi
+
   if [ -n "$PIN_AUTOSEND" ]; then
     defaults write warble autoSendEnabled -int "$PIN_AUTOSEND"
   else
@@ -428,13 +442,16 @@ check_bindings() {
 # Dictate → read-back proofread (ROADMAP 0.5): one keystroke after a dictation lands reads it
 # back through the normal read-aloud pipeline. The availability machine's whole story — landed →
 # available (⌃R armed) → expired/consumed (released), plus the per-mode gate (read-aloud off →
-# ⌃R never arms) — is printed by the REAL machine via --readback-state and asserted verbatim
-# (the machine itself is also unit-tested in swift test, ReadBackTests). Stats honesty is by
-# construction: a read-back routes through the Speak module's one-shot pipeline, whose single
-# onRead callback is the only Insights logging path — one read event per read-back, never two.
-# The landed pill's "⌃R to hear it back" affordance renders via --render-pill landed+readback
-# and must out-width the textless landed base (the check_listening idiom). The live transient
-# ⌃R claim and the actual read are by-hand: docs/testing.md.
+# ⌃R never arms) AND the secure-field gate (a secure-field landing never arms, even with
+# read-aloud on — ReadBackAvailability.landed's `secure` parameter, the unit-tested twin of
+# DictateController's ctx.secure check) — is printed by the REAL machine via --readback-state and
+# asserted verbatim (the machine itself is also unit-tested in swift test, ReadBackTests). Stats
+# honesty is by construction: a read-back routes through the Speak module's one-shot pipeline,
+# whose single onRead callback is the only Insights logging path — one read event per read-back,
+# never two. The landed pill's "⌃R to hear it back" affordance renders via --render-pill
+# landed+readback and must out-width the textless landed base (the check_listening idiom). The
+# live transient ⌃R claim and the actual read (with a REAL secure system field) are by-hand:
+# docs/testing.md.
 check_readback() {
   require_bin || return
   READBACK_WANT='grace 15s
@@ -443,7 +460,8 @@ landed (speak on) -> available · ⌃R armed
 landed again -> available · ⌃R armed
 ⌃R -> consumed · read fired once · ⌃R released
 ⌃R again -> nothing (already consumed)
-landed (speak off) -> idle · ⌃R never armed'
+landed (speak off) -> idle · ⌃R never armed
+landed (secure field) -> idle · ⌃R never armed'
   expect "--readback-state tells the availability story (landed/expired/consumed/mode-off)" \
     "$READBACK_WANT" "$BIN" --readback-state
 

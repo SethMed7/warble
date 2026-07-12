@@ -12,11 +12,12 @@ claim is measured — and all of it is provable by one deterministic command. Pl
 first five minutes" — in full: the welcome tour with permission cards that never dead-end and a
 guaranteed first success for both verbs, engine setup without the wait trap, the listening
 contract, and the whole milestone folded into the same regression suite. And 0.5 — "cheap
-parity" — continues: Snippets (spoken trigger phrases that expand into saved text), "press
+parity" — in full: Snippets (spoken trigger phrases that expand into saved text), "press
 enter" auto-send (end a dictation with the phrase and warble sends it, off by default),
-multi-shortcut + mouse bindings (put push-to-talk on a thumb button), and the dictate →
+multi-shortcut + mouse bindings (put push-to-talk on a thumb button), the dictate →
 read-back proofreading loop (⌃R as a dictation lands reads it back with the follow-along —
-the loop only a bidirectional voice app can close).*
+the loop only a bidirectional voice app can close), and the same suite consolidation, extended:
+the auto-send and read-back secure-field claims are now unit-tested, not just documented.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -279,6 +280,23 @@ the loop only a bidirectional voice app can close).*
   `--readback-state` flag tells its whole story for `scripts/regression.sh` (asserted verbatim),
   and the landed pill's new affordance renders via `--render-pill landed+readback` into the
   design-review gallery.
+- **Cheap parity, folded into the durable suite (0.5 complete).** Auditing the milestone's four
+  features against the regression suite surfaced one real gap: the auto-send and read-back
+  secure-field claims ("never in a password field") were true in code but proven only by a
+  comment and a by-hand test. Both are now unit-tested directly — `AutoSend.mayFireReturn` and
+  `ReadBackAvailability.landed`'s `secure` parameter are the exact gates
+  `DictateController.deliver` calls, pulled out so the safety claim can't silently drift — and
+  told headlessly: `--autosend "…" --secure` proves the phrase still strips while the Return
+  keystroke never fires, and `--readback-state` grew a line proving a secure landing never arms
+  ⌃R even with read-aloud on. Everything else the milestone shipped was already covered as it
+  landed: the snippet matcher's word-boundary/longest-match/case/multi-line matrix, the
+  cleanup→dictionary→snippets→auto-send pipeline order, the bindings table's defaults-seam
+  round-trip and every rejection reason, and the read-back availability machine's full story.
+  `scripts/onboarding-gallery.sh` already carried the milestone's two new renderable pill states
+  (`landed+sent` and `landed+readback`, 28 PNGs total). [docs/testing.md](docs/testing.md) gains
+  the updated coverage map, the secure-field gates, and a **Snippets, in the dashboard** entry to
+  the by-hand list, alongside real mouse-button push-to-talk, a real auto-send in a chat app, and
+  the full dictate→⌃R loop with audio.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

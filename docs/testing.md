@@ -1,6 +1,6 @@
 # warble — testing
 
-*How warble's promises are proven. One deterministic command covers everything 0.3 and 0.4
+*How warble's promises are proven. One deterministic command covers everything 0.3, 0.4, and 0.5
 shipped; this page maps what it checks, the seams it uses, and the short list that still needs a
 human — headed by the fresh-account five-minute test, 0.4's exit criterion.*
 
@@ -38,9 +38,9 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
 | `dictionary` | `--apply` / `--pronounce` over a fixture dictionary; repeated corrections promote at the learn threshold | dictionary |
 | `snippets` | `--expand` over a fixture `WARBLE_HOME`: trigger-alone replaces the whole dictation, trigger-in-sentence replaces only its span, no snippets defined is verbatim passthrough, a dictionary correction can still trigger a snippet (order proof + negative control), and `--snippet-set` writes an owner-only (0600) file a later process reads back | 0.5 snippets |
-| `autosend` | `--autosend` over the persisted toggle: off is verbatim passthrough even with the phrase, on strips a FINAL-position "press enter"/"press return" and reports `send: yes`, trailing punctuation is tolerated, a mid-sentence occurrence never fires — plus the `landed+sent` pill renders wider than the textless `landed` base | 0.5 auto-send |
+| `autosend` | `--autosend` over the persisted toggle: off is verbatim passthrough even with the phrase, on strips a FINAL-position "press enter"/"press return" and reports `send: yes`, trailing punctuation is tolerated, a mid-sentence occurrence never fires, and `--secure` proves the safety gate (`AutoSend.mayFireReturn`): the phrase still strips but `send` is always `no` — plus the `landed+sent` pill renders wider than the textless `landed` base | 0.5 auto-send |
 | `bindings` | `--bindings` prints the active trigger table: the default is Fn only (built in, never stored); a binding seeded with a plain `defaults write warble dictateBindings -array "right-command:hold"` shows in the next process's table; `add`/`remove` (the dashboard editor's headless twins — same validation path) round-trip across processes; a duplicate, Esc, a click button (mouse-2), and a fourth binding are each rejected with their plain reason and a non-zero exit; a hand-planted invalid array degrades to Fn-only on load. The model's pure halves — parse/format round-trips, conflict reasons, load hygiene, the event-matching key codes/device bits, and HotKey's monitor teardown — are unit-tested (`swift test`, BindingsTests) | 0.5 multi-shortcut + mouse bindings |
-| `readback` | the dictate → read-back loop's availability story, told verbatim by `--readback-state` running the REAL machine against a synthetic clock: landed → available (the transient ⌃R claim arms), the 15s grace window expires (released), a press consumes it exactly once, and read-aloud off never arms it (per-mode law) — plus the landed pill's "⌃R to hear it back" affordance rendering wider than the textless landed base. Stats honesty is structural: a read-back routes through the Speak one-shot pipeline whose single `onRead` callback is the only Insights logging path (one read event, never two) | 0.5 read-back |
+| `readback` | the dictate → read-back loop's availability story, told verbatim by `--readback-state` running the REAL machine against a synthetic clock: landed → available (the transient ⌃R claim arms), the 15s grace window expires (released), a press consumes it exactly once, read-aloud off never arms it (per-mode law), and a secure-field landing never arms it either (`ReadBackAvailability.landed`'s `secure` gate, even with read-aloud on) — plus the landed pill's "⌃R to hear it back" affordance rendering wider than the textless landed base. Stats honesty is structural: a read-back routes through the Speak one-shot pipeline whose single `onRead` callback is the only Insights logging path (one read event, never two) | 0.5 read-back |
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
@@ -180,15 +180,23 @@ the tour must not reappear (only **menu → Welcome tour…** brings it back).
   the pill must be gone well under a second — no spinner ever visible after the text has landed.
 - **The paste itself** (+ Copy Last Dictation, Recent Dictations) into real apps — editor,
   terminal, Slack.
+- **Snippets, in the dashboard**: open **Dashboard ▸ Snippets**, add a trigger + expansion (say,
+  "sign off" → "Best,\nSeth"), then hold Fn and dictate the trigger alone into a real app — the
+  saved text lands verbatim; dictate it inside a longer sentence and only that span expands. Edit
+  the expansion and dictate again — the new text wins; delete it and the trigger passes through
+  untouched. (The matcher, storage, and pipeline order are the scripted twins — `swift test`
+  SnippetsTests + `--expand`/`--snippet-set`; this pass is the dashboard UI + the live gesture.)
 - **"Press enter" auto-send, the real keystroke**: `defaults write warble autoSendEnabled -bool
   true`, then hold Fn and end a dictation with "…press enter" into a real chat app (Slack/Messages)
   — the message must paste stripped of the phrase AND actually send, and the pill must show "sent
   — said 'press enter'". Say the phrase mid-sentence in the same app and it must paste untouched,
   nothing sent. With the toggle back off, ending with the phrase must paste it verbatim. Finally,
-  focus a real secure field (a password prompt) and dictate ending with the phrase: the Return
-  keystroke must NOT fire (the field must not submit) even with the toggle on — the detection/strip
-  logic itself and the toggle's default are the scripted twins (`swift test` `AutoSendTests` +
-  `--autosend`); this by-hand pass is the actual keystroke landing in a real app.
+  focus a real secure field (a password prompt) and dictate ending with the phrase: the pasted text
+  strips the phrase as usual, but the Return keystroke must NOT fire (the field must not submit)
+  even with the toggle on — the detection/strip logic, the toggle's default, AND the secure-field
+  gate itself are all scripted twins now (`swift test` `AutoSendTests` incl.
+  `testMayFireReturnNeverFiresInASecureField` + `--autosend "…" --secure`); this by-hand pass is
+  the actual keystroke (or its absence) landing in a real app.
 - **Bindings, with real keys and buttons**: in **Dashboard ▸ Shortcuts**, add a binding (say,
   right ⌘ as hold-to-talk and a mouse thumb button as double-tap) — no relaunch: hold right ⌘ and
   speak → the normal pill session, release delivers; a quick right ⌘ TAP must do nothing, and a
@@ -205,11 +213,13 @@ the tour must not reappear (only **menu → Welcome tour…** brings it back).
   transient claim: after ~15 seconds (or after one use) ⌃R must be a normal key again — in a
   terminal it must reverse-search, not read. **Dictate ▸ Read Last Dictation Back** must read the
   same text any time after, no window. Toggle **Read aloud** off: the menu item greys out, the
-  landed pill shows no hint, and ⌃R right after a dictation does nothing. Then check the stats
-  stay honest: one read-back = exactly ONE new "read" row in the dashboard's History. (The
-  availability machine and the pill state are the scripted twins — `swift test` ReadBackTests +
-  `--readback-state` + `--render-pill landed+readback`; this pass is the live claim and the
-  handoff.)
+  landed pill shows no hint, and ⌃R right after a dictation does nothing. Finally, dictate into a
+  real secure field (a password prompt): the landed state must show no readback hint at all and
+  ⌃R must do nothing — a spoken password is never read back. Then check the stats stay honest: one
+  read-back = exactly ONE new "read" row in the dashboard's History. (The availability machine,
+  the secure-field gate, and the pill state are the scripted twins — `swift test` ReadBackTests
+  incl. `testSecureFieldNeverArmsEvenWithSpeakOn` + `--readback-state` + `--render-pill
+  landed+readback`; this pass is the live claim and the handoff.)
 - **Read-aloud**: ⌃V watch → selection queue → follow-along highlighting → collapse → Esc.
 - **The welcome tour, end to end**: `WARBLE_FORCE_ONBOARDING=1 .build/debug/warble` (or, for the
   true first-run path, clear the debug domain's keys first: `defaults delete warble

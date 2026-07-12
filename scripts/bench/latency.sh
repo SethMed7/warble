@@ -10,7 +10,7 @@
 # adding those estimates back.
 #
 # usage: sh scripts/bench/latency.sh [--runs N] [--wav path] [--no-cold] [--no-warm]
-#            [--engine parakeet-warm|parakeet|whisper|apple|stub]
+#            [--engine parakeet-warm|parakeet|whisper|speechanalyzer|apple|stub]
 set -u
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)

@@ -241,8 +241,17 @@ Apple APIs), so only the app *shell* is macOS-specific.
   chunk first**, so time-to-first-audio stays low (~0.5–1 s) and never balloons on a long opening
   sentence. If the server isn't installed or is unhealthy, warble falls back to the per-spawn renderer,
   then the system voice — the read never drops.
-- **Dictate:** NVIDIA **Parakeet** (`sherpa-onnx`) → **whisper.cpp** → Apple's on-device
-  recognizer, in that order of preference. Optionally run Parakeet as a **warm local server**
+- **Dictate:** NVIDIA **Parakeet** (`sherpa-onnx`) → **whisper.cpp** → **Apple SpeechAnalyzer**
+  (macOS 26+) → Apple's legacy on-device recognizer, in that order of preference. **Apple
+  SpeechAnalyzer** is Apple's newer on-device model (the `SpeechAnalyzer`/`SpeechTranscriber` API);
+  it slots in as a **zero-third-party-download** tier above the legacy recognizer *when its
+  system speech-model assets for your locale are already installed*. Honest caveat: those assets are
+  a **system-managed on-device download** — on a Mac that doesn't yet have them, macOS reports the
+  model as *supported* rather than *installed*, and warble treats it as absent (falling through to
+  the always-present built-in recognizer) rather than silently triggering a multi-hundred-MB
+  download. It never analyzes without the assets and never downloads them behind your back
+  (full evaluation: [docs/speechanalyzer-eval.md](docs/speechanalyzer-eval.md)). Optionally run
+  Parakeet as a **warm local server**
   (`setup-asr.sh`) that keeps the model loaded so each clip transcribes in ~0.08 s instead of
   ~1.5 s — same model, same quality, 100% on-device (binds `127.0.0.1` only). Cleanup defaults to a fast deterministic pass
   (`core/clean.ts`, no LLM), with an optional **on-device LLM polish** that adds real punctuation

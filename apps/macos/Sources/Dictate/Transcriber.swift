@@ -26,8 +26,10 @@ enum Transcribers {
     /// Run the best available engine, falling through to the next on any empty/failed
     /// result over the SAME WAV (mirrors the cleaner chain's fall-through) — so a 30-second hold
     /// is never silently lost. Priority: Parakeet (sherpa-onnx, NVIDIA, best accuracy +
-    /// no silence-hallucination) → whisper.cpp → Apple on-device (the zero-setup floor).
-    /// Every result passes the anti-hallucination filter.
+    /// no silence-hallucination) → whisper.cpp → Apple SpeechAnalyzer (macOS 26+, when its model
+    /// assets are installed) → Apple SFSpeechRecognizer on-device (the always-present zero-setup
+    /// floor). The order is the single source of truth in `chainOrder`. Every result passes the
+    /// anti-hallucination filter.
     static func run(_ wav: URL, clipDuration: TimeInterval, completion: @escaping (Outcome) -> Void) {
         if Fault.isActive(.transcribeFail) { DispatchQueue.main.async { completion(.failed) }; return }
         if Fault.isActive(.engineWarming) { return } // never completes → the processing watchdog names the warm-up
@@ -43,8 +45,11 @@ enum Transcribers {
             if WarmSherpaTranscriber.isAvailable() { chain.append(WarmSherpaTranscriber()) } // warm Parakeet (~0.08s)
             if SherpaTranscriber.isAvailable() { chain.append(SherpaTranscriber()) }          // cold Parakeet fallback
             if WhisperTranscriber.isAvailable() { chain.append(WhisperTranscriber()) }
+            if #available(macOS 26, *), SpeechAnalyzerTranscriber.isAvailable() {
+                chain.append(SpeechAnalyzerTranscriber()) // macOS 26 on-device, above the legacy floor
+            }
         }
-        chain.append(AppleFileTranscriber()) // always present: the install-free baseline
+        chain.append(AppleFileTranscriber()) // always present: the install-free baseline (legacy SFSpeechRecognizer)
         tryChain(chain, 0, wav, timeout, sawEmpty: false, completion)
     }
 
@@ -71,11 +76,29 @@ enum Transcribers {
         #if DEBUG
         if let forced = forcedEngineName() { return forced } // bench seam, mirrors run()
         #endif
-        if Fault.isActive(.engineMissing) { return "Apple Speech" } // debug-only, mirrors run()
-        if WarmSherpaTranscriber.isAvailable() { return "Parakeet (warm)" }
-        if SherpaTranscriber.isAvailable() { return "Parakeet" }
-        if WhisperTranscriber.isAvailable() { return "whisper.cpp" }
-        return "Apple Speech"
+        let missing = Fault.isActive(.engineMissing) // debug-only: forces the Apple floor
+        var speechAnalyzer = false
+        if #available(macOS 26, *) { speechAnalyzer = !missing && SpeechAnalyzerTranscriber.isAvailable() }
+        return chainOrder(parakeetWarm: !missing && WarmSherpaTranscriber.isAvailable(),
+                          parakeet: !missing && SherpaTranscriber.isAvailable(),
+                          whisper: !missing && WhisperTranscriber.isAvailable(),
+                          speechAnalyzer: speechAnalyzer).first! // Apple Speech is always present
+    }
+
+    /// The engine priority order as a pure function of which tiers are available — the same order
+    /// `run()` builds its chain in and `activeEngineName()` reports its head. SpeechAnalyzer
+    /// (macOS 26+, when its model assets are installed) sits BELOW whisper.cpp and ABOVE the
+    /// always-present Apple Speech floor (the legacy SFSpeechRecognizer). Extracted so the ordering
+    /// — the part a benchmark or a chain change would silently break — is unit-testable without any
+    /// engine installed.
+    static func chainOrder(parakeetWarm: Bool, parakeet: Bool, whisper: Bool, speechAnalyzer: Bool) -> [String] {
+        var names: [String] = []
+        if parakeetWarm { names.append("Parakeet (warm)") }
+        if parakeet { names.append("Parakeet") }
+        if whisper { names.append("whisper.cpp") }
+        if speechAnalyzer { names.append("Apple SpeechAnalyzer") }
+        names.append("Apple Speech") // the install-free floor is never absent
+        return names
     }
 
     #if DEBUG
@@ -91,6 +114,9 @@ enum Transcribers {
         case "parakeet-warm": return WarmSherpaTranscriber.isAvailable() ? [WarmSherpaTranscriber()] : []
         case "parakeet":      return SherpaTranscriber.isAvailable() ? [SherpaTranscriber()] : []
         case "whisper":       return WhisperTranscriber.isAvailable() ? [WhisperTranscriber()] : []
+        case "speechanalyzer": // macOS 26 only, and only when its assets are installed (else [] → .failed, never a silent fallback)
+            if #available(macOS 26, *), SpeechAnalyzerTranscriber.isAvailable() { return [SpeechAnalyzerTranscriber()] }
+            return []
         case "apple":         return [AppleFileTranscriber()]
         case "stub":          return [StubTranscriber()]
         default:              return nil
@@ -102,6 +128,7 @@ enum Transcribers {
         case "parakeet-warm": return "Parakeet (warm)"
         case "parakeet":      return "Parakeet"
         case "whisper":       return "whisper.cpp"
+        case "speechanalyzer": return "Apple SpeechAnalyzer"
         case "apple":         return "Apple Speech"
         case "stub":          return "stub"
         default:              return nil
@@ -403,6 +430,100 @@ final class AppleFileTranscriber: Transcriber {
         default: completion(false)
         }
     }
+}
+
+// MARK: - Apple SpeechAnalyzer (macOS 26+ on-device; the zero-download tier WHEN its assets are installed)
+
+/// Transcribes via Apple's SpeechAnalyzer + SpeechTranscriber (Speech framework, macOS 26+) — the
+/// newer on-device model that supersedes the legacy SFSpeechRecognizer (`AppleFileTranscriber`, the
+/// always-present floor). It sits ABOVE that floor and BELOW whisper.cpp in the chain (`chainOrder`).
+///
+/// The honesty that matters (ROADMAP 0.7): availability is gated on the model assets being
+/// **installed**, not merely **supported**. macOS reports SpeechTranscriber for a locale as
+/// `.supported` (downloadable) long before its assets are `.installed`, and running analysis
+/// without the assets traps. warble therefore treats a supported-but-not-installed engine as
+/// **absent** — the chain falls through to the Apple floor, which always works — and NEVER kicks
+/// off the system `AssetInventory` download from the paste path. Consented downloads happen only in
+/// Setup (product §4); the asset requirement is surfaced honestly, never silently. Detected like
+/// whisper/Parakeet: present when its asset is on disk, gracefully absent otherwise.
+@available(macOS 26, *)
+final class SpeechAnalyzerTranscriber: Transcriber {
+    /// True only when the SpeechAnalyzer model assets for the current locale are already installed
+    /// (`AssetInventory.status == .installed`) — so a dictation never triggers a download and never
+    /// hands audio to an analyzer whose assets are missing. Memoized per process (asset state does
+    /// not change mid-session; the async status query costs ~60 ms) via a bounded sync-over-async
+    /// bridge whose work runs OFF the caller's thread — safe to call from the main thread.
+    private static let installed: Bool = resolveInstalled()
+
+    static func isAvailable() -> Bool { installed }
+
+    private static func resolveInstalled() -> Bool {
+        let sem = DispatchSemaphore(value: 0)
+        let box = Box<Bool>(false)
+        Task.detached(priority: .userInitiated) {
+            let locale = (await SpeechTranscriber.supportedLocale(equivalentTo: .current)) ?? .current
+            let module = SpeechTranscriber(locale: locale, preset: .transcription)
+            box.set((await AssetInventory.status(forModules: [module])) == .installed)
+            sem.signal()
+        }
+        sem.wait()
+        return box.get()
+    }
+
+    func transcribe(_ wav: URL, timeout: TimeInterval, completion: @escaping (String?) -> Void) {
+        // nil = the engine failed (→ chain falls through); "" = ran fine, heard nothing (→ next engine).
+        let box = Box<String?>(nil)
+        let sem = DispatchSemaphore(value: 0)
+        Task.detached(priority: .userInitiated) {
+            let text = await Self.analyze(wav)
+            box.setIfUnset(text)
+            sem.signal()
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Bound it like every other engine so a wedged analyzer can never hang the paste path.
+            if sem.wait(timeout: .now() + timeout) == .timedOut { box.setIfUnset(nil) }
+            let result = box.get()
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    /// One file-mode pass: feed the WAV through the analyzer while collecting finalized results.
+    /// Returns nil on any error (spawn/format/asset fault → fall-through), the joined transcript
+    /// otherwise (possibly "" when nothing was heard).
+    private static func analyze(_ wav: URL) async -> String? {
+        do {
+            let locale = (await SpeechTranscriber.supportedLocale(equivalentTo: .current)) ?? .current
+            let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
+            let analyzer = SpeechAnalyzer(modules: [transcriber])
+            let audioFile = try AVAudioFile(forReading: wav)
+            let collector = Task { () -> String in
+                var acc = ""
+                for try await result in transcriber.results { acc += String(result.text.characters) }
+                return acc
+            }
+            if let last = try await analyzer.analyzeSequence(from: audioFile) {
+                try await analyzer.finalizeAndFinish(through: last)
+            } else {
+                await analyzer.cancelAndFinishNow()
+            }
+            return try await collector.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            Log.dictate.error("SpeechAnalyzer failed: \(String(describing: error), privacy: .public) — falling through")
+            return nil
+        }
+    }
+}
+
+/// A tiny lock-guarded holder so the analyze task and the timeout can hand a result across threads
+/// race-free; first writer wins (`setIfUnset`), which is exactly the analyze-vs-timeout contract.
+private final class Box<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: T
+    private var isSet = false
+    init(_ initial: T) { value = initial }
+    func set(_ v: T) { lock.lock(); value = v; isSet = true; lock.unlock() }
+    func setIfUnset(_ v: T) { lock.lock(); if !isSet { value = v; isSet = true }; lock.unlock() }
+    func get() -> T { lock.lock(); defer { lock.unlock() }; return value }
 }
 
 // MARK: - anti-hallucination filter

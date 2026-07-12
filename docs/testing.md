@@ -51,6 +51,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
+| `speechanalyzer` | the Apple SpeechAnalyzer tier (ROADMAP 0.7): `WARBLE_FORCE_ENGINE=speechanalyzer --engine` names `Apple SpeechAnalyzer` (the DEBUG seam the bench harness pins on — a rename can't slip through); `engine-missing` still forces the legacy `Apple Speech` floor, never SpeechAnalyzer (the premium-suppression law holds even where the SpeechAnalyzer assets *are* installed); and forcing the tier over the fixture WAV is **tolerant** — with its macOS 26 model assets installed it transcribes (exit 0, non-empty), without them the pinned chain is empty and it fails cleanly (`transcription failed`, non-zero), never a silent Apple fallback. The chain-order resolution (SpeechAnalyzer below whisper.cpp, above the always-present floor) and the name reporting are unit-tested store-free/engine-free (`swift test`, SpeechAnalyzerTests, over the pure `Transcribers.chainOrder`). The live analysis path needs the assets and is by-hand (below). Full evaluation: [speechanalyzer-eval.md](speechanalyzer-eval.md) | 0.7 SpeechAnalyzer evaluation |
 | `hold-cap` | the 20-minute cap story resolves exactly; a compressed real clock (`--hold-cap-sim` at 4s) warns **before** it stops, then stops cleanly | long-session hardening |
 | `recovery` | an orphaned in-flight WAV (stale crash header) is repaired, lands as a FAILED history event with its audio kept, the orphan is consumed, and the scan is idempotent | dictation recovery |
 | `retranscribe` | a FAILED event resolves **in place** when the pipeline re-runs over its kept recording (`--retranscribe`, stub engine), raw transcript persisted | recovery + undo-polish |
@@ -86,7 +87,7 @@ behavior. The sandbox seams work in any build.
 | --- | --- | --- |
 | `WARBLE_FAULT` | debug | force one failure path: `mic-busy` \| `mic-disconnected` \| `engine-warming` \| `engine-missing` \| `transcribe-fail` |
 | `WARBLE_MAX_HOLD_SECS` | debug | compress the 20-minute session cap so the warn→stop machine runs in seconds |
-| `WARBLE_FORCE_ENGINE` | debug | pin the transcription chain to exactly one engine (`parakeet-warm` \| `parakeet` \| `whisper` \| `apple` \| `stub`) — no silent fallback; `stub` is the engine-free fixed-utterance transcriber the suite runs on any machine |
+| `WARBLE_FORCE_ENGINE` | debug | pin the transcription chain to exactly one engine (`parakeet-warm` \| `parakeet` \| `whisper` \| `speechanalyzer` \| `apple` \| `stub`) — no silent fallback; `speechanalyzer` (Apple SpeechAnalyzer, macOS 26+) resolves an empty chain when its model assets aren't installed, so a forced run fails cleanly rather than mislabeling another engine's number; `stub` is the engine-free fixed-utterance transcriber the suite runs on any machine |
 | `WARBLE_HOME` | any | relocate the whole `~/.warble` store (history, audio, in-flight buffer, `snippets.json`) to a sandbox |
 | `WARBLE_DICTIONARY` | any | point the dictionary at a fixture file instead of the real one |
 | `WARBLE_DISABLE_LLM` | any | hide an installed on-device LLM, so Medium/High provably fall back |
@@ -343,6 +344,17 @@ milestone's bug list, the same discipline as the five-minute test above.
   method, caveats, and reproduction commands in [benchmarks.md](benchmarks.md). The suite only
   smokes the harness; the published numbers are gathered by hand, per the constitution
   (product.md §4.9).
+- **The live SpeechAnalyzer path (macOS 26, assets installed)**: needs a Mac where the on-device
+  SpeechAnalyzer transcription assets for your locale are `.installed` (not merely `.supported` —
+  see [speechanalyzer-eval.md](speechanalyzer-eval.md); on the evaluation machine they were only
+  `.supported`, so this is genuinely by-hand). With the assets present, `WARBLE_FORCE_ENGINE=speechanalyzer
+  .build/debug/warble --transcribe <clip.wav>` must land real text (never a trap, never a silent
+  fallback), and `sh scripts/bench/latency.sh --engine speechanalyzer` / `sh scripts/bench/wer-corpus.sh`
+  produce the real §1/§2 numbers to date into benchmarks.md §4. Then confirm the honest absence
+  path on a machine WITHOUT the assets: the same forced `--transcribe` fails cleanly with
+  `transcription failed` and a non-zero exit. (The name wiring, the no-silent-fallback contract,
+  and the chain order are the scripted twins — the `speechanalyzer` check + SpeechAnalyzerTests;
+  this pass is the analyzer actually turning audio into text.)
 - **Dictating while an engine installs**: start a big install in Setup (Sharper dictation is the
   slowest), then hold Fn and dictate — the pill must run normally on the current engine the whole
   time, and Setup's "you can keep dictating" line must show while anything installs. The

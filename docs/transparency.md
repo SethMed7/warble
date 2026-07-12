@@ -199,11 +199,22 @@ Secure-field detection — the thing several features gate on — is not an AX r
 
 ### Speech Recognition (the Apple permission)
 
-Used by exactly one engine: the zero-install **Apple fallback** (`AppleFileTranscriber` in
-`Dictate/Transcriber.swift`) — file mode with `requiresOnDeviceRecognition = true`. If the locale
-can't do on-device recognition it refuses; it never falls back to Apple's server. The permission
-prompt fires only when that engine actually runs (i.e., no premium engine installed, or every
-premium engine failed on a clip). With Parakeet installed, most users never see this prompt.
+Used by warble's **Apple on-device** engines, both in `Dictate/Transcriber.swift`, both local-only —
+neither ever uses Apple's servers:
+
+- the zero-install **legacy fallback** (`AppleFileTranscriber`, `SFSpeechRecognizer`) — file mode
+  with `requiresOnDeviceRecognition = true`; if the locale can't do on-device recognition it
+  refuses rather than reaching a server;
+- on **macOS 26+**, the **Apple SpeechAnalyzer** engine (`SpeechAnalyzerTranscriber`,
+  `SpeechAnalyzer`/`SpeechTranscriber`) — Apple's newer on-device model. It is *only* used when its
+  system speech-model assets for your locale are already **installed**; when they are merely
+  *supported* (a system-managed download would be required), warble treats the engine as absent and
+  **never triggers the download** — no new network behavior, nothing analyzed without the assets.
+  (Full evaluation: `docs/speechanalyzer-eval.md`.)
+
+The permission prompt fires only when an Apple engine actually runs (i.e., no premium engine
+installed, or every higher-priority engine failed on a clip). With Parakeet installed, most users
+never see this prompt.
 
 ---
 

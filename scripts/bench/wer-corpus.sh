@@ -53,8 +53,11 @@ FIRST=$(ls "$CORPUS"/*.wav 2>/dev/null | sed -n 1p)
 [ -n "$FIRST" ] || { echo "no .wav clips in $CORPUS" >&2; exit 2; }
 
 echo "corpus: $(ls "$CORPUS"/*.wav | wc -l | tr -d ' ') clips in $CORPUS"
-for e in parakeet-warm parakeet whisper apple; do
+for e in parakeet-warm parakeet whisper speechanalyzer apple; do
   # Probe availability on one clip; skipping honestly beats a silently substituted engine.
+  # speechanalyzer (macOS 26 Apple SpeechAnalyzer) is scored only when its on-device model assets
+  # are installed — otherwise the pinned chain is empty and the probe skips it, exactly like an
+  # uninstalled whisper.cpp.
   if ! env WARBLE_FORCE_ENGINE="$e" "$BIN" --transcribe "$FIRST" >/dev/null 2>&1; then
     echo "engine=$e not available (skipped)"
     continue

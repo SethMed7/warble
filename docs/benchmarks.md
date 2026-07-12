@@ -132,6 +132,55 @@ only way to shed the warm RAM is quitting warble; the roadmap's prescription sta
 engines" toggle** (trade latency for RAM, user's choice, off-state registers nothing) **is
 warranted by this number** and belongs in 0.3's reliability work.
 
+## 4. Apple SpeechAnalyzer (macOS 26) — evaluation added 2026-07-12
+
+**What changed.** warble now carries an `Apple SpeechAnalyzer` engine (Speech framework's
+`SpeechAnalyzer` + `SpeechTranscriber`, macOS 26+), slotted **below whisper.cpp and above the
+legacy Apple SFSpeechRecognizer floor** in the chain. It is `#available(macOS 26, *)`-gated, so
+macOS 13–15 builds are untouched, and it is detected like every other optional engine: present only
+when its model assets are already installed, gracefully absent otherwise. The full evaluation —
+SDK probe evidence, the API surface, and the integration design — is in
+[speechanalyzer-eval.md](speechanalyzer-eval.md). Forced-engine seam: `WARBLE_FORCE_ENGINE=speechanalyzer`.
+
+**The honest measurement outcome on this machine (2026-07-12, same M4 Max / macOS 26.5.1 as above).**
+SpeechAnalyzer's on-device transcription assets for `en-US` are **not installed** here — Apple
+reports the module as `AssetInventory.status == .supported` (downloadable) rather than `.installed`,
+and `AssetInventory.assetInstallationRequest(supporting:)` returns a non-nil request (a
+system-managed download would be required). warble treats that state as *engine absent* and — per
+the constitution (consented downloads only, in Setup) — **does not** trigger the download to
+manufacture a benchmark. So the harness scores it exactly as it scores an uninstalled whisper.cpp:
+
+| Engine | WER | Latency | Notes |
+| --- | --- | --- | --- |
+| Apple SpeechAnalyzer | — | — | forced run reports `engine=speechanalyzer not available (skipped)` / `warm-up run FAILED`; en-US assets `.supported`, not `.installed` on this machine — no number produced, none fabricated |
+
+Observed verbatim from the harness this date:
+
+```
+$ sh scripts/bench/wer-corpus.sh          # (§2, per-engine)
+engine=speechanalyzer not available (skipped)
+
+$ sh scripts/bench/latency.sh --engine speechanalyzer --no-cold --runs 3   # (§1)
+warm-up run FAILED — is an engine installed? (--engine stub always works)
+```
+
+**How to get the real numbers.** On a Mac where the SpeechAnalyzer en-US assets *are* installed (or
+after installing them deliberately through the OS), the existing harness scores it with zero
+changes — `wer-corpus.sh` now includes `speechanalyzer` in its engine loop and `latency.sh
+--engine speechanalyzer` runs the same in-process pipeline. This is the same by-hand, real-engine
+discipline every other number in this file follows (product.md §4.9): the harness proves the
+plumbing on any machine; the published numbers are gathered on hardware where the engine is present.
+
+**The chain-order caveat.** SpeechAnalyzer is placed below whisper.cpp as the conservative default
+because its accuracy was **not measured here** (assets absent). If a measured en-US WER later beats
+whisper.cpp's on the same corpus, the placement above whisper is worth revisiting — but only the
+measurement, not the assumption, may move a default (product.md §4.9). The reason it sits *above the
+legacy floor* is not a measured accuracy win (none was taken here): it is Apple's newer on-device
+transcription model (macOS 26, versus the long-standing SFSpeechRecognizer) and still needs no
+third-party download, so warble defaults it ahead of the older recognizer. That
+default is safe either way: if a measurement ever shows it worse, the chain's fall-through still
+lands on the floor, and the default moves only on the number.
+
 ---
 
 ## Re-running everything
@@ -139,7 +188,8 @@ warranted by this number** and belongs in 0.3's reliability work.
 ```
 cd apps/macos && swift build                      # the harness drives the DEBUG binary
 sh scripts/bench/latency.sh --runs 10             # §1
-sh scripts/bench/wer-corpus.sh                    # §2
+sh scripts/bench/wer-corpus.sh                    # §2 (scores speechanalyzer too, when its assets are installed)
+sh scripts/bench/latency.sh --engine speechanalyzer --no-cold --runs 5   # §4 (needs the macOS 26 assets)
 bun scripts/bench/footprint.ts --minutes 2        # §3 (run twice: servers warm / off)
 sh scripts/regression.sh                          # includes the harness smoke (stub engine, no models needed)
 ```

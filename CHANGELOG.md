@@ -484,6 +484,25 @@ Snitch) is scripted step by step.*
   (`--only import`): a bun `bun:sqlite` suite for extraction/dedupe/schema-probe/corrupt+missing, a
   dry-run that writes nothing, a `--write` that leaves Wispr's file byte-identical, and the
   load-bearing check — the imported dictionary applied verbatim by the real app.
+- **Apple SpeechAnalyzer absorbed as an engine (0.7 continues).** Apple's new on-device model
+  (`SpeechAnalyzer`/`SpeechTranscriber`, macOS 26) — the same API available to every competitor —
+  is now one of warble's dictation engines, slotted **below whisper.cpp and above the legacy Apple
+  recognizer** as a **zero-third-party-download** tier. It is `#available(macOS 26, *)`-gated (macOS
+  13–15 builds are untouched) and detected like every optional engine: present only when its system
+  speech-model assets for your locale are already **installed**, gracefully absent otherwise. The
+  honesty that makes this a 0.7 item and not a marketing line: those assets are a *system-managed*
+  download, and on a Mac that reports the model as merely *supported* (not *installed*), warble
+  treats the engine as absent and **never triggers the download** — it never analyzes without the
+  assets and never fetches them behind your back (calling the analyzer without its assets traps, so
+  the availability gate is the real `AssetInventory.status == .installed`, not just a locale
+  listing). Evaluated first, honestly: on the measurement Mac the en-US assets were only
+  *supported*, so no fabricated WER/latency number was published — the bench harness scores it when
+  the assets are present, exactly as it does an uninstalled whisper.cpp (full write-up in
+  [docs/speechanalyzer-eval.md](docs/speechanalyzer-eval.md), dated rows in
+  [docs/benchmarks.md](docs/benchmarks.md) §4). Proven in the suite (`--only speechanalyzer`): the
+  tier names itself under the `WARBLE_FORCE_ENGINE=speechanalyzer` seam, `engine-missing` still
+  forces the legacy Apple floor, forcing the tier fails cleanly with no silent fallback when its
+  assets are absent, and the chain-order placement is unit-tested (`SpeechAnalyzerTests`).
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

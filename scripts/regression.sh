@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums import ci warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors speechanalyzer hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums import ci warm"
 
 describe() {
   case "$1" in
@@ -44,6 +44,7 @@ describe() {
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
+    speechanalyzer) echo "SpeechAnalyzer tier (0.7): WARBLE_FORCE_ENGINE=speechanalyzer names 'Apple SpeechAnalyzer'; forcing it either transcribes (assets installed) or fails cleanly with no silent Apple fallback (assets absent — tolerant, macOS 26 only); engine-missing still forces the Apple floor, never SpeechAnalyzer" ;;
     hold-cap)      echo "session cap story resolves; compressed clock warns then stops cleanly" ;;
     recovery)      echo "orphaned in-flight clip -> FAILED history event, audio kept, idempotent" ;;
     retranscribe)  echo "FAILED event resolves in place on --retranscribe (stub engine)" ;;
@@ -877,11 +878,45 @@ check_engine() {
   require_bin || return
   ENGINE=$("$BIN" --engine 2>/dev/null)
   case "$ENGINE" in
-    "Parakeet (warm)" | "Parakeet" | "whisper.cpp" | "Apple Speech")
+    "Parakeet (warm)" | "Parakeet" | "whisper.cpp" | "Apple SpeechAnalyzer" | "Apple Speech")
       ok "--engine names a known engine ($ENGINE)" ;;
     *)
       bad "--engine names a known engine (got \"$ENGINE\")" ;;
   esac
+}
+
+# SpeechAnalyzer tier (ROADMAP 0.7). Tolerant by construction, exactly like whisper.cpp's absence in
+# the benchmarks: PRESENT on a macOS 26 toolchain with the model assets installed, ABSENT gracefully
+# everywhere else. Two things are always provable via the DEBUG WARBLE_FORCE_ENGINE seam (which
+# never needs the assets to resolve a NAME), and one is tolerant of whether the assets are installed.
+check_speechanalyzer() {
+  require_bin || return
+  # 1) Name wiring — the forced tier reports its own name, no assets required. This is the seam the
+  #    bench harness pins on (WARBLE_FORCE_ENGINE=speechanalyzer), so a rename here can't go unnoticed.
+  expect "forced speechanalyzer names the SpeechAnalyzer tier" "Apple SpeechAnalyzer" \
+    env WARBLE_FORCE_ENGINE=speechanalyzer "$BIN" --engine
+
+  # 2) engine-missing still forces the legacy Apple floor — SpeechAnalyzer is a premium tier and must
+  #    be suppressed by the fault too (keeps the errors check's "forces the Apple floor" law intact
+  #    on machines where the SpeechAnalyzer assets ARE installed).
+  expect "engine-missing forces the Apple floor, not SpeechAnalyzer" "Apple Speech" \
+    env WARBLE_FAULT=engine-missing "$BIN" --engine
+
+  # 3) Asset honesty (tolerant): forcing the tier over a real WAV must NEVER silently fall back to
+  #    Apple. With the assets installed it transcribes (exit 0, non-empty text); without them the
+  #    pinned chain is empty and it fails cleanly (exit non-zero, "transcription failed") — the same
+  #    "no silent fallback mislabels a number" contract Parakeet/whisper have when forced-but-absent.
+  SA_WAV="$ROOT/scripts/bench/fixtures/e2e-fixture.wav"
+  SA_OUT=$(env WARBLE_FORCE_ENGINE=speechanalyzer "$BIN" --transcribe "$SA_WAV" 2>/dev/null)
+  SA_STATUS=$?
+  SA_ERR=$(env WARBLE_FORCE_ENGINE=speechanalyzer "$BIN" --transcribe "$SA_WAV" 2>&1 >/dev/null)
+  if [ "$SA_STATUS" -eq 0 ] && [ -n "$SA_OUT" ]; then
+    ok "forced speechanalyzer transcribes (assets installed on this machine)"
+  elif [ "$SA_STATUS" -ne 0 ] && [ "$SA_ERR" = "transcription failed" ]; then
+    ok "forced speechanalyzer fails cleanly with no silent Apple fallback (assets not installed)"
+  else
+    bad "forced speechanalyzer is neither a clean transcribe nor a clean failure (exit $SA_STATUS; out \"$SA_OUT\"; err \"$SA_ERR\")"
+  fi
 }
 
 # Cause-naming errors (ROADMAP 0.3). --errors prints the whole taxonomy as "domain/reason: copy";

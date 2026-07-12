@@ -215,4 +215,50 @@ final class BasicCleanerTests: XCTestCase {
     func testToneRunsAfterTheSharedPasses() {
         XCTAssertEqual(clean("um git status.", .editor), "git status")
     }
+
+    // MARK: correctionsCount (ROADMAP 0.6 dashboard — "corrections cleaned for you")
+
+    func testCorrectionsCountIsZeroForAlreadyCleanText() {
+        XCTAssertEqual(BasicCleaner.correctionsCount("clean text with no fillers"), 0)
+    }
+
+    func testCorrectionsCountIsZeroForEmptyText() {
+        XCTAssertEqual(BasicCleaner.correctionsCount(""), 0)
+        XCTAssertEqual(BasicCleaner.correctionsCount("   "), 0)
+    }
+
+    func testCorrectionsCountsEachStandaloneFiller() {
+        // "uhh er hmm mhm okay erm ah done" -> "okay done": 6 fillers removed, 2 words survive.
+        XCTAssertEqual(BasicCleaner.correctionsCount("uhh er hmm mhm okay erm ah done"), 6)
+    }
+
+    func testCorrectionsCountsAFalseStartCorrection() {
+        // "give me 2 actually 3 bunnies" -> "give me 3 bunnies": drops "2 actually" (2 tokens).
+        XCTAssertEqual(BasicCleaner.correctionsCount("give me 2 actually 3 bunnies"), 2)
+    }
+
+    func testCorrectionsCountsScratchThat() {
+        // "do the report scratch that do the deck" -> "do the deck": drops 5 tokens
+        // ("do the report scratch that").
+        XCTAssertEqual(BasicCleaner.correctionsCount("do the report scratch that do the deck"), 5)
+    }
+
+    func testCorrectionsCountsDuplicateCollapse() {
+        // "like like" collapses to one "like" — exactly 1 correction.
+        XCTAssertEqual(BasicCleaner.correctionsCount("I like like it"), 1)
+    }
+
+    func testCorrectionsCountNeverCountsCategoryTone() {
+        // The category-tone pass (dropping a short one-liner's trailing period) is a STYLE choice,
+        // not a correction — correctionsCount only takes an untagged string, so there's no category
+        // parameter to shape it; a clean one-liner with a period counts zero regardless.
+        XCTAssertEqual(BasicCleaner.correctionsCount("git status."), 0)
+    }
+
+    func testCorrectionsCountOnACompositeNoisySentence() {
+        // The exact sentence testFillersAndDuplicateWords cleans to "so like I was thinking maybe
+        // we ship it" (9 words, from 12) — 3 tokens dropped: "um", "uh", and one duplicate "like".
+        let noisy = "um so like like I was thinking uh maybe we ship it"
+        XCTAssertEqual(BasicCleaner.correctionsCount(noisy), 3)
+    }
 }

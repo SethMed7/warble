@@ -34,6 +34,25 @@ enum BasicCleaner {
         return out
     }
 
+    /// Corrections cleaned (ROADMAP 0.6 dashboard — "corrections cleaned for you"): how many
+    /// filler words, false-start corrections ("no wait", "actually", "scratch that"), and
+    /// duplicate-word collapses the deterministic pass removes from `raw` — the token-count
+    /// difference between the input and the SAME (a)-(d) stages `cleaned(_:)` runs, stopping
+    /// short of (f): category tone (the trailing-period rule) is a style choice, not a
+    /// correction, so it never counts. Pure and cheap; called once per dictation at clean time
+    /// (DictateController) so the count can be stored on the event — it can't be recovered later
+    /// from the already-cleaned text, only from the raw ASR output.
+    static func correctionsCount(_ s: String) -> Int {
+        let trimmed = s.precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tokens = trimmed.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        var out = tokens
+        out = applyScratchThat(out)
+        out = removeFillers(out)
+        out = applyCorrections(out)
+        out = collapseDuplicates(out)
+        return max(0, tokens.count - out.count)
+    }
+
     // MARK: - Vocabulary
 
     /// Non-lexical hesitations only — anything that can carry meaning (huh, like,

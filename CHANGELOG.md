@@ -21,9 +21,12 @@ the auto-send and read-back secure-field claims are now unit-tested, not just do
 0.6 continues — "context, locally": context awareness, opt-in, bounded, and inspectable, off by
 default — the capture half (what was read is always visible), the apply half (the captured
 category shapes per-app tone: casual in chat, code-aware in terminals, formal in mail — with
-context off, output is provably byte-identical to before), and now the inspect half: any dictation
-that read context shows exactly what, right in History, next to the raw-transcript reveal — and
-Clear history takes it all with it.*
+context off, output is provably byte-identical to before), the inspect half (any dictation that
+read context shows exactly what, right in History, next to the raw-transcript reveal — and Clear
+history takes it all with it), and now the dashboard retention pass: WPM framed against published
+typing averages, "corrections cleaned for you," word counts in human units, a streak heatmap,
+visible dictionary learning in the recent feed, and a locally-rendered "Save a stats card" — Wispr
+Flow's stickiest surface, with zero telemetry.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -365,6 +368,32 @@ Clear history takes it all with it.*
   singular/plural word count, the empty-preview/missing-field case, the app-name → bundle-id →
   "unknown" fallback) is unit-tested (ContextAwarenessTests). ROADMAP 0.6's context-awareness
   bullet — capture, apply, inspect — is now complete.
+- **The dashboard retention pass (0.6 continues).** Home tells a week's story at a glance, every
+  number still locally computed and honest — zero telemetry. Your **WPM** is now framed against
+  published typing averages, never a fabricated dictation-population percentile warble has no data
+  for ("you speak at 142 wpm — ~3.5× the average typist"). A new **corrections cleaned** counter
+  sits right under it on Home — "8 corrections cleaned up for you" — the fillers/false-starts/
+  duplicates the cleanup pipeline actually removed, measured at clean time and stored on the
+  dictation. Word counts now also read in **human units** — "~14 pages · ~2 emails a day" — off
+  widely-cited, plainly-documented conversion constants, never presented as precise fact. A
+  **streak heatmap** (a GitHub-style day grid of the last ~12 weeks, tinted in nothing but the one
+  accent) sits next to the existing day-streak stat. The recent feed now shows a **"warble learned:
+  `<word>` — from your correction"** row the moment the dictionary auto-learns a word from an
+  in-place edit — the same moment `LearnPill` already confirms live, just made visible in the
+  dashboard's story too, kept in its own file so it can never skew WPM/streak/per-app stats. And
+  one button, **"Save a stats card,"** renders a branded PNG (the trill mark, three headline
+  stats, the real voice gradient — the one declared identity-surface exception to the in-app
+  one-accent rule) to wherever you choose via a real Save panel — fully local, no sharing
+  integrations, no network, and a failed write now surfaces a plain alert instead of silently
+  doing nothing. Headless proof: `BasicCleaner.correctionsCount` and a new `RetentionTests` suite
+  unit-test the WPM/typist framing, the corrections-cleaned headline, the human-unit math, and the
+  heatmap's calendar bucketing (empty history, a single busy day, a real DST spring-forward
+  boundary against an injected timezone, and a non-Gregorian-system-calendar mismatch that used to
+  render the whole grid empty despite real data); `--corrections-count` and `--learned-count`
+  re-prove the counting/decoding CLI seams, and new `--render-home`/`--render-share-card` (DEBUG)
+  seams rasterize Home — now showing the corrections-cleaned line — for both an empty and a fully
+  populated WARBLE_HOME, and the share card itself at its real fixed size —
+  `scripts/regression.sh` gains a `retention` check and the card gallery grows to 33 renders.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

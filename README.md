@@ -172,7 +172,16 @@ permanent Dock icon — or none, ever? It's a setting.)
 <img src="apps/macos/media/insights.png" alt="the warble dashboard — Home stats, sidebar, and toolbar" width="860">
 </div>
 
-- **Home** — words dictated, your WPM, a day streak, words read aloud, and a recent feed.
+- **Home** — words dictated, your WPM, a day streak, words read aloud, and a recent feed. Every
+  number stays honest and locally computed (no telemetry, no dictation-population percentile —
+  warble has no population to compare against): your WPM framed against **published typing
+  averages** ("you speak at 142 wpm — ~3.5× the average typist"), a **corrections cleaned**
+  counter ("8 corrections cleaned up for you" — the fillers/false-starts/duplicates the cleanup
+  pipeline actually removed), word counts translated into **human units** ("~14 pages · ~2 emails a
+  day"), a **streak heatmap** (a GitHub-style day grid of the last ~12 weeks), and a **"warble
+  learned"** row in the feed whenever the dictionary auto-learns a word from an in-place
+  correction. One button, **"Save a stats card"**, renders a branded PNG of your headline numbers —
+  fully local, no sharing integrations — to wherever you choose.
 - **Insights** — words-per-day, a speaking-pace (WPM) trend, and a per-app breakdown ("where you
   dictate"), plus the optional on-device **Insights AI** weekly recap.
 - **History** — every dictation, with **search and a per-app filter right in the toolbar**; open one
@@ -412,9 +421,16 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --render-history /tmp/detail.png  # (DEBUG) render the NEWEST event's History detail offscreen at 2x —
                                             #   seed the scenario via WARBLE_HOME's history.json (a context note, or not)
 .build/debug/warble --clear-history         # (DEBUG) the dashboard's Clear-all-history, headless (WARBLE_HOME only, please)
+.build/debug/warble --corrections-count "um so like like it"  # "corrections cleaned": fillers/false-starts/duplicates
+                                            #   the deterministic cleanup layer would remove from this text
+.build/debug/warble --learned-count         # how many "warble learned a word" moments InsightStore decoded (WARBLE_HOME)
+.build/debug/warble --render-home /tmp/home.png  # (DEBUG) render Home offscreen at 2x — WARBLE_HOME empty or populated
+.build/debug/warble --render-share-card /tmp/card.png  # (DEBUG) the SAME renderer "Save a stats card" uses, over
+                                            #   WARBLE_HOME's real stats (errors if there's nothing to share yet)
 
-# the whole card gallery — every tour card, Setup state, pill state, and History-detail scenario — in one command:
-sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (30 @2x PNGs, for design review)
+# the whole card gallery — every tour card, Setup state, pill state, History-detail scenario, and
+# dashboard retention render — in one command:
+sh ../../scripts/onboarding-gallery.sh      # → /tmp/warble-onboarding-qa (33 @2x PNGs, for design review)
 ```
 
 **Testing:** `sh scripts/regression.sh` (from the repo root) is the single regression gate — the

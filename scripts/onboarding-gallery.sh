@@ -71,8 +71,9 @@ done
 echo "history detail (context awareness's inspect half):"
 # --render-history has no state argument of its own — the scenario lives in the seeded WARBLE_HOME
 # (like every other WARBLE_HOME-sandboxed check), so it can't use the generic render() helper above.
-HIST_GAL_HOME="$(mktemp -d "${TMPDIR:-/tmp}/warble-gallery-history.XXXXXX")"
-trap 'rm -rf "$HIST_GAL_HOME"' EXIT
+GAL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/warble-gallery.XXXXXX")"
+trap 'rm -rf "$GAL_TMP"' EXIT
+HIST_GAL_HOME="$GAL_TMP/history"
 mkdir -p "$HIST_GAL_HOME/legacy" "$HIST_GAL_HOME/context"
 cp "$ROOT/scripts/fixtures/history-legacy.jsonl" "$HIST_GAL_HOME/legacy/history.json"
 printf '%s\n' '{"id":"ctx-modern","ts":1799800000,"day":"2026-07-11","text":"following up on the q3 numbers now","words":7,"durationMs":2900,"appBundleId":"com.apple.mail","appName":"Mail","engine":"parakeet","kind":"dictate","context":{"app":"Mail","category":"mail","words":42,"preview":"Re: the Q3 numbers are in and they look good for the…"}}' \
@@ -87,6 +88,38 @@ for s in legacy context; do
     printf '  FAILED: history-%s.png\n' "$s"
   fi
 done
+
+echo "dashboard retention pass (Home + the share card, empty and populated):"
+# Same idiom: the scenario lives in the seeded WARBLE_HOME, not a state argument. Dates are
+# relative to "now" so the populated scenario shows a real streak/heatmap no matter when this runs.
+RET_GAL_HOME="$GAL_TMP/retention"
+mkdir -p "$RET_GAL_HOME/empty" "$RET_GAL_HOME/populated"
+RET_GAL_TS=$(date +%s)
+{
+  printf '{"id":"ret1","ts":%s,"day":"%s","text":"ship the myela engine today","words":5,"durationMs":1800,"appBundleId":"com.tinyspeck.slackmacgap","appName":"Slack","engine":"parakeet","kind":"dictate","correctionsCleaned":1}\n' \
+    "$((RET_GAL_TS - 90000))" "$(date -v-1d +%Y-%m-%d)"
+  printf '{"id":"ret2","ts":%s,"day":"%s","text":"final report is ready for review","words":6,"durationMs":2000,"appBundleId":"com.apple.mail","appName":"Mail","engine":"parakeet","kind":"dictate","correctionsCleaned":0}\n' \
+    "$RET_GAL_TS" "$(date +%Y-%m-%d)"
+} > "$RET_GAL_HOME/populated/history.json"
+printf '{"id":"retl1","ts":%s,"word":"Myela","from":"miele"}\n' "$RET_GAL_TS" > "$RET_GAL_HOME/populated/learned.json"
+for s in empty populated; do
+  render_home() { env WARBLE_HOME="$RET_GAL_HOME/$s" "$BIN" --render-home "$OUT/home-$s.png"; }
+  TOTAL=$((TOTAL + 1))
+  if render_home >/dev/null 2>&1 && [ -s "$OUT/home-$s.png" ]; then
+    printf '  home-%s.png\n' "$s"
+  else
+    FAIL=$((FAIL + 1))
+    printf '  FAILED: home-%s.png\n' "$s"
+  fi
+done
+TOTAL=$((TOTAL + 1))
+if env WARBLE_HOME="$RET_GAL_HOME/populated" "$BIN" --render-share-card "$OUT/share-card.png" >/dev/null 2>&1 \
+  && [ -s "$OUT/share-card.png" ]; then
+  printf '  share-card.png\n'
+else
+  FAIL=$((FAIL + 1))
+  printf '  FAILED: share-card.png\n'
+fi
 
 printf 'gallery: %d/%d renders → %s\n' "$((TOTAL - FAIL))" "$TOTAL" "$OUT"
 [ "$FAIL" -eq 0 ] || exit 1

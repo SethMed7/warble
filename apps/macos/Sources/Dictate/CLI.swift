@@ -4,12 +4,13 @@ import AVFoundation
 import SwiftUI
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
-/// `--clean`, `--clean-in-context`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`,
-/// `--engine`, `--apply`, `--expand`, `--snippet-set`, `--autosend`, `--bindings`,
-/// `--readback-state`, `--context-sim`, `--selftest`, `--axcheck`, `--learn-test`,
+/// `--clean`, `--clean-in-context`, `--corrections-count`, `--cleanup`, `--cleanup-level`,
+/// `--polish`, `--transcribe`, `--engine`, `--apply`, `--expand`, `--snippet-set`, `--autosend`,
+/// `--bindings`, `--readback-state`, `--context-sim`, `--selftest`, `--axcheck`, `--learn-test`,
 /// `--recover-scan`, `--retranscribe`, `--hold-cap`, `--hold-cap-sim`, `--bench-e2e`,
-/// `--practice-sim`, `--sounds`, `--history-count`, `--render-pill` (DEBUG),
-/// `--render-history` (DEBUG), `--clear-history` (DEBUG).
+/// `--practice-sim`, `--sounds`, `--history-count`, `--learned-count`, `--render-pill` (DEBUG),
+/// `--render-history` (DEBUG), `--render-home` (DEBUG), `--render-share-card` (DEBUG),
+/// `--clear-history` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -55,6 +56,13 @@ public enum DictateCLI {
             print(InsightStore.shared.events.count)
             return true
         }
+        if args.contains("--learned-count") {
+            // The same plain read for "warble learned" moments (ROADMAP 0.6 dashboard — visible
+            // learning): WARBLE_HOME honored, so a hand-planted learned.json fixture line proves
+            // the load path/schema round-trips, exactly like --history-count does for history.json.
+            print(InsightStore.shared.learned.count)
+            return true
+        }
         #if DEBUG
         if let i = args.firstIndex(of: "--render-history"), i + 1 < args.count {
             // History detail's inspect seam (ROADMAP 0.6): renders the NEWEST event straight off
@@ -70,6 +78,34 @@ public enum DictateCLI {
             MainActor.assumeIsolated { renderHistoryDetail(e, to: URL(fileURLWithPath: args[i + 1])) }
             return true
         }
+        if let i = args.firstIndex(of: "--render-home"), i + 1 < args.count {
+            // The dashboard retention pass (ROADMAP 0.6): renders Home straight off InsightStore's
+            // real load path, so an EMPTY WARBLE_HOME (no history.json) and a seeded, populated one
+            // are two provably different PNGs — the empty state, and every retention feature
+            // (WPM/typist framing, human units, the streak heatmap, the merged recent+learned feed,
+            // the share-card button) at once.
+            MainActor.assumeIsolated { renderHome(to: URL(fileURLWithPath: args[i + 1])) }
+            return true
+        }
+        if let i = args.firstIndex(of: "--render-share-card"), i + 1 < args.count {
+            // "Save a stats card" (ROADMAP 0.6), headless: the SAME renderPNG the live button calls
+            // (ShareCard.swift isn't DEBUG-gated — only this CLI seam is), run over InsightStore's
+            // real WARBLE_HOME state, so the PNG regression.sh asserts is exactly what a real "Save
+            // a stats card" click would produce.
+            guard let stats = ShareCard.stats(from: InsightStore.shared) else {
+                FileHandle.standardError.write(Data("no dictations in WARBLE_HOME — seed history first\n".utf8))
+                exit(2)
+            }
+            MainActor.assumeIsolated {
+                guard let png = ShareCard.renderPNG(stats),
+                      (try? png.write(to: URL(fileURLWithPath: args[i + 1]))) != nil else {
+                    FileHandle.standardError.write(Data("couldn't render/write the share card\n".utf8))
+                    exit(1)
+                }
+                print("rendered share card → \(args[i + 1])")
+            }
+            return true
+        }
         if args.contains("--clear-history") {
             // The Data & Privacy "Clear all history" button, headless: context records live on
             // DictationEvent, so clearing history must take them with it — regression.sh seeds a
@@ -82,8 +118,9 @@ public enum DictateCLI {
             return true
         }
         #else
-        if args.contains("--render-history") || args.contains("--clear-history") {
-            FileHandle.standardError.write(Data("this flag exists in DEBUG builds only\n".utf8))
+        for flag in ["--render-history", "--render-home", "--render-share-card", "--clear-history"]
+            where args.contains(flag) {
+            FileHandle.standardError.write(Data("\(flag) exists in DEBUG builds only\n".utf8))
             exit(2)
         }
         #endif
@@ -135,6 +172,15 @@ public enum DictateCLI {
                 exit(2)
             }
             print(BasicCleaner.cleaned(args[i + 2], category: category))
+            return true
+        }
+        if let i = args.firstIndex(of: "--corrections-count"), i + 1 < args.count {
+            // "Corrections cleaned" (ROADMAP 0.6 dashboard), headless: the exact count
+            // DictateController computes at clean time and hands to InsightStore.record — filler/
+            // false-start/duplicate removals only, engine-free and deterministic regardless of the
+            // persisted cleanup level (the level gate itself lives in DictateController; this flag
+            // asserts the counting function alone).
+            print(BasicCleaner.correctionsCount(args[i + 1]))
             return true
         }
         if let i = args.firstIndex(of: "--cleanup"), i + 2 < args.count {
@@ -546,7 +592,7 @@ public enum DictateCLI {
         let withRaw = DictationEvent(id: "y", ts: 2, day: "2026-07-11", text: "so the report",
                                      raw: "um so the the report", words: 3, durationMs: 900,
                                      appBundleId: nil, appName: nil, engine: "test", kind: "dictate",
-                                     status: nil, context: nil)
+                                     status: nil, context: nil, correctionsCleaned: nil)
         let rebuilt = (try? JSONEncoder().encode(withRaw))
             .flatMap { try? JSONDecoder().decode(DictationEvent.self, from: $0) }
         check(rebuilt?.raw == "um so the the report", "raw transcript round-trips through a history line")
@@ -555,7 +601,7 @@ public enum DictateCLI {
         // A FAILED event (dictation recovery, ROADMAP 0.3) must round-trip its status.
         let failed = DictationEvent(id: "z", ts: 3, day: "2026-07-11", text: "", raw: nil, words: 0,
                                     durationMs: 1200, appBundleId: nil, appName: nil, engine: "test",
-                                    kind: "dictate", status: "failed", context: nil)
+                                    kind: "dictate", status: "failed", context: nil, correctionsCleaned: nil)
         let failedBack = (try? JSONEncoder().encode(failed))
             .flatMap { try? JSONDecoder().decode(DictationEvent.self, from: $0) }
         check(failedBack?.isFailed == true, "failed status round-trips through a history line")
@@ -604,6 +650,29 @@ public enum DictateCLI {
             exit(1)
         }
         print("rendered \(e.id) → \(out.path)")
+    }
+
+    /// --render-home's rasterizer (ROADMAP 0.6 dashboard retention pass): the same ImageRenderer
+    /// seam as --render-history, pinned to the same real detail-pane width (740pt). `nav` is a
+    /// fresh, throwaway InsightsNav — the seam never needs to navigate anywhere.
+    @MainActor private static func renderHome(to out: URL) {
+        let width: CGFloat = 740
+        let renderer = ImageRenderer(content: HomeView(store: InsightStore.shared, nav: InsightsNav(), renderSeam: true)
+            .frame(width: width)
+            .environment(\.colorScheme, .dark))
+        renderer.scale = 2
+        guard let cg = renderer.cgImage else {
+            FileHandle.standardError.write(Data("couldn't rasterize the home view\n".utf8))
+            exit(1)
+        }
+        let rep = NSBitmapImageRep(cgImage: cg)
+        rep.size = NSSize(width: width, height: CGFloat(cg.height) / 2)
+        guard let png = rep.representation(using: .png, properties: [:]),
+              (try? png.write(to: out)) != nil else {
+            FileHandle.standardError.write(Data("couldn't write \(out.path)\n".utf8))
+            exit(1)
+        }
+        print("rendered home → \(out.path)")
     }
     #endif
 }

@@ -9,6 +9,7 @@ enum WarbleTheme {
     static let ink = Theme.ink.color                       // raised surface (cards)
     static let line = Theme.line.color                     // hairline
     static let electric = Theme.electric.color             // the accent
+    static let electricDeep = Theme.electricDeep.color     // filled-text-button base (button-primary)
     static let electricBright = Theme.electricBright.color // crest (sparing)
     static let electricText = Theme.electricText.color     // AA-safe small-text tint of the accent
     static let mist = Theme.mist.color                     // secondary text

@@ -219,7 +219,7 @@ final class ContextAwarenessTests: XCTestCase {
         let e = DictationEvent(id: "c", ts: 4, day: "2026-07-11", text: "hi there", raw: nil,
                                words: 2, durationMs: 900, appBundleId: "com.apple.mail",
                                appName: "Mail", engine: "test", kind: "dictate", status: nil,
-                               context: record(words: 20))
+                               context: record(words: 20), correctionsCleaned: nil)
         let back = try JSONDecoder().decode(DictationEvent.self, from: try JSONEncoder().encode(e))
         XCTAssertEqual(back.context?.app, "Mail")
         XCTAssertEqual(back.context?.category, "mail")

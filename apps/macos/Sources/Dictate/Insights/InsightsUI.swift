@@ -385,65 +385,128 @@ struct EmptyState: View {
 
 // MARK: - Home
 
-/// Home: the four locked stats in one hairline-divided row, the recent feed, and the per-app bars —
-/// all sitting directly on the window background.
+/// Home: the four locked stats in one hairline-divided row, the retention pass underneath it (a
+/// WPM/typist framing, a corrections-cleaned counter, word counts in human units, the streak
+/// heatmap, visible learning in the feed, and a share-card export), the recent feed, and the
+/// per-app bars — all sitting directly on the window background.
 struct HomeView: View {
     @ObservedObject var store: InsightStore
     @ObservedObject var nav: InsightsNav
+    /// --render-home only: ImageRenderer can't resolve a SwiftUI ScrollView's content height
+    /// without a bounded viewport, so the seam swaps the scroll container for a plain stack sized
+    /// to its own ideal height — the content is identical (the DictationDetailView `renderSeam`
+    /// idiom already proven by --render-history).
+    var renderSeam = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                StatRow(stats: [
-                    (store.totalWordsCompact, "words dictated"),
-                    ("\(store.avgWPM)", "wpm"),
-                    ("\(store.dayStreak)", "day streak"),
-                    (store.wordsReadCompact, "words read"),
-                ])
-                .padding(.horizontal, 28)
-
-                if store.events.isEmpty {
-                    EmptyState(title: "Nothing here yet",
-                               hint: "Hold Fn and speak — your words, streak, and pace build up here.")
-                        .padding(.top, 24)
-                } else {
-                    SectionHeader(title: "Recent", actionLabel: "See all →") { nav.section = .history }
-                        .padding(.horizontal, 28)
-                        .padding(.top, 32)
-                        .padding(.bottom, 4)
-                    recentRows
-                        .padding(.horizontal, 20)
-
-                    if !store.perApp.isEmpty {
-                        SectionHeader(title: "Where you dictate")
-                            .padding(.horizontal, 28)
-                            .padding(.top, 32)
-                            .padding(.bottom, 12)
-                        let maxWords = store.perApp.first?.words ?? 1
-                        VStack(spacing: 10) {
-                            ForEach(store.perApp.prefix(5)) { app in
-                                PerAppRow(app: app, maxWords: maxWords)
-                            }
-                        }
-                        .padding(.horizontal, 28)
-                    }
-                }
-            }
-            .padding(.top, 20)
-            .padding(.bottom, 28)
+        Group {
+            if renderSeam { content } else { ScrollView { content } }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WarbleTheme.black)
     }
 
-    /// The last 8 events, newest first, as full-bleed rows with inset hairlines. Each row jumps to
-    /// History — that's where replay/fix/teach live.
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // "Save a stats card" (ROADMAP 0.6): one button, only once there's something real to
+            // share — an empty card would just be a branding graphic, not a stat.
+            if !store.dictations.isEmpty {
+                HStack {
+                    Spacer(minLength: 0)
+                    ShareCardButton { ShareCard.save(store: store) }
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 8)
+            }
+
+            StatRow(stats: [
+                (store.totalWordsCompact, "words dictated"),
+                ("\(store.avgWPM)", "wpm"),
+                ("\(store.dayStreak)", "day streak"),
+                (store.wordsReadCompact, "words read"),
+            ])
+            .padding(.horizontal, 28)
+
+            // WPM framed against published TYPING averages, the corrections-cleaned counter, and
+            // word counts translated into everyday things (ROADMAP 0.6 — never a fabricated
+            // dictation-population percentile; product.md §4.9). All three are nil (so nothing
+            // renders) until there's something real to report.
+            VStack(alignment: .leading, spacing: 3) {
+                if let line = TypingBaseline.headline(wpm: store.avgWPM) {
+                    Text(line).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                }
+                if let line = CorrectionsCleaned.headline(store.correctionsCleanedTotal) {
+                    Text(line).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                }
+                if let line = HumanUnits.headline(totalWords: store.totalWords,
+                                                  activeDays: store.daysSinceFirstDictation) {
+                    Text(line).font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 8)
+
+            if store.events.isEmpty {
+                EmptyState(title: "Nothing here yet",
+                           hint: "Hold Fn and speak — your words, streak, and pace build up here.")
+                    .padding(.top, 24)
+            } else {
+                // The streak heatmap (ROADMAP 0.6): a GitHub-style day grid integrating the same
+                // day-streak stat above with ~12 weeks of activity, tinted by the one accent only.
+                if !store.dictations.isEmpty {
+                    SectionHeader(title: "Your streak")
+                        .padding(.horizontal, 28)
+                        .padding(.top, 32)
+                        .padding(.bottom, 12)
+                    HStack(alignment: .center, spacing: 20) {
+                        StreakHeatmap(cells: Heatmap.cells(wordsByDay: store.wordsByDayAll))
+                        Spacer(minLength: 0)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(store.dayStreak)")
+                                .font(.system(size: 22, weight: .semibold)).monospacedDigit()
+                                .foregroundStyle(WarbleTheme.textHi)
+                            Text("day streak")
+                                .font(.system(size: 11)).foregroundStyle(WarbleTheme.mist)
+                        }
+                    }
+                    .padding(.horizontal, 28)
+                }
+
+                SectionHeader(title: "Recent", actionLabel: "See all →") { nav.section = .history }
+                    .padding(.horizontal, 28)
+                    .padding(.top, 32)
+                    .padding(.bottom, 4)
+                recentRows
+                    .padding(.horizontal, 20)
+
+                if !store.perApp.isEmpty {
+                    SectionHeader(title: "Where you dictate")
+                        .padding(.horizontal, 28)
+                        .padding(.top, 32)
+                        .padding(.bottom, 12)
+                    let maxWords = store.perApp.first?.words ?? 1
+                    VStack(spacing: 10) {
+                        ForEach(store.perApp.prefix(5)) { app in
+                            PerAppRow(app: app, maxWords: maxWords)
+                        }
+                    }
+                    .padding(.horizontal, 28)
+                }
+            }
+        }
+        .padding(.top, 20)
+        .padding(.bottom, 28)
+    }
+
+    /// The last 8 feed items — dictations, reads, and "warble learned" moments (ROADMAP 0.6 —
+    /// visible learning), merged and sorted by time — as full-bleed rows with inset hairlines. A
+    /// dictation/read row jumps to History; a learned row doesn't (nothing to replay there).
     private var recentRows: some View {
-        let recent = Array(store.events.suffix(8).reversed())
+        let recent = store.recentFeed(limit: 8)
         return VStack(spacing: 0) {
-            ForEach(recent) { e in
-                RecentRow(event: e) { nav.section = .history }
-                if e.id != recent.last?.id {
+            ForEach(recent) { item in
+                FeedRow(item: item) { nav.section = .history }
+                if item.id != recent.last?.id {
                     // Inset both ends to the text column so the hairline sits on the 28pt page grid.
                     Hairline().padding(.leading, 76).padding(.trailing, 8)
                 }
@@ -536,5 +599,125 @@ private struct RecentRow: View {
         .buttonStyle(.plain)
         .background(hovered ? WarbleTheme.ink : .clear, in: RoundedRectangle(cornerRadius: 6))
         .onHover { hovered = $0 }
+    }
+}
+
+/// One row in Home's recent feed: a real dictation/read (RecentRow, unchanged) or a "warble
+/// learned" moment (ROADMAP 0.6 — visible learning).
+private struct FeedRow: View {
+    let item: InsightStore.FeedItem
+    let open: () -> Void
+    var body: some View {
+        switch item {
+        case .dictation(let e): RecentRow(event: e, open: open)
+        case .learned(let e): LearnedRow(event: e)
+        }
+    }
+}
+
+/// "learned: Myela — from your correction" (ROADMAP 0.6 — visible learning): reuses RecentRow's
+/// anatomy (time gutter, one text line, a meta line, a trailing glyph) but isn't a button — there's
+/// nothing to open, it's a dictionary moment, not a dictation. The dictionary glyph in
+/// electric-text keeps the One-Accent Rule (small accent text/glyph only, never solid electric).
+private struct LearnedRow: View {
+    let event: InsightStore.LearnedEvent
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(RowTime.string(Date(timeIntervalSince1970: event.ts)))
+                .font(.system(size: 11)).monospacedDigit()
+                .foregroundStyle(WarbleTheme.mist)
+                .frame(width: 56, alignment: .trailing)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("learned: \(event.word)")
+                    .font(.system(size: 13))
+                    .foregroundStyle(WarbleTheme.textHi)
+                Text("from your correction")
+                    .font(.system(size: 11))
+                    .foregroundStyle(WarbleTheme.mist)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "character.book.closed")
+                .font(.system(size: 12))
+                .foregroundStyle(WarbleTheme.electricText)
+                .padding(.top, 2)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+    }
+}
+
+/// The streak heatmap (ROADMAP 0.6 — GitHub-style day grid, last ~12 weeks): 12 columns of 7
+/// consecutive days, oldest to newest, left to right — each cell tinted by the SAME accent at
+/// increasing opacity, never a second hue (DESIGN.md's One-Accent Rule). An empty (level 0) day
+/// sits on `line`, not a darker "zero" tint, so the grid reads as a calendar, not a bar chart.
+struct StreakHeatmap: View {
+    let cells: [Heatmap.Cell]
+    private let cellSize: CGFloat = 11
+    private let gap: CGFloat = 3
+
+    var body: some View {
+        let weeks = stride(from: 0, to: cells.count, by: 7).map {
+            Array(cells[$0..<Swift.min($0 + 7, cells.count)])
+        }
+        HStack(alignment: .top, spacing: gap) {
+            ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
+                VStack(spacing: gap) {
+                    ForEach(week) { cell in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(fill(for: cell.level))
+                            .frame(width: cellSize, height: cellSize)
+                            .help("\(cell.words) word\(cell.words == 1 ? "" : "s") · \(cell.id)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func fill(for level: Int) -> Color {
+        switch level {
+        case 0:  return WarbleTheme.line
+        case 1:  return WarbleTheme.electric.opacity(0.25)
+        case 2:  return WarbleTheme.electric.opacity(0.45)
+        case 3:  return WarbleTheme.electric.opacity(0.7)
+        default: return WarbleTheme.electric
+        }
+    }
+}
+
+/// "Save a stats card" (ROADMAP 0.6): the button-primary token pair (DESIGN.md components —
+/// electric-deep fill, electric on hover, 70%-opacity pressed) — Home's one filled-text button.
+/// A real `ButtonStyle` (the same idiom as `TutorialButton` above and WelcomeWindow's
+/// GhostButton/FilledButton) rather than a hand-rolled press-tracking gesture.
+private struct ShareCardButton: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 11, weight: .semibold))
+                Text("Save a stats card")
+            }
+        }
+        .buttonStyle(ShareCardButtonStyle())
+    }
+}
+
+private struct ShareCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Styled(configuration: configuration) }
+
+    private struct Styled: View {
+        let configuration: ButtonStyleConfiguration
+        @State private var hovered = false
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16).padding(.vertical, 7)
+                .background((hovered ? WarbleTheme.electric : WarbleTheme.electricDeep)
+                    .opacity(configuration.isPressed ? 0.7 : 1),
+                    in: RoundedRectangle(cornerRadius: 8))
+                .onHover { hovered = $0 }
+        }
     }
 }

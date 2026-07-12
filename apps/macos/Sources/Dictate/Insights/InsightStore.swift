@@ -66,8 +66,12 @@ public final class InsightStore: ObservableObject {
     let dir: URL          // ~/.warble
     private let fileURL: URL    // ~/.warble/history.json
     private let audioDir: URL   // ~/.warble/audio
+    private let learnedFileURL: URL // ~/.warble/learned.json — "warble learned a word" moments
 
-    private static let dayFormatter: DateFormatter = {
+    /// "warble learned" moments (ROADMAP 0.6 dashboard — visible learning), newest last, like `events`.
+    @Published private(set) var learned: [LearnedEvent] = []
+
+    static let dayFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
         return f // local timezone by default — the streak key
     }()
@@ -82,11 +86,13 @@ public final class InsightStore: ObservableObject {
         }
         fileURL = dir.appendingPathComponent("history.json")
         audioDir = dir.appendingPathComponent("audio")
+        learnedFileURL = dir.appendingPathComponent("learned.json")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
                                                  attributes: [.posixPermissions: 0o700])
         try? FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true,
                                                  attributes: [.posixPermissions: 0o700])
         load()
+        loadLearned()
     }
 
     // MARK: record
@@ -137,7 +143,11 @@ public final class InsightStore: ObservableObject {
             // Context awareness (ROADMAP 0.6): only the bounded note (app, category, word count,
             // ≤12-word preview) ever reaches disk — the full captured text has no Codable form.
             // Gated like the transcript text itself: stats-only mode keeps no read text either.
-            context: keepText ? ctx.context.map { ContextRecord($0) } : nil)
+            context: keepText ? ctx.context.map { ContextRecord($0) } : nil,
+            // Corrections cleaned (ROADMAP 0.6 dashboard): a pure count, not content — kept in the
+            // same "metric" bucket as words/durationMs, so it survives even a secure-field/
+            // stats-only dictation that drops the text itself.
+            correctionsCleaned: ctx.correctionsCleaned)
         events.append(e)
         appendLine(e)
     }
@@ -173,7 +183,8 @@ public final class InsightStore: ObservableObject {
             engine: ctx.engine,
             kind: "dictate",
             status: "failed",
-            context: historyEnabled ? ctx.context.map { ContextRecord($0) } : nil)
+            context: historyEnabled ? ctx.context.map { ContextRecord($0) } : nil,
+            correctionsCleaned: nil) // transcription itself failed — cleanup never ran
         events.append(e)
         appendLine(e)
         return e
@@ -195,7 +206,8 @@ public final class InsightStore: ObservableObject {
                                    text: historyEnabled ? text : "", raw: keptRaw,
                                    words: Self.wordCount(text), durationMs: o.durationMs,
                                    appBundleId: o.appBundleId, appName: o.appName,
-                                   engine: engine, kind: o.kind, status: nil, context: o.context)
+                                   engine: engine, kind: o.kind, status: nil, context: o.context,
+                                   correctionsCleaned: nil) // recovery's own pipeline doesn't count
         rewrite()
     }
 
@@ -221,10 +233,82 @@ public final class InsightStore: ObservableObject {
             engine: voice,
             kind: "read",
             status: nil,
-            context: nil) // reads never capture context — it's a dictation-tone feature
+            context: nil, // reads never capture context — it's a dictation-tone feature
+            correctionsCleaned: nil) // read-aloud has no cleanup pass to count
         events.append(e)
         appendLine(e)
     }
+
+    // MARK: visible learning (ROADMAP 0.6 dashboard)
+
+    /// One "warble learned a word" moment — the dictionary auto-promoted a correction after seeing
+    /// it enough times (Lexicon.recordCorrection's `.promoted` case; never an explicit spelled-out
+    /// correction, which the user already sees confirmed live via LearnPill). Kept in its own file,
+    /// not on `events`: it carries no transcript text, and mixing it into history.json would skew
+    /// every stat that walks `events` by kind/day (WPM, streak, per-app, the History filter's app
+    /// list) for an entry that has neither an app nor a duration.
+    public struct LearnedEvent: Codable, Identifiable, Hashable {
+        public let id: String
+        public let ts: Double
+        public let word: String  // the corrected target, e.g. "Myela"
+        public let from: String  // one mis-hearing that taught it, e.g. "miele"
+    }
+
+    /// Record one learned moment and persist it immediately (append-only JSON-Lines, same idiom as
+    /// history.json). Called once, right where LearnPill.showAdded already fires.
+    func recordLearned(word: String, from: String) {
+        let e = LearnedEvent(id: UUID().uuidString, ts: Date().timeIntervalSince1970, word: word, from: from)
+        learned.append(e)
+        guard let json = try? JSONEncoder().encode(e), var line = String(data: json, encoding: .utf8) else { return }
+        line += "\n"
+        let bytes = Data(line.utf8)
+        if let fh = try? FileHandle(forWritingTo: learnedFileURL) {
+            defer { try? fh.close() }
+            _ = try? fh.seekToEnd()
+            try? fh.write(contentsOf: bytes)
+        } else {
+            try? bytes.write(to: learnedFileURL, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: learnedFileURL.path)
+        }
+    }
+
+    private func loadLearned() {
+        guard let data = try? Data(contentsOf: learnedFileURL),
+              let s = String(data: data, encoding: .utf8) else { return }
+        let dec = JSONDecoder()
+        learned = s.split(separator: "\n").compactMap { try? dec.decode(LearnedEvent.self, from: Data($0.utf8)) }
+    }
+
+    /// One row in Home's recent-activity feed: a real dictation/read, or a learned moment — merged
+    /// and sorted by time so a learn a moment after a dictation reads in its natural place.
+    enum FeedItem: Identifiable {
+        case dictation(DictationEvent)
+        case learned(LearnedEvent)
+        var id: String {
+            switch self {
+            case .dictation(let e): return e.id
+            case .learned(let e): return e.id
+            }
+        }
+        var ts: Double {
+            switch self {
+            case .dictation(let e): return e.ts
+            case .learned(let e): return e.ts
+            }
+        }
+    }
+
+    /// The pure merge (unit-tested directly, no singleton/WARBLE_HOME needed): dictations + reads +
+    /// learned moments, sorted newest first, capped at `limit`. `recentFeed` below is the thin
+    /// instance wrapper HomeView actually calls.
+    static func mergedFeed(events: [DictationEvent], learned: [LearnedEvent], limit: Int) -> [FeedItem] {
+        var items: [FeedItem] = events.map { .dictation($0) } + learned.map { .learned($0) }
+        items.sort { $0.ts > $1.ts }
+        return Array(items.prefix(limit))
+    }
+
+    /// The last `limit` feed items (dictations + reads + learned moments), newest first.
+    func recentFeed(limit: Int) -> [FeedItem] { Self.mergedFeed(events: events, learned: learned, limit: limit) }
 
     // MARK: edit / delete (used from the History detail — "go train it")
 
@@ -245,7 +329,8 @@ public final class InsightStore: ObservableObject {
         events[i] = DictationEvent(id: o.id, ts: o.ts, day: o.day, text: newText, raw: o.raw,
                                    words: Self.wordCount(newText), durationMs: o.durationMs,
                                    appBundleId: o.appBundleId, appName: o.appName, engine: o.engine,
-                                   kind: o.kind, status: o.status, context: o.context)
+                                   kind: o.kind, status: o.status, context: o.context,
+                                   correctionsCleaned: o.correctionsCleaned) // a hand-edit isn't a re-clean
         rewrite()
     }
 
@@ -262,7 +347,9 @@ public final class InsightStore: ObservableObject {
     /// never opened) and posts `.warbleInsightsCleared` so a live `AIInsightsStore` drops its in-memory copy.
     func clearAll() {
         events.removeAll()
+        learned.removeAll() // visible-learning moments are local data too (product.md §4.8)
         try? FileManager.default.removeItem(at: fileURL)
+        try? FileManager.default.removeItem(at: learnedFileURL)
         try? FileManager.default.removeItem(at: audioDir)
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("inflight")) // the crash buffer too
         try? FileManager.default.removeItem(at: dir.appendingPathComponent("insights-ai.json"))
@@ -318,6 +405,32 @@ public final class InsightStore: ObservableObject {
         let minutes = Double(timed.reduce(0) { $0 + $1.durationMs }) / 60_000.0
         guard minutes > 0 else { return 0 }
         return Int((Double(timed.reduce(0) { $0 + $1.words }) / minutes).rounded())
+    }
+
+    /// Corrections cleaned (ROADMAP 0.6 dashboard): total filler/false-start/duplicate removals
+    /// the deterministic cleanup layer made across every real dictation — a locally computed
+    /// count, never a network signal. Events with nothing measured (nil — a FAILED transcription,
+    /// a read, or a pre-0.6.1 line) simply add zero.
+    var correctionsCleanedTotal: Int { dictations.reduce(0) { $0 + ($1.correctionsCleaned ?? 0) } }
+
+    /// Calendar days since the first dictation, inclusive (minimum 1) — the honest denominator for
+    /// "human units" daily-rate framing (HumanUnits.headline): the span since you STARTED, not
+    /// just the days you happened to use it, so the average can't be inflated by cherry-picking.
+    var daysSinceFirstDictation: Int {
+        guard let first = dictations.map({ $0.date }).min() else { return 1 }
+        let cal = Calendar.current
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: first),
+                                      to: cal.startOfDay(for: Date())).day ?? 0
+        return max(1, days + 1)
+    }
+
+    /// Word counts by day, every day with a dictation — the streak heatmap's raw material
+    /// (Heatmap.cells does the ~12-week windowing/bucketing; unlike `wordsPerDay`'s fixed 30-day
+    /// chart series, this has no range limit of its own).
+    var wordsByDayAll: [String: Int] {
+        var map: [String: Int] = [:]
+        for e in dictations { map[e.day, default: 0] += e.words }
+        return map
     }
 
     var totalWordsCompact: String { Self.compact(totalWords) }

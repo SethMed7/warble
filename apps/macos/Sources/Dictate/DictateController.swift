@@ -693,6 +693,14 @@ public final class DictateController: NSObject {
                     // phrase only when the toggle is on AND it's in the final position).
                     let cleaned = Snippets.shared.expand(Lexicon.shared.apply(cleaner.clean(spell.text)))
                     let auto = AutoSend.apply(cleaned)
+                    // Corrections cleaned (ROADMAP 0.6 dashboard): count filler/false-start/
+                    // duplicate removals the deterministic layer made over the ASR output — the
+                    // same floor every level (Light/Medium/High) builds on. None ships raw
+                    // untouched, so it's always 0 (verbatim, not a special case). Medium/High may
+                    // clean more via the guarded LLM pass on top, but only the provable
+                    // deterministic count is claimed (product.md §4.9 — precision, never overclaim).
+                    var ctx = ctx
+                    ctx.correctionsCleaned = Cleaners.level == .none ? 0 : BasicCleaner.correctionsCount(spell.text)
                     DispatchQueue.main.async {
                         guard self.workGen == gen else { try? FileManager.default.removeItem(at: wav); return } // cancelled during polish
                         for rule in spell.learned { Lexicon.shared.learnExplicit(from: rule.from, to: rule.to) }
@@ -797,6 +805,12 @@ public final class DictateController: NSObject {
                 switch Lexicon.shared.recordCorrection(from: from, to: to) {
                 case .promoted(let word):
                     LearnPill.shared.showAdded(word: word) { Lexicon.shared.forgetTarget(word) }
+                    // Visible learning (ROADMAP 0.6 dashboard): the dictionary just auto-learned a
+                    // word from watching an in-place edit — surface it in Home's recent feed, the
+                    // same moment LearnPill already confirms live. Never fires for an EXPLICIT
+                    // spelled-out correction (Lexicon.learnExplicit) — the user already saw that
+                    // one confirmed on the spot.
+                    InsightStore.shared.recordLearned(word: word, from: from)
                 case .pending(let word, let count, let threshold):
                     LearnPill.shared.showProgress(word: word, count: count, of: threshold)
                 case .ignored:

@@ -22,13 +22,13 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
     core)          echo "core/ acceptance suite (bun install + bun test)" ;;
     build)         echo "swift build (debug) — the binary every CLI check runs" ;;
-    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine, resume matrix, ping synthesis, read-back availability, context-awareness gates/caps)" ;;
+    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine, resume matrix, ping synthesis, read-back availability, context-awareness gates/caps, corrections-count, WPM/human-units/heatmap retention math)" ;;
     version)       echo "--version matches Info.plist" ;;
     cleanup)       echo "cleanup levels: --clean + all four --cleanup levels, engine-free" ;;
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
@@ -40,6 +40,7 @@ describe() {
     context)       echo "--context-sim: context awareness defaults OFF (nothing read); on -> bounded capture (last 200 words, 12-word preview note); a secure field captures nothing; off stays off" ;;
     context-apply) echo "--clean-in-context: per-category tone (editor/chat drop a short one-liner's trailing period; mail/document unchanged); context off = pre-0.6 goldens at every level; dictionary+snippets outrank tone" ;;
     context-inspect) echo "the inspect half: a committed pre-0.6 fixture still decodes in full (--history-count), a legacy dictation's History detail renders with no context row and a context-bearing one renders with it (--render-history), and Clear history removes the context record along with everything else" ;;
+    retention)     echo "dashboard retention pass: --corrections-count on fixture text, a seeded correctionsCleaned round-trips (--history-count), --learned-count decodes a hand-planted visible-learning fixture and Clear history wipes it too, and Home + the share card render real PNGs for both an empty and a populated WARBLE_HOME" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -704,6 +705,146 @@ check_context_inspect() {
     env WARBLE_HOME="$CTX_HOME" "$BIN" --history-count
 }
 
+# The dashboard retention pass (ROADMAP 0.6): WPM vs typing averages, "corrections cleaned",
+# human-unit word counts, and the streak heatmap are pure math proven in swift test
+# (BasicCleanerTests/RetentionTests) — this check proves the LIVE WIRING: the counting/decoding
+# CLI seams, and that Home + the share card render real PNGs for both an empty and a populated
+# WARBLE_HOME (the "flow" layer, same split as every other 0.6 check).
+check_retention() {
+  require_bin || return
+
+  # (1) --corrections-count: deterministic and engine-free over fixed fixture text — the exact
+  # cases asserted in swift test (BasicCleanerTests), re-proven through the CLI seam.
+  expect "corrections-count is 0 for already-clean text" "0" \
+    "$BIN" --corrections-count "clean text with no fillers"
+  expect "corrections-count sums fillers + a false start + a duplicate" "3" \
+    "$BIN" --corrections-count "um so like like I was thinking uh maybe we ship it"
+
+  # (2) correctionsCleaned rides the history line — a seeded value must not be rejected by the
+  # decoder (the same "still decodes" proof context-inspect uses for the `context` field).
+  CC_HOME="$REGTMP/retention-corrections"
+  mkdir -p "$CC_HOME"
+  printf '%s\n' '{"id":"cc1","ts":1,"day":"2026-07-11","text":"ship it","words":2,"durationMs":900,"engine":"test","kind":"dictate","correctionsCleaned":2}' \
+    > "$CC_HOME/history.json"
+  expect "a correctionsCleaned-bearing history line decodes" "1" \
+    env WARBLE_HOME="$CC_HOME" "$BIN" --history-count
+
+  # (3) Visible learning: --learned-count decodes a hand-planted learned.json fixture line (the
+  # exact shape InsightStore.recordLearned would have written), and Clear history wipes it along
+  # with everything else (product.md §4.8 — local data is also a privacy surface).
+  LEARN_HOME="$REGTMP/retention-learned"
+  mkdir -p "$LEARN_HOME"
+  printf '%s\n' '{"id":"l1","ts":1,"word":"Myela","from":"miele"}' > "$LEARN_HOME/learned.json"
+  touch "$LEARN_HOME/history.json"
+  expect "a hand-planted learned.json line decodes" "1" \
+    env WARBLE_HOME="$LEARN_HOME" "$BIN" --learned-count
+  env WARBLE_HOME="$LEARN_HOME" "$BIN" --clear-history >/dev/null
+  if [ ! -e "$LEARN_HOME/learned.json" ]; then
+    ok "learned.json is gone after Clear history"
+  else
+    bad "learned.json is gone after Clear history"
+  fi
+  expect "learned-count is 0 after Clear history" "0" \
+    env WARBLE_HOME="$LEARN_HOME" "$BIN" --learned-count
+
+  # (4) Home renders a real PNG for an EMPTY WARBLE_HOME (no history.json at all — the first-run
+  # look) and for a POPULATED one (every retention feature at once: the WPM/typist line, human
+  # units, the streak heatmap, the merged recent+learned feed, the share-card button, per-app
+  # bars). Dates are relative to "now" (like make_orphan's backdated WAV) so the populated state
+  # stays genuinely populated (a real streak, a heatmap with lit cells) no matter when this runs.
+  HOME_DIR="$REGTMP/home-renders"
+  mkdir -p "$HOME_DIR"
+  EMPTY_HOME="$REGTMP/retention-empty"
+  mkdir -p "$EMPTY_HOME"
+  EMPTY_PNG="$HOME_DIR/empty.png"
+  if env WARBLE_HOME="$EMPTY_HOME" "$BIN" --render-home "$EMPTY_PNG" >/dev/null 2>&1 && [ -s "$EMPTY_PNG" ]; then
+    EMPTY_W=$(sips -g pixelWidth "$EMPTY_PNG" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+    EMPTY_H=$(sips -g pixelHeight "$EMPTY_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ "$EMPTY_W" = "1480" ] && [ "${EMPTY_H:-0}" -ge 300 ]; then
+      ok "Home's empty state renders (1480x$EMPTY_H PNG)"
+    else
+      bad "Home's empty state renders offscreen at 2x (dims: ${EMPTY_W:-none}x${EMPTY_H:-none})"
+    fi
+  else
+    bad "Home's empty state renders a nonzero PNG"
+  fi
+
+  RET_HOME="$REGTMP/retention-populated"
+  mkdir -p "$RET_HOME"
+  RET_TODAY_TS=$(date +%s)
+  RET_TODAY_DAY=$(date +%Y-%m-%d)
+  RET_YDAY_DAY=$(date -v-1d +%Y-%m-%d)
+  {
+    printf '{"id":"ret1","ts":%s,"day":"%s","text":"ship the myela engine today","words":5,"durationMs":1800,"appBundleId":"com.tinyspeck.slackmacgap","appName":"Slack","engine":"parakeet","kind":"dictate","correctionsCleaned":1}\n' \
+      "$((RET_TODAY_TS - 90000))" "$RET_YDAY_DAY"
+    printf '{"id":"ret2","ts":%s,"day":"%s","text":"final report is ready for review","words":6,"durationMs":2000,"appBundleId":"com.apple.mail","appName":"Mail","engine":"parakeet","kind":"dictate","correctionsCleaned":0}\n' \
+      "$RET_TODAY_TS" "$RET_TODAY_DAY"
+  } > "$RET_HOME/history.json"
+  printf '{"id":"retl1","ts":%s,"word":"Myela","from":"miele"}\n' "$RET_TODAY_TS" > "$RET_HOME/learned.json"
+
+  POP_PNG="$HOME_DIR/populated.png"
+  if env WARBLE_HOME="$RET_HOME" "$BIN" --render-home "$POP_PNG" >/dev/null 2>&1 && [ -s "$POP_PNG" ]; then
+    POP_W=$(sips -g pixelWidth "$POP_PNG" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+    POP_H=$(sips -g pixelHeight "$POP_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ "$POP_W" = "1480" ] && [ "${POP_H:-0}" -ge 900 ]; then
+      ok "Home's populated state renders every retention feature (1480x$POP_H PNG)"
+    else
+      bad "Home's populated state renders offscreen at 2x (dims: ${POP_W:-none}x${POP_H:-none})"
+    fi
+  else
+    bad "Home's populated state renders a nonzero PNG"
+  fi
+
+  # (4b) The corrections-cleaned counter (the SPEC GAP a stored-but-invisible field would fail)
+  # must actually change what Home renders: the SAME two dictations, once with a real
+  # correctionsCleaned total and once with it zeroed out, must NOT render at the same height — a
+  # counter that's only ever written to history.json and never read by any view would render
+  # identically either way.
+  CC_ZERO_HOME="$REGTMP/retention-cc-zero"
+  mkdir -p "$CC_ZERO_HOME"
+  {
+    printf '{"id":"ret1","ts":%s,"day":"%s","text":"ship the myela engine today","words":5,"durationMs":1800,"appBundleId":"com.tinyspeck.slackmacgap","appName":"Slack","engine":"parakeet","kind":"dictate","correctionsCleaned":0}\n' \
+      "$((RET_TODAY_TS - 90000))" "$RET_YDAY_DAY"
+    printf '{"id":"ret2","ts":%s,"day":"%s","text":"final report is ready for review","words":6,"durationMs":2000,"appBundleId":"com.apple.mail","appName":"Mail","engine":"parakeet","kind":"dictate","correctionsCleaned":0}\n' \
+      "$RET_TODAY_TS" "$RET_TODAY_DAY"
+  } > "$CC_ZERO_HOME/history.json"
+  printf '{"id":"retl1","ts":%s,"word":"Myela","from":"miele"}\n' "$RET_TODAY_TS" > "$CC_ZERO_HOME/learned.json"
+
+  CC_ZERO_PNG="$HOME_DIR/cc-zero.png"
+  if env WARBLE_HOME="$CC_ZERO_HOME" "$BIN" --render-home "$CC_ZERO_PNG" >/dev/null 2>&1 && [ -s "$CC_ZERO_PNG" ]; then
+    CC_ZERO_H=$(sips -g pixelHeight "$CC_ZERO_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ -n "${CC_ZERO_H:-}" ] && [ -n "${POP_H:-}" ] && [ "$POP_H" -gt "$CC_ZERO_H" ]; then
+      ok "the corrections-cleaned counter actually renders on Home (populated ${POP_H}px > zeroed ${CC_ZERO_H}px)"
+    else
+      bad "the corrections-cleaned counter changes Home's render vs an all-zero fixture (populated: ${POP_H:-none}px, zeroed: ${CC_ZERO_H:-none}px)"
+    fi
+  else
+    bad "Home renders a nonzero PNG for the all-zero corrections fixture"
+  fi
+
+  # (5) "Save a stats card": guarded when there's nothing to share yet, a real @2x PNG at the
+  # card's own fixed size (960x600 -> 1920x1200 @2x) once there is.
+  CARD_EMPTY="$HOME_DIR/card-empty.png"
+  if env WARBLE_HOME="$EMPTY_HOME" "$BIN" --render-share-card "$CARD_EMPTY" >/dev/null 2>&1; then
+    bad "the share card refuses to render with nothing to share"
+  else
+    ok "the share card refuses to render with nothing to share"
+  fi
+
+  CARD_PNG="$HOME_DIR/card.png"
+  if env WARBLE_HOME="$RET_HOME" "$BIN" --render-share-card "$CARD_PNG" >/dev/null 2>&1 && [ -s "$CARD_PNG" ]; then
+    CARD_W=$(sips -g pixelWidth "$CARD_PNG" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+    CARD_H=$(sips -g pixelHeight "$CARD_PNG" 2>/dev/null | awk '/pixelHeight/ {print $2}')
+    if [ "$CARD_W" = "1920" ] && [ "$CARD_H" = "1200" ]; then
+      ok "the share card renders at its fixed size (1920x1200 PNG)"
+    else
+      bad "the share card renders at its fixed size (dims: ${CARD_W:-none}x${CARD_H:-none})"
+    fi
+  else
+    bad "the share card renders a nonzero PNG once there's something to share"
+  fi
+}
+
 check_selftest() {
   require_bin || return
   SELFTEST=$("$BIN" --selftest 2>&1)
@@ -1211,7 +1352,7 @@ check_gallery() {
   GAL_OUT=$(sh "$ROOT/scripts/onboarding-gallery.sh" "$GAL_DIR" 2>&1)
   GAL_STATUS=$?
   GAL_STEPS=$("$BIN" --onboarding-state 2>/dev/null | grep -c '^step ')
-  GAL_WANT=$((GAL_STEPS + 7 + 4 + 10 + 2)) # steps + onboarding variants + setup states + pill states + history detail
+  GAL_WANT=$((GAL_STEPS + 7 + 4 + 10 + 2 + 3)) # steps + onboarding variants + setup states + pill states + history detail + retention pass (home empty/populated + share card)
   GAL_GOT=$(ls "$GAL_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
   if [ "$GAL_STATUS" -eq 0 ] && [ "$GAL_GOT" = "$GAL_WANT" ] \
     && printf '%s\n' "$GAL_OUT" | grep -q "^gallery: $GAL_WANT/$GAL_WANT renders"; then

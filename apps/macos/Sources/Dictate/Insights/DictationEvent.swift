@@ -26,6 +26,15 @@ struct DictationEvent: Codable, Identifiable, Hashable {
                               // text (structurally: ContextRecord's only initializer caps it).
                               // Optional so pre-0.6 history lines still decode; nil when the
                               // toggle is off (the default) or the capture was gated.
+    let correctionsCleaned: Int?  // filler/false-start/duplicate removals the deterministic
+                              // cleanup layer made over the raw ASR text (ROADMAP 0.6 dashboard —
+                              // "corrections cleaned for you"), counted at clean time
+                              // (BasicCleaner.correctionsCount) since it can't be recovered later
+                              // from the already-cleaned, stored transcript. A pure count, never
+                              // gated by the History/secure-field toggles the way text is — same
+                              // "metric, not content" bucket as words/durationMs. Optional so
+                              // pre-0.6.1 history lines still decode, and nil for events nothing
+                              // was measured for (a FAILED transcription, a read-aloud).
 
     var isFailed: Bool { status == "failed" }
     var date: Date { Date(timeIntervalSince1970: ts) }
@@ -44,4 +53,7 @@ struct DictationContext {
     var context: CapturedContext? = nil // context awareness's in-memory capture (ROADMAP 0.6) —
                                         // nil when off (the default), secure, or sandbox; only its
                                         // bounded ContextRecord derivative ever reaches disk
+    var correctionsCleaned = 0  // set once cleanup has actually run (ROADMAP 0.6 dashboard) — 0
+                                // for level None (verbatim) or before the count is computed;
+                                // InsightStore.record copies it onto the stored DictationEvent
 }

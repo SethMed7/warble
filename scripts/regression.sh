@@ -22,13 +22,13 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
     core)          echo "core/ acceptance suite (bun install + bun test)" ;;
     build)         echo "swift build (debug) — the binary every CLI check runs" ;;
-    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine, resume matrix, ping synthesis, read-back availability)" ;;
+    unit)          echo "swift test — pure-logic unit tests (cleaner twin, spell-out, cap math, hallucination filter, onboarding machine, resume matrix, ping synthesis, read-back availability, context-awareness gates/caps)" ;;
     version)       echo "--version matches Info.plist" ;;
     cleanup)       echo "cleanup levels: --clean + all four --cleanup levels, engine-free" ;;
     cleanup-level) echo "cleanup level persists across processes; old polish pref migrates" ;;
@@ -37,6 +37,7 @@ describe() {
     autosend)      echo "--autosend: toggle off -> verbatim passthrough; toggle on -> final-position strip + send, mid-sentence untouched, secure field never sends; the landed+sent pill renders" ;;
     bindings)      echo "--bindings: default = Fn only; adds persist via the defaults seam + add/remove; conflicts/reserved rejected with a plain reason; invalid entries dropped on load" ;;
     readback)      echo "--readback-state: the availability story (landed -> available/expired/consumed; speak-off + secure-field gates); the landed+readback pill renders" ;;
+    context)       echo "--context-sim: context awareness defaults OFF (nothing read); on -> bounded capture (last 200 words, 12-word preview note); a secure field captures nothing; off stays off" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -477,6 +478,55 @@ landed (secure field) -> idle · ⌃R never armed'
     fi
   else
     bad "pill state 'landed+readback' renders a nonzero PNG"
+  fi
+}
+
+# Local-only context awareness (ROADMAP 0.6 — the capture half, the Wispr scandal inverted).
+# OFF by default, and the default is the load-bearing assertion: a fresh machine must print
+# "context: off — nothing read" with NO setup. On, the capture is bounded: the word cap keeps the
+# LAST 200 words (nearest the cursor), the category is derived locally (a static bundle-id map +
+# keyword fallback, unit-tested), and what would persist is only the compact note — app, category,
+# word count, ≤12-word preview, never the full text (the cap is structural: ContextRecord's only
+# initializer derives the preview; asserted in swift test, ContextAwarenessTests). A secure
+# (password) field captures NOTHING at all, even with the toggle on (--secure, the --autosend
+# idiom). Off again must STAY off across processes (product.md §4.5 — nothing re-enables itself).
+# The fixture file stands in for the AX-read text (real AX needs a live focused app — that pass is
+# by-hand, docs/testing.md); the toggle round-trips through the same "warble" defaults domain as
+# --sounds/--autosend, pinned and restored. Precision (product.md §4.9): captured context is never
+# handed to any network-capable code path — its only consumers are DictateController → the
+# in-memory DictationContext → InsightStore's bounded ContextRecord — and the Dictate module's
+# only network I/O is the loopback link to warble's own local engines.
+check_context() {
+  require_bin || return
+  PIN_CONTEXT=$(defaults read warble contextAwareness 2>/dev/null || true)
+  defaults delete warble contextAwareness >/dev/null 2>&1
+
+  CTX_FIX="$REGTMP/context-fixture.txt"
+  awk 'BEGIN{for(i=1;i<=250;i++) printf "w%03d ", i}' > "$CTX_FIX"
+
+  expect "context awareness defaults OFF — nothing read, no setup (the load-bearing negative)" \
+    "context: off — nothing read" "$BIN" --context-sim com.apple.mail "$CTX_FIX"
+
+  defaults write warble contextAwareness -bool true
+  CTX_PREVIEW="preview: w051 w052 w053 w054 w055 w056 w057 w058 w059 w060 w061 w062…"
+  expect "toggle on -> bounded capture: the last 200 words kept, a 12-word preview note" \
+    "$(printf 'captured: app=com.apple.mail category=mail words=200\n%s' "$CTX_PREVIEW")" \
+    "$BIN" --context-sim com.apple.mail "$CTX_FIX"
+  expect "the app category is derived locally (a terminal reads as editor)" \
+    "$(printf 'captured: app=com.googlecode.iterm2 category=editor words=200\n%s' "$CTX_PREVIEW")" \
+    "$BIN" --context-sim com.googlecode.iterm2 "$CTX_FIX"
+
+  expect "a secure field captures NOTHING at all, even with the toggle on" \
+    "context: secure field — nothing read" "$BIN" --context-sim com.apple.mail "$CTX_FIX" --secure
+
+  defaults write warble contextAwareness -bool false
+  expect "off stays off across processes (§4.5 — nothing re-enables itself)" \
+    "context: off — nothing read" "$BIN" --context-sim com.apple.mail "$CTX_FIX"
+
+  if [ -n "$PIN_CONTEXT" ]; then
+    defaults write warble contextAwareness -int "$PIN_CONTEXT" >/dev/null 2>&1
+  else
+    defaults delete warble contextAwareness >/dev/null 2>&1
   fi
 }
 

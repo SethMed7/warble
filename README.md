@@ -298,6 +298,22 @@ disclosed: a one-time, explicit model download when you opt into a premium engin
 for app updates** — a signed update feed (version info only, no accounts, no telemetry) that powers the
 in-app *Check for Updates*. The portable `core/` contains no networking code.
 
+**Context awareness** is **off by default** and opt-in per this Mac (**Dashboard ▸ Data & Privacy**;
+it never turns itself back on). When you switch it on, warble reads a small, bounded sliver of
+context at the moment a dictation starts: the frontmost app's identity (which per-app stats already
+capture), a category derived locally from a small built-in list (mail / chat / editor / document —
+or other, when warble can't tell), and at most ~200 words of text near your cursor — via the same
+focused-field Accessibility read
+that powers learn-from-edits. Never screenshots, never other windows or apps, and never a secure
+(password) field: when one is focused, nothing is captured at all. The captured text lives in
+memory for that one dictation and is never written to disk; History keeps only a compact,
+inspectable note of what was read — app, category, word count, and a preview capped at twelve
+words (a cap that is structural: the note's type has no field that can hold the full text).
+Captured context is never handed to any network-capable code path — its only consumers are the
+dictation controller, the dictation's in-memory context, and that bounded note in your local
+history — and the Dictate module's only network I/O is the loopback link to warble's own local
+engines.
+
 ## Repository layout
 
 ```
@@ -368,6 +384,10 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --readback-state        # dictate → read-back: the ⌃R availability story (landed → available →
                                             #   expired/consumed, plus the read-aloud-off and secure-field gates), told by the
                                             #   real machine
+.build/debug/warble --context-sim com.apple.mail /tmp/ctx.txt  # context awareness's capture gate over a fixture
+                                            #   text file standing in for the AX read (reads the persisted toggle — off by
+                                            #   default, so "context: off — nothing read" until it's turned on; append
+                                            #   --secure to prove a password field captures nothing at all)
 .build/debug/warble --render-pill listening /tmp/pill.png  # (DEBUG) render a pill state offscreen at 2x
                                             #   states: listening | listening+hint | listening+cap | processing
                                             #   | processing+hint | landed | landed+sent | landed+readback | copied | error

@@ -4,8 +4,8 @@ import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
 /// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--expand`, `--snippet-set`, `--autosend`, `--bindings`, `--readback-state`, `--selftest`,
-/// `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
+/// `--expand`, `--snippet-set`, `--autosend`, `--bindings`, `--readback-state`, `--context-sim`,
+/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
 /// `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
@@ -232,6 +232,42 @@ public enum DictateCLI {
             ReadBackAvailability.printStory()
             return true
         }
+        if let i = args.firstIndex(of: "--context-sim") {
+            // Local-only context awareness (ROADMAP 0.6), headless: run the REAL capture gate
+            // (ContextAwareness.capture — the same pure function captureLive feeds) over a fixture
+            // text file standing in for the AX-read text, since real AX needs a live focused app
+            // (that by-hand pass is in docs/testing.md). The toggle is read from the persisted
+            // "warble" defaults domain (the --autosend/--sounds idiom), so the OFF default — the
+            // load-bearing negative — needs no setup, and a `defaults write warble
+            // contextAwareness -bool true` in the shell proves the ON path across processes.
+            // A trailing `--secure` simulates a focused password field: nothing may be captured
+            // at all, even with the toggle on. Precision (product.md §4.9): captured context is
+            // never handed to any network-capable code path — its only consumers are
+            // DictateController → the in-memory DictationContext → InsightStore's bounded
+            // ContextRecord — and this module's only network I/O is the loopback link to warble's
+            // own local engines (WarmASR/WarmLLM via Shared/LoopbackHTTP).
+            guard i + 2 < args.count else {
+                FileHandle.standardError.write(Data("usage: --context-sim <bundle-id> <fixture.txt> [--secure]\n".utf8))
+                exit(2)
+            }
+            guard let fixture = try? String(contentsOfFile: args[i + 2], encoding: .utf8) else {
+                FileHandle.standardError.write(Data("no such fixture: \(args[i + 2])\n".utf8))
+                exit(2)
+            }
+            let secure = args.contains("--secure")
+            if let captured = ContextAwareness.capture(enabled: ContextAwareness.enabled,
+                                                       secure: secure, bundleId: args[i + 1],
+                                                       name: nil, text: fixture, focusedRole: nil) {
+                let record = ContextRecord(captured)
+                print("captured: app=\(record.app) category=\(record.category) words=\(record.words)")
+                print("preview: \(record.preview)")
+            } else if !ContextAwareness.enabled {
+                print("context: off — nothing read")
+            } else {
+                print("context: secure field — nothing read")
+            }
+            return true
+        }
         if args.contains("--selftest") {
             runSelftest()
             return true
@@ -449,7 +485,7 @@ public enum DictateCLI {
         let withRaw = DictationEvent(id: "y", ts: 2, day: "2026-07-11", text: "so the report",
                                      raw: "um so the the report", words: 3, durationMs: 900,
                                      appBundleId: nil, appName: nil, engine: "test", kind: "dictate",
-                                     status: nil)
+                                     status: nil, context: nil)
         let rebuilt = (try? JSONEncoder().encode(withRaw))
             .flatMap { try? JSONDecoder().decode(DictationEvent.self, from: $0) }
         check(rebuilt?.raw == "um so the the report", "raw transcript round-trips through a history line")
@@ -458,7 +494,7 @@ public enum DictateCLI {
         // A FAILED event (dictation recovery, ROADMAP 0.3) must round-trip its status.
         let failed = DictationEvent(id: "z", ts: 3, day: "2026-07-11", text: "", raw: nil, words: 0,
                                     durationMs: 1200, appBundleId: nil, appName: nil, engine: "test",
-                                    kind: "dictate", status: "failed")
+                                    kind: "dictate", status: "failed", context: nil)
         let failedBack = (try? JSONEncoder().encode(failed))
             .flatMap { try? JSONDecoder().decode(DictationEvent.self, from: $0) }
         check(failedBack?.isFailed == true, "failed status round-trips through a history line")

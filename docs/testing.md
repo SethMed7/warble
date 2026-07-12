@@ -1,8 +1,9 @@
 # warble — testing
 
 *How warble's promises are proven. One deterministic command covers everything 0.3, 0.4, and 0.5
-shipped; this page maps what it checks, the seams it uses, and the short list that still needs a
-human — headed by the fresh-account five-minute test, 0.4's exit criterion.*
+shipped — plus 0.6's capture half of context awareness; this page maps what it checks, the seams
+it uses, and the short list that still needs a human — headed by the fresh-account five-minute
+test, 0.4's exit criterion.*
 
 ## The one command
 
@@ -32,7 +33,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | --- | --- | --- |
 | `core` | the canonical TS cleaner's acceptance suite (`core/clean.test.ts`, via `bun test`) | cleanup foundation |
 | `build` | a debug `swift build` succeeds and produces the CLI binary | — |
-| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing), the listening contract's pure halves (ping synthesis: subtle-by-construction, click-free, decaying, tiny; the pill's gesture-hint copy), and the read-back availability machine (landed → available → expired/consumed, one-shot consume, the speak-off gate) | cleanup / cap logic / 0.4 onboarding + engine setup + listening contract / 0.5 read-back |
+| `unit` | `swift test`: the BasicCleaner Swift twin passes the **same cases** as `clean.test.ts` (the twin-drift guard), plus SpellOut, HoldCap math, the hallucination filter, the onboarding state machine (step gating, skip paths, first-run gate migration, post-update re-verify, practice/read completion gating, the backward-only jump-back), the resumable-download decision matrix (206 append / 200 restart / 416 verify + Content-Range parsing + file:// plumbing), the listening contract's pure halves (ping synthesis: subtle-by-construction, click-free, decaying, tiny; the pill's gesture-hint copy), the read-back availability machine (landed → available → expired/consumed, one-shot consume, the speak-off gate), and context awareness's pure halves (the off/secure zero-gates, the category map + fallbacks, the 200-word/12-word caps, the record's structural schema) | cleanup / cap logic / 0.4 onboarding + engine setup + listening contract / 0.5 read-back / 0.6 context |
 | `version` | `--version` matches `Info.plist` | — |
 | `cleanup` | all four levels: None is verbatim, Light equals the deterministic `--clean`, Medium/High degrade to the deterministic result with no LLM | cleanup levels |
 | `cleanup-level` | the level persists across processes; an old "Polish with AI" preference migrates (on → medium) | cleanup levels |
@@ -41,6 +42,7 @@ domain (never the installed app's) — your real `~/.warble` and preferences are
 | `autosend` | `--autosend` over the persisted toggle: off is verbatim passthrough even with the phrase, on strips a FINAL-position "press enter"/"press return" and reports `send: yes`, trailing punctuation is tolerated, a mid-sentence occurrence never fires, and `--secure` proves the safety gate (`AutoSend.mayFireReturn`): the phrase still strips but `send` is always `no` — plus the `landed+sent` pill renders wider than the textless `landed` base | 0.5 auto-send |
 | `bindings` | `--bindings` prints the active trigger table: the default is Fn only (built in, never stored); a binding seeded with a plain `defaults write warble dictateBindings -array "right-command:hold"` shows in the next process's table; `add`/`remove` (the dashboard editor's headless twins — same validation path) round-trip across processes; a duplicate, Esc, a click button (mouse-2), and a fourth binding are each rejected with their plain reason and a non-zero exit; a hand-planted invalid array degrades to Fn-only on load. The model's pure halves — parse/format round-trips, conflict reasons, load hygiene, the event-matching key codes/device bits, and HotKey's monitor teardown — are unit-tested (`swift test`, BindingsTests) | 0.5 multi-shortcut + mouse bindings |
 | `readback` | the dictate → read-back loop's availability story, told verbatim by `--readback-state` running the REAL machine against a synthetic clock: landed → available (the transient ⌃R claim arms), the 15s grace window expires (released), a press consumes it exactly once, read-aloud off never arms it (per-mode law), and a secure-field landing never arms it either (`ReadBackAvailability.landed`'s `secure` gate, even with read-aloud on) — plus the landed pill's "⌃R to hear it back" affordance rendering wider than the textless landed base. Stats honesty is structural: a read-back routes through the Speak one-shot pipeline whose single `onRead` callback is the only Insights logging path (one read event, never two) | 0.5 read-back |
+| `context` | local-only context awareness, the capture half (0.6): `--context-sim` runs the REAL capture gate over a fixture text file standing in for the AX read — the toggle's absent-default is OFF and prints "context: off — nothing read" with **no setup** (the load-bearing negative), ON captures the bounded sliver (the word cap keeps the **last** 200 words — nearest the cursor — and the persisted note carries only app / locally-derived category / word count / a ≤12-word preview, never the full text), a simulated secure field (`--secure`) captures nothing at all even with the toggle on, and off **stays** off across processes (product.md §4.5). The pure gates, category map + keyword fallback + AXTextArea nudge, both caps, the record's exact `{app, category, words, preview}` JSON schema ("the 13th word is unencodable" — the cap is structural), the DictationEvent round-trip, and pre-0.6 history decoding are unit-tested (`swift test`, ContextAwarenessTests); the live AX read against a real focused app is by-hand | 0.6 context awareness |
 | `selftest` | learn-from-edits detection + history-event codability (incl. the `raw` field and `failed` status round-trips) | undo-polish, recovery |
 | `engine` | `--engine` names a real tier (Apple Speech is the zero-install floor) | — |
 | `errors` | the cause-naming taxonomy verbatim (`--errors` — copy drift is deliberate), and the two faults provable headlessly: `engine-missing` names its cause and forces the Apple floor; `transcribe-fail` names its cause and exits non-zero | cause-naming errors |
@@ -220,6 +222,15 @@ the tour must not reappear (only **menu → Welcome tour…** brings it back).
   the secure-field gate, and the pill state are the scripted twins — `swift test` ReadBackTests
   incl. `testSecureFieldNeverArmsEvenWithSpeakOn` + `--readback-state` + `--render-pill
   landed+readback`; this pass is the live claim and the handoff.)
+- **Context awareness, the live AX read**: turn on **Dashboard ▸ Data & Privacy ▸ Context
+  awareness**, then dictate into a real app with text around the cursor (Mail, Notes) — the new
+  history line (in a sandboxed `WARBLE_HOME`, or your real store if you mean it) must carry a
+  compact `context` note: the app, its category, a word count ≤200, and a ≤12-word preview —
+  never more. Dictate into an app that exposes nothing to AX (most browsers) — the note degrades
+  to app + category with `words: 0`. Turn the toggle off and dictate — no note at all; focus a
+  real password field with it on and dictate — no note, and nothing read. (The gates, caps, and
+  category logic are the scripted twins — ContextAwarenessTests + `--context-sim`; this pass is
+  the real focused-field read.)
 - **Read-aloud**: ⌃V watch → selection queue → follow-along highlighting → collapse → Esc.
 - **The welcome tour, end to end**: `WARBLE_FORCE_ONBOARDING=1 .build/debug/warble` (or, for the
   true first-run path, clear the debug domain's keys first: `defaults delete warble

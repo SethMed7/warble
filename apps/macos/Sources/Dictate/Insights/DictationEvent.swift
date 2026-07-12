@@ -21,6 +21,11 @@ struct DictationEvent: Codable, Identifiable, Hashable {
     let status: String?       // nil = delivered; "failed" = transcription failed and the recording
                               // is kept for recovery (replay + Re-transcribe in History).
                               // Optional so pre-recovery history lines still decode.
+    let context: ContextRecord?  // what context awareness read for this dictation (ROADMAP 0.6):
+                              // app, category, word count, ≤12-word preview — never the full
+                              // text (structurally: ContextRecord's only initializer caps it).
+                              // Optional so pre-0.6 history lines still decode; nil when the
+                              // toggle is off (the default) or the capture was gated.
 
     var isFailed: Bool { status == "failed" }
     var date: Date { Date(timeIntervalSince1970: ts) }
@@ -36,4 +41,7 @@ struct DictationContext {
     let appName: String?
     let secure: Bool   // a secure (password) field was focused while recording — keep metrics only
     var sandbox = false // an onboarding rehearsal (PracticeSandbox) — History/stats must not move
+    var context: CapturedContext? = nil // context awareness's in-memory capture (ROADMAP 0.6) —
+                                        // nil when off (the default), secure, or sandbox; only its
+                                        // bounded ContextRecord derivative ever reaches disk
 }

@@ -63,6 +63,10 @@ public final class DictateController: NSObject {
     /// Whether this session is an onboarding rehearsal (the practice card is up and warble itself
     /// was frontmost at recording start) — the result goes to the card, never to paste/History.
     private var dictationSandbox = false
+    /// Context awareness (ROADMAP 0.6, off by default): the bounded sliver read at recording
+    /// start. Lives in memory for exactly this dictation — snapshotted into the DictationContext,
+    /// then dropped; only the compact ContextRecord derived from it ever reaches the store.
+    private var dictationCaptured: CapturedContext?
     private static let passwordManagerBundleIDs: Set<String> = [
         "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword",
         "com.bitwarden.desktop", "org.keepassxc.keepassxc", "com.lastpass.LastPass", "com.apple.keychainaccess",
@@ -464,6 +468,15 @@ public final class DictateController: NSObject {
         // warble itself is frontmost belongs to the card. Frontmost anywhere else = a real
         // dictation (the user left the tour mid-card) — recorded and pasted normally.
         dictationSandbox = PracticeSandbox.shared.isActive && isSelf
+        // Local-only context awareness (ROADMAP 0.6, OFF by default): read the bounded sliver
+        // NOW, at recording start — the frontmost app already captured above, a locally derived
+        // category, and at most ~200 words near the cursor via the same AX read learn-from-edits
+        // uses. The gates run BEFORE any AX read: toggle off or a secure field means nothing is
+        // read at all, and a practice-card rehearsal never reads the tour's own text.
+        dictationCaptured = dictationSandbox ? nil
+            : ContextAwareness.captureLive(secure: dictationSecure,
+                                           bundleId: dictationApp?.bundleId,
+                                           name: dictationApp?.name)
         learner.stop(); LearnPill.shared.close() // a new dictation supersedes any pending learn prompt
         disarmReadBack() // …and any armed read-back — this session re-arms it when it lands
         workGen &+= 1 // a fresh session; any straggler completion from before is now stale
@@ -645,7 +658,9 @@ public final class DictateController: NSObject {
                                    appBundleId: dictationApp?.bundleId,
                                    appName: dictationApp?.name,
                                    secure: dictationSecure,
-                                   sandbox: dictationSandbox)
+                                   sandbox: dictationSandbox,
+                                   context: dictationCaptured)
+        dictationCaptured = nil // session-scoped: the snapshot in ctx is the only copy from here on
         let wav = clip.url
         Transcribers.run(wav, clipDuration: clip.duration) { [weak self] outcome in
             guard let self else { try? FileManager.default.removeItem(at: wav); return }

@@ -29,6 +29,12 @@ struct DataPrivacyView: View {
                     toggleRow("Skip password fields",
                               "Never store text or audio when a secure (password) field is focused.",
                               get: { store.excludeSecureFields }, set: { store.excludeSecureFields = $0 })
+                    Hairline()
+                    // Context awareness (ROADMAP 0.6) — OFF by default, and only this switch ever
+                    // turns it on or off (product.md §4.5: it never re-enables itself).
+                    toggleRow("Context awareness",
+                              "warble reads a little text around your cursor to match the app's tone — decided on this Mac, kept only as a small note of what was read, never sent anywhere.",
+                              get: { ContextAwareness.enabled }, set: { ContextAwareness.enabled = $0 })
                 }
 
                 // Insights AI: the optional, default-off generative layer. The master toggle gates the

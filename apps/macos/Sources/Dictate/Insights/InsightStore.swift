@@ -133,7 +133,11 @@ public final class InsightStore: ObservableObject {
             appName: ctx.appName,
             engine: ctx.engine,
             kind: "dictate",
-            status: nil)
+            status: nil,
+            // Context awareness (ROADMAP 0.6): only the bounded note (app, category, word count,
+            // ≤12-word preview) ever reaches disk — the full captured text has no Codable form.
+            // Gated like the transcript text itself: stats-only mode keeps no read text either.
+            context: keepText ? ctx.context.map { ContextRecord($0) } : nil)
         events.append(e)
         appendLine(e)
     }
@@ -168,7 +172,8 @@ public final class InsightStore: ObservableObject {
             appName: ctx.appName,
             engine: ctx.engine,
             kind: "dictate",
-            status: "failed")
+            status: "failed",
+            context: historyEnabled ? ctx.context.map { ContextRecord($0) } : nil)
         events.append(e)
         appendLine(e)
         return e
@@ -190,7 +195,7 @@ public final class InsightStore: ObservableObject {
                                    text: historyEnabled ? text : "", raw: keptRaw,
                                    words: Self.wordCount(text), durationMs: o.durationMs,
                                    appBundleId: o.appBundleId, appName: o.appName,
-                                   engine: engine, kind: o.kind, status: nil)
+                                   engine: engine, kind: o.kind, status: nil, context: o.context)
         rewrite()
     }
 
@@ -215,7 +220,8 @@ public final class InsightStore: ObservableObject {
             appName: appName,
             engine: voice,
             kind: "read",
-            status: nil)
+            status: nil,
+            context: nil) // reads never capture context — it's a dictation-tone feature
         events.append(e)
         appendLine(e)
     }
@@ -239,7 +245,7 @@ public final class InsightStore: ObservableObject {
         events[i] = DictationEvent(id: o.id, ts: o.ts, day: o.day, text: newText, raw: o.raw,
                                    words: Self.wordCount(newText), durationMs: o.durationMs,
                                    appBundleId: o.appBundleId, appName: o.appName, engine: o.engine,
-                                   kind: o.kind, status: o.status)
+                                   kind: o.kind, status: o.status, context: o.context)
         rewrite()
     }
 

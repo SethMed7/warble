@@ -17,7 +17,9 @@ enter" auto-send (end a dictation with the phrase and warble sends it, off by de
 multi-shortcut + mouse bindings (put push-to-talk on a thumb button), the dictate →
 read-back proofreading loop (⌃R as a dictation lands reads it back with the follow-along —
 the loop only a bidirectional voice app can close), and the same suite consolidation, extended:
-the auto-send and read-back secure-field claims are now unit-tested, not just documented.*
+the auto-send and read-back secure-field claims are now unit-tested, not just documented. And
+0.6 begins — "context, locally": the capture half of context awareness, opt-in, bounded, and
+inspectable, off by default.*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -297,6 +299,29 @@ the auto-send and read-back secure-field claims are now unit-tested, not just do
   the updated coverage map, the secure-field gates, and a **Snippets, in the dashboard** entry to
   the by-hand list, alongside real mouse-button push-to-talk, a real auto-send in a chat app, and
   the full dictate→⌃R loop with audio.
+- **Local-only context awareness — the capture half (0.6 begins).** A new **Context awareness**
+  toggle in **Dashboard ▸ Data & Privacy** — **off by default**, opt-in, and it never turns
+  itself back on (product.md §4.5) — lets warble read a small, bounded sliver of context at the
+  moment a dictation starts: the frontmost app's identity (already captured for per-app stats), a
+  category derived locally from a small built-in bundle-id list (mail / chat / editor / document /
+  other), and at most **~200 words** of text near the cursor (the end of the field — nearest where
+  you're writing) via the same focused-field Accessibility read learn-from-edits already uses — no
+  new AX surface. Never screenshots, never other windows or apps, and never a secure (password)
+  field: the off and secure gates run **before** any Accessibility read, so nothing is captured at
+  all — not even the app. The captured text lives in memory for that one dictation and has no
+  encodable form; History keeps only a compact, inspectable note of what was read — app, category,
+  word count, and a ≤12-word preview whose cap is structural (the note's only initializer derives
+  it, unit-tested down to "the 13th word is unencodable"). Old history lines still decode.
+  Captured context is never handed to any network-capable code path — its only consumers are
+  DictateController → the in-memory DictationContext → InsightStore's bounded ContextRecord — and
+  the Dictate module's only network I/O is the loopback link to warble's own local engines.
+  Headless proof: a new `--context-sim` seam runs the real capture gate over a fixture text file,
+  and `scripts/regression.sh` gains a `context` check — the OFF default prints "context: off —
+  nothing read" with no setup (the load-bearing negative), ON captures the bounded sliver with the
+  exact 200-word/12-word caps, a simulated secure field captures nothing, and off stays off across
+  processes. The gates, category heuristics, caps, and record schema are unit-tested
+  (ContextAwarenessTests, 16 tests). What context awareness *does* with the sliver (per-app tone)
+  and showing the note in the dashboard are the milestone's next steps.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

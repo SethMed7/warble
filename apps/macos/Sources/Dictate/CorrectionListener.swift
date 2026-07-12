@@ -61,8 +61,11 @@ final class CorrectionListener {
     }
 
     // MARK: Accessibility
+    // These three are internal (not private) on purpose: ContextAwareness.captureLive reuses this
+    // exact focused-field read rather than growing a second AX surface — one place in the app
+    // reads focused text, with one discipline.
 
-    private static func focusedElement() -> AXUIElement? {
+    static func focusedElement() -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
         var el: AnyObject?
         guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &el) == .success,
@@ -73,13 +76,13 @@ final class CorrectionListener {
     /// Read the focused text as robustly as we can — many apps (incl. terminals like Ghostty) don't
     /// put the text on the focused element's AXValue directly, so fall back to its selected text and
     /// then to a text-bearing descendant. This is what lets edit-watching work beyond simple fields.
-    private static func value(of el: AXUIElement) -> String? {
+    static func value(of el: AXUIElement) -> String? {
         if let s = stringAttr(el, kAXValueAttribute), !s.isEmpty { return s }
         if let s = stringAttr(el, kAXSelectedTextAttribute), !s.isEmpty { return s }
         return firstTextValue(in: el, depth: 0)
     }
 
-    private static func stringAttr(_ el: AXUIElement, _ attr: String) -> String? {
+    static func stringAttr(_ el: AXUIElement, _ attr: String) -> String? {
         var v: AnyObject?
         guard AXUIElementCopyAttributeValue(el, attr as CFString, &v) == .success else { return nil }
         return v as? String

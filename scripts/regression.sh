@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors speechanalyzer hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums import ci warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply context-inspect retention selftest engine errors speechanalyzer hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery transparency checksums import ci vs warm"
 
 describe() {
   case "$1" in
@@ -60,6 +60,7 @@ describe() {
     checksums)     echo "release integrity (0.7): scripts/checksum.sh over fixture artifacts — shasum-compatible line, shasum -a 256 -c verifies it, a second artifact appends, re-running the same filename replaces its line instead of duplicating" ;;
     import)        echo "Wispr import (0.7): scripts/import-wispr.ts bun suite (extraction/dedupe/schema-probe/corrupt+missing), a dry-run over the committed fixture writes nothing, --write creates warble's dictionary while leaving Wispr's file byte-identical, and the imported file is applied verbatim by the real app" ;;
     ci)            echo "release integrity (0.7): .github/workflows/regression.yml exists, is well-formed YAML, and is wired to a macOS runner running the engine-free suite on push + PR" ;;
+    vs)            echo "the /vs/ comparison pages (0.7): all six files exist; the overclaim tripwire (sitewide + competitor-overreach phrases) is clean over docs/vs/; every competitor page is headed DRAFT and keeps its concession + both audience sections; wispr-flow.md keeps the §Risks item 6 qualifiers (anonymous reporter, Privacy Mode off-by-default, the BLOB correction if screenshots are mentioned); handy.md names the same-Parakeet-engine fact directly; every page states the WER synthetic-corpus caveat next to warble's numbers" ;;
     warm)          echo "warm-engine extras: premium --engine + a real --speak (WARBLE_REGRESSION_FULL=1)" ;;
   esac
 }
@@ -1646,6 +1647,104 @@ check_ci() {
   else
     bad "CI wiring (macOS runner + push/PR triggers + the regression command)"
   fi
+}
+
+# The /vs/ comparison pages (ROADMAP 0.7), drafted ahead of the public launch — docs can't be fully
+# regression-tested, but their grep-falsifiable core can be, same discipline as check_transparency:
+#   (1) all six files exist (five competitor pages + the index);
+#   (2) the sitewide overclaim tripwire is extended over docs/vs/ explicitly, PLUS three phrases
+#       specific to competitor-page overreach — "screenshots every" (the Wispr forensic record's
+#       screenshot-BLOB column was NOT populated, so this exact framing is never earned),
+#       "spyware" (a characterization the fact-checked record never uses), "steals your" (the same
+#       kind of unearned framing) — never repo-wide, just docs/vs/, since those three phrases could
+#       be legitimate elsewhere;
+#   (3) structure as a proxy for fairness (product.md §4.9's "concede rivals' real strengths"):
+#       every competitor page still opens with a DRAFT header and still carries all three of "What
+#       they do better" / "Who should pick them" / "Who should pick warble" — a page that quietly
+#       lost its concession section is a page that stopped being fair;
+#   (4) the Wispr page keeps the binding qualifiers from wispr-flow.md §Risks item 6: the banned
+#       reporter is described as anonymous, the training-use claim carries the "Privacy Mode... off
+#       by default" qualifier, and a screenshot mention carries the BLOB non-population correction;
+#   (5) the Handy page faces the same-Parakeet-engine fact head-on, not around it;
+#   (6) every page's WER number carries the synthetic-corpus caveat and links docs/benchmarks.md —
+#       the numbers are never left to imply a fair fight on their own.
+check_vs() {
+  VS_DIR="$ROOT/docs/vs"
+  VS_PAGES="wispr-flow superwhisper voiceink handy apple-built-ins"
+
+  # (1) every file exists.
+  VS_MISSING=""
+  for p in $VS_PAGES; do
+    [ -f "$VS_DIR/$p.md" ] || VS_MISSING="$VS_MISSING $p.md"
+  done
+  [ -f "$VS_DIR/README.md" ] || VS_MISSING="$VS_MISSING README.md"
+  if [ -z "$VS_MISSING" ]; then
+    ok "all six docs/vs/ files exist (five comparison pages + the index)"
+  else
+    bad "docs/vs/ files exist — missing:$VS_MISSING"
+    return
+  fi
+
+  # (2) the overclaim tripwire, explicitly over docs/vs/ — the sitewide phrases plus three that
+  # are only ever overreach in a competitor comparison.
+  VSTRIP=$(grep -rln -e "no networking code" -e "contains no networking" \
+    -e "screenshots every" -e "spyware" -e "steals your" "$VS_DIR" 2>/dev/null)
+  if [ -z "$VSTRIP" ]; then
+    ok "the overclaim tripwire (sitewide phrases + competitor-overreach phrases) is clean across docs/vs/"
+  else
+    bad "overclaim phrase found in docs/vs/ — reword per product.md §4.9: $VSTRIP"
+  fi
+
+  # (3) structure as a proxy for fairness: every competitor page (not the index) still leads with
+  # the concession and still names both audiences.
+  for p in $VS_PAGES; do
+    F="$VS_DIR/$p.md"
+    if sed -n '1,5p' "$F" | grep -q "DRAFT" \
+      && grep -qF "## What they do better" "$F" \
+      && grep -qF "## Who should pick them" "$F" \
+      && grep -qF "## Who should pick warble" "$F"; then
+      ok "$p.md: headed as a DRAFT and keeps the concession + both audience sections"
+    else
+      bad "$p.md: DRAFT header + \"What they do better\"/\"Who should pick them\"/\"Who should pick warble\" all present"
+    fi
+  done
+
+  # (4) the Wispr page's binding qualifiers (wispr-flow.md §Risks item 6): the reporter stays
+  # anonymous, training-use carries its default-off qualifier, and a screenshot mention carries
+  # the BLOB correction rather than repeating the debunked framing.
+  WF="$VS_DIR/wispr-flow.md"
+  if grep -qi "anonymous" "$WF" && grep -qF "Privacy Mode" "$WF" && grep -qi "off by default" "$WF"; then
+    ok "wispr-flow.md keeps the banned-reporter and training-use qualifiers"
+  else
+    bad "wispr-flow.md keeps the banned-reporter (anonymous) + training-use (Privacy Mode... off by default) qualifiers"
+  fi
+  if grep -qi "screenshot" "$WF"; then
+    if grep -qi "BLOB" "$WF"; then
+      ok "wispr-flow.md's screenshot mention carries the BLOB-not-populated correction"
+    else
+      bad "wispr-flow.md mentions screenshots without the BLOB-not-populated correction (§Risks item 6)"
+    fi
+  else
+    ok "wispr-flow.md makes no screenshot claim (nothing to correct)"
+  fi
+
+  # (5) the Handy page faces the same-engine fact head-on.
+  HD="$VS_DIR/handy.md"
+  if grep -qi "same core engine" "$HD" || grep -qi "same parakeet family" "$HD"; then
+    ok "handy.md names the same-Parakeet-engine fact directly, not around it"
+  else
+    bad "handy.md names the same-Parakeet-engine fact directly (the law: face it head-on)"
+  fi
+
+  # (6) every page's WER number carries its synthetic-corpus caveat and cites the real source.
+  for p in $VS_PAGES; do
+    F="$VS_DIR/$p.md"
+    if grep -qi "synthetic" "$F" && grep -qF "benchmarks.md" "$F"; then
+      ok "$p.md states the synthetic-corpus caveat next to warble's numbers and links docs/benchmarks.md"
+    else
+      bad "$p.md: synthetic-corpus caveat + docs/benchmarks.md link"
+    fi
+  done
 }
 
 # Warm-engine extras — the only checks that need the premium engines installed. Gated behind

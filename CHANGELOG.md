@@ -503,6 +503,42 @@ Snitch) is scripted step by step.*
   tier names itself under the `WARBLE_FORCE_ENGINE=speechanalyzer` seam, `engine-missing` still
   forces the legacy Apple floor, forcing the tier fails cleanly with no silent fallback when its
   assets are absent, and the chain-order placement is unit-tested (`SpeechAnalyzerTests`).
+- **The `/vs/` comparison pages — drafted (0.7 continues).** Five pages under
+  [`docs/vs/`](docs/vs/) — Wispr Flow, superwhisper, VoiceInk, Handy, and Apple's built-ins — plus
+  an index explaining their status: **drafts**, written ahead of the public launch, with no site or
+  navigation yet. Each follows the same form: it leads with what the competitor is genuinely great
+  at (the concession has to come first or the page isn't credible), an honest comparison table
+  limited to rows warble can actually source (license, price, offline, accounts, telemetry,
+  read-aloud, learning dictionary, latency, WER — the last two pulled from
+  [docs/benchmarks.md](docs/benchmarks.md) with the method caveat restated right next to the
+  numbers, never left to imply a fair fight), a real "who should pick them," and "who should pick
+  warble." The Wispr page keeps the exact qualifiers the fact-checked record supports (the banned
+  reporter was anonymous, training-use carries the "Privacy Mode… off by default" qualifier, and a
+  screenshot mention carries the BLOB-not-populated correction from the April 2026 forensic
+  record — never the debunked "screenshots every few seconds" framing) and concedes their real
+  strengths (the industry-benchmark onboarding, 104-language auto-detect, a genuine ZDR mode, a
+  clean current SOC 2 Type I). The Handy page faces the same-NVIDIA-Parakeet-engine fact head-on —
+  on raw transcription it's parity, not a warble win, and says so — and argues from the layer above
+  the engine instead: bidirectional voice, a built-in learning dictionary (Handy's own README shows
+  dictionary management only via a third-party Raycast extension), and the local dashboard. The
+  superwhisper and VoiceInk pages each name the honest local/cloud split those apps ship (local
+  transcription by default, optional cloud transcription/enhancement via bring-your-own-key) against
+  warble's architecture, where no cloud code path exists to opt into at all. The Apple built-ins
+  page is the one competitor that already offers both verbs, so its comparison leans on depth
+  rather than existence — and it carries the most directly comparable numbers of any page in the
+  set, because warble's own benchmark harness already measures Apple's on-device recognizer as one
+  of its own fallback engines (49.4 ms / 11.9% WER for Apple Speech vs 64.6 ms / 0.9% WER for
+  Parakeet, same harness, same corpus, same run — [docs/benchmarks.md](docs/benchmarks.md) §1–§2).
+  Every competitor fact is cited inline to the competitor's own site, repository, or documentation
+  (VoiceInk's and Handy's GitHub metadata — license, star count, latest release — read directly via
+  the GitHub API on 2026-07-12, not a third-party review). A new `vs` regression check keeps the
+  pages honest structurally: the sitewide overclaim tripwire now explicitly covers `docs/vs/`, three
+  more phrases are banned there specifically ("screenshots every," "spyware," "steals your" — never
+  earned by the fact-checked record), every competitor page must still open with a DRAFT header and
+  keep its "What they do better" / "Who should pick them" / "Who should pick warble" sections
+  (structure as a proxy for fairness), the Wispr page's binding qualifiers and the Handy page's
+  same-engine admission are grepped for directly, and every page's WER number must carry the
+  synthetic-corpus caveat next to it.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

@@ -496,6 +496,11 @@ and the **Little Snitch silence test** (0.6's), both scripted step by step — i
 caveats, and this machine's actual numbers live in [docs/benchmarks.md](docs/benchmarks.md); the
 harness (latency, WER, idle footprint) lives in `scripts/bench/`.
 
+**Comparisons:** [docs/vs/](docs/vs/) holds warble's `/vs/` comparison pages (Wispr Flow,
+superwhisper, VoiceInk, Handy, Apple's built-ins) — **drafts**, staged ahead of the public launch,
+with no site or navigation yet; each leads with a real concession before the comparison table, and
+every warble number traces to [docs/benchmarks.md](docs/benchmarks.md).
+
 **Cut a release:** `sh scripts/release.sh` builds a Developer-ID-signed, **notarized** `.dmg` in
 `dist/` (needs a Developer ID cert + a `voz-notary` notarytool profile in your Keychain — the
 profile name is a holdover from the voz era; no secrets ever live in the repo), and now also

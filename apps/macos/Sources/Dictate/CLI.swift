@@ -3,10 +3,11 @@ import ApplicationServices
 import AVFoundation
 
 /// Headless entries for the dictation pipeline (CI / dev smoke tests). No UI, no hotkey.
-/// `--clean`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`, `--engine`, `--apply`,
-/// `--expand`, `--snippet-set`, `--autosend`, `--bindings`, `--readback-state`, `--context-sim`,
-/// `--selftest`, `--axcheck`, `--learn-test`, `--recover-scan`, `--retranscribe`, `--hold-cap`,
-/// `--hold-cap-sim`, `--bench-e2e`, `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
+/// `--clean`, `--clean-in-context`, `--cleanup`, `--cleanup-level`, `--polish`, `--transcribe`,
+/// `--engine`, `--apply`, `--expand`, `--snippet-set`, `--autosend`, `--bindings`,
+/// `--readback-state`, `--context-sim`, `--selftest`, `--axcheck`, `--learn-test`,
+/// `--recover-scan`, `--retranscribe`, `--hold-cap`, `--hold-cap-sim`, `--bench-e2e`,
+/// `--practice-sim`, `--sounds`, `--render-pill` (DEBUG).
 public enum DictateCLI {
     /// Returns true if it handled the args (the caller should then exit).
     public static func handle(_ args: [String]) -> Bool {
@@ -74,6 +75,23 @@ public enum DictateCLI {
         }
         if let i = args.firstIndex(of: "--clean"), i + 1 < args.count {
             print(BasicCleaner.cleaned(args[i + 1])) // deterministic pass only
+            return true
+        }
+        if let i = args.firstIndex(of: "--clean-in-context") {
+            // Context awareness's apply half (ROADMAP 0.6), headless: the deterministic cleaner
+            // shaped by an explicit category — the same BasicCleaner call the live path makes
+            // when an opt-in capture carried one (Cleaners.best(for:category:)). Engine-free and
+            // pure; the gate story (off by default, secure-zero) is --context-sim's — this flag
+            // asserts the per-category tone rules themselves.
+            guard i + 2 < args.count else {
+                FileHandle.standardError.write(Data("usage: --clean-in-context <mail|chat|editor|document|other> \"text\"\n".utf8))
+                exit(2)
+            }
+            guard let category = AppCategory(rawValue: args[i + 1].lowercased()) else {
+                FileHandle.standardError.write(Data("unknown category \"\(args[i + 1])\" — use mail|chat|editor|document|other\n".utf8))
+                exit(2)
+            }
+            print(BasicCleaner.cleaned(args[i + 2], category: category))
             return true
         }
         if let i = args.firstIndex(of: "--cleanup"), i + 2 < args.count {

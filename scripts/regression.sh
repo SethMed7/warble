@@ -22,7 +22,7 @@ FAIL=0
 # Every check, in run order. Names are the --only/--list vocabulary; each maps to check_<name>
 # (dashes become underscores). "warm" runs only under WARBLE_REGRESSION_FULL=1 (or an explicit
 # --only warm).
-ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
+ALL_CHECKS="core build unit version cleanup cleanup-level dictionary snippets autosend bindings readback context context-apply selftest engine errors hold-cap recovery retranscribe recover-raw bench onboarding practice setup-sizes setup-resume listening gallery warm"
 
 describe() {
   case "$1" in
@@ -38,6 +38,7 @@ describe() {
     bindings)      echo "--bindings: default = Fn only; adds persist via the defaults seam + add/remove; conflicts/reserved rejected with a plain reason; invalid entries dropped on load" ;;
     readback)      echo "--readback-state: the availability story (landed -> available/expired/consumed; speak-off + secure-field gates); the landed+readback pill renders" ;;
     context)       echo "--context-sim: context awareness defaults OFF (nothing read); on -> bounded capture (last 200 words, 12-word preview note); a secure field captures nothing; off stays off" ;;
+    context-apply) echo "--clean-in-context: per-category tone (editor/chat drop a short one-liner's trailing period; mail/document unchanged); context off = pre-0.6 goldens at every level; dictionary+snippets outrank tone" ;;
     selftest)      echo "--selftest: learn-from-edits detection + history-event codability" ;;
     engine)        echo "--engine names a known engine tier" ;;
     errors)        echo "cause-naming taxonomy verbatim + engine-missing / transcribe-fail faults" ;;
@@ -522,6 +523,103 @@ check_context() {
   defaults write warble contextAwareness -bool false
   expect "off stays off across processes (§4.5 — nothing re-enables itself)" \
     "context: off — nothing read" "$BIN" --context-sim com.apple.mail "$CTX_FIX"
+
+  if [ -n "$PIN_CONTEXT" ]; then
+    defaults write warble contextAwareness -int "$PIN_CONTEXT" >/dev/null 2>&1
+  else
+    defaults delete warble contextAwareness >/dev/null 2>&1
+  fi
+}
+
+# Context awareness — the APPLY half (ROADMAP 0.6): the captured category shapes output
+# deterministically, and NOT capturing one is provably free. Two claims:
+# (1) THE GOLDEN NO-CHANGE: with context off (the default), a fixed input set through every
+#     cleanup level is byte-identical to the goldens below, which were generated from the
+#     pre-apply binary (commit de5ee39) — the tone rules are additive and gated on category, so
+#     nobody's output moves until they opt in AND a category is captured. WARBLE_DISABLE_LLM=1
+#     keeps medium/high deterministic on any machine; even the toggle flipped ON must not change
+#     a headless --cleanup (only a live capture carries a category).
+# (2) PER-CATEGORY RULES via --clean-in-context (the exact BasicCleaner call the live path makes):
+#     editor/terminal and chat drop the ASR's trailing period on a short one-liner (technical
+#     dots like "main.py" are not sentence boundaries; ! and ? always stay; prose over the cap
+#     keeps its period); mail/document keep full punctuation; `other` is byte-identical to
+#     --clean. Casing and contractions are never touched (the identifier-casing case).
+#     PRECEDENCE: the dictionary and snippets run AFTER the cleaner in the real leg order
+#     (cleanup -> dictionary -> snippets, transcribeAndDeliver), so a learned casing and a
+#     snippet's own trailing period always survive the tone pass — proven end to end here.
+# The rules are unit-tested twin-for-twin (clean.test.ts + BasicCleanerTests); the LLM hint's
+# prompt golden (nil/other -> the base prompt byte-identical) and the None-level verbatim gate
+# are unit-tested in ContextAwarenessTests. Real per-app dogfood is by-hand (docs/testing.md).
+check_context_apply() {
+  require_bin || return
+  PIN_CONTEXT=$(defaults read warble contextAwareness 2>/dev/null || true)
+  defaults delete warble contextAwareness >/dev/null 2>&1
+
+  # (1) the golden no-change: input|deterministic-golden pairs. "none" must be the input
+  # verbatim; light/medium/high must all equal the pre-apply deterministic golden.
+  while IFS='|' read -r G_IN G_WANT; do
+    expect "context off: --cleanup none stays verbatim (\"$G_IN\")" "$G_IN" \
+      env WARBLE_DISABLE_LLM=1 "$BIN" --cleanup none "$G_IN"
+    for G_LEVEL in light medium high; do
+      expect "context off: --cleanup $G_LEVEL matches the pre-apply golden (\"$G_IN\")" "$G_WANT" \
+        env WARBLE_DISABLE_LLM=1 "$BIN" --cleanup "$G_LEVEL" "$G_IN"
+    done
+  done <<'GOLDENS'
+git status.|git status.
+on my way.|on my way.
+um so the the report|so the report
+can't wait, it's gonna be great.|can't wait, it's gonna be great.
+npm install leftPad.|npm install leftPad.
+Ship it Friday. I mean Monday.|Ship it Monday.
+GOLDENS
+  defaults write warble contextAwareness -bool true
+  expect "the toggle alone changes nothing — only a live capture carries a category" \
+    "git status." env WARBLE_DISABLE_LLM=1 "$BIN" --cleanup light "git status."
+  defaults delete warble contextAwareness >/dev/null 2>&1
+
+  # (2) the per-category rules, through the real CLI.
+  expect "editor: a short command drops the ASR's trailing period" "git status" \
+    "$BIN" --clean-in-context editor "git status."
+  expect "editor: technical dots are not sentence boundaries" "run main.py" \
+    "$BIN" --clean-in-context editor "run main.py."
+  expect "editor: identifier casing survives — no sentence-case forcing" "npm install leftPad" \
+    "$BIN" --clean-in-context editor "npm install leftPad."
+  expect "editor: prose over the short-command cap keeps its period" \
+    "this function returns the number of retries we allow." \
+    "$BIN" --clean-in-context editor "this function returns the number of retries we allow."
+  expect "chat: a short message drops the trailing period" "on my way" \
+    "$BIN" --clean-in-context chat "on my way."
+  expect "chat: ! and ? carry intent and stay" "on my way!" \
+    "$BIN" --clean-in-context chat "on my way!"
+  expect "chat: a multi-sentence message keeps its final period" "be there soon. save me a seat." \
+    "$BIN" --clean-in-context chat "be there soon. save me a seat."
+  expect "chat: contractions pass through untouched" "can't wait, it's gonna be great" \
+    "$BIN" --clean-in-context chat "can't wait, it's gonna be great."
+  expect "mail keeps full punctuation (current behavior)" "on my way." \
+    "$BIN" --clean-in-context mail "on my way."
+  expect "document keeps full punctuation (current behavior)" "on my way." \
+    "$BIN" --clean-in-context document "on my way."
+  expect "'other' is byte-identical to --clean" "$("$BIN" --clean "git status.")" \
+    "$BIN" --clean-in-context other "git status."
+
+  # PRECEDENCE: dictionary casing and snippet text outrank tone rules (they run after the
+  # cleaner), chained through the same CLI legs the pipeline runs.
+  TONED=$("$BIN" --clean-in-context editor "ship the miele engine.")
+  APPLIED=$(env WARBLE_DICTIONARY="$DICT" "$BIN" --apply "$TONED")
+  EXPANDED=$(env WARBLE_HOME="$SNIP_HOME" "$BIN" --expand "$APPLIED")
+  if [ "$TONED" = "ship the miele engine" ] && [ "$EXPANDED" = "ship the Myela Turbo Engine" ]; then
+    ok "dictionary casing + snippet expansion outrank the editor tone pass (leg order proven)"
+  else
+    bad "dictionary/snippets outrank tone rules (toned=\"$TONED\"; expanded=\"$EXPANDED\")"
+  fi
+  # A snippet whose saved text ENDS in a period: the tone strip ran before expansion, so the
+  # snippet's own period lands untouched even in a chat.
+  TONE_SNIP_HOME="$REGTMP/tone-snip"
+  mkdir -p "$TONE_SNIP_HOME"
+  env WARBLE_HOME="$TONE_SNIP_HOME" "$BIN" --snippet-set "done stamp" "Done." >/dev/null 2>&1
+  TONED_TRIGGER=$("$BIN" --clean-in-context chat "done stamp.")
+  expect "a snippet's own trailing period survives the chat tone pass (snippets run after)" "Done." \
+    env WARBLE_HOME="$TONE_SNIP_HOME" "$BIN" --expand "$TONED_TRIGGER"
 
   if [ -n "$PIN_CONTEXT" ]; then
     defaults write warble contextAwareness -int "$PIN_CONTEXT" >/dev/null 2>&1

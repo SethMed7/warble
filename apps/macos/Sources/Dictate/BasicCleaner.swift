@@ -5,7 +5,7 @@ import Foundation
 /// Keep the pass order and rules identical in both files.
 enum BasicCleaner {
 
-    static func cleaned(_ s: String) -> String {
+    static func cleaned(_ s: String, category: AppCategory? = nil) -> String {
         // NFC first: Swift's == is canonical-equivalent, JS's === is code-unit — without a shared
         // normal form, mixed NFC/NFD duplicates would collapse in one twin and not the other.
         let trimmed = s.precomposedStringWithCanonicalMapping
@@ -24,6 +24,12 @@ enum BasicCleaner {
         // Acceptance outputs stay lowercase: only capitalize when the raw text did.
         if startedUpper, let first = out.first {
             out = String(first).uppercased() + String(out.dropFirst())
+        }
+        // (f) category tone — additive, gated on category (see below).
+        switch category {
+        case .editor: out = stripShortTrailingPeriod(out, maxWords: shortCommandWords)
+        case .chat:   out = stripShortTrailingPeriod(out, maxWords: shortMessageWords)
+        default:      break
         }
         return out
     }
@@ -179,5 +185,26 @@ enum BasicCleaner {
             }
         }
         return out
+    }
+
+    /// (f) Category tone (ROADMAP 0.6 — the apply half of local-only context awareness). When the
+    /// caller knows where the dictation is headed (the locally derived app category — captured
+    /// only when the user opted in), the output is shaped by small additive rules gated on that
+    /// category; no category means the pre-0.6 output, byte for byte. The one deterministic
+    /// transform: editors/terminals and chat apps drop the ASR's trailing period on a short
+    /// one-liner (a period is an artifact on "git status" and reads stiff in chat); mail and
+    /// documents keep today's full punctuation. Casing and contractions are never touched
+    /// anywhere — the words stay the user's (product.md §4.4).
+    private static let shortCommandWords = 6 // editor/terminal: commands are terse
+    private static let shortMessageWords = 12 // chat: messages run a little longer
+
+    private static func stripShortTrailingPeriod(_ text: String, maxWords: Int) -> String {
+        guard text.hasSuffix("."), !text.hasSuffix("..") else { return text } // one plain final period only
+        // A sentence boundary inside means prose — keep the period. Technical dots ("main.py",
+        // "v2.0") are not followed by whitespace, so they don't count.
+        guard text.range(of: "[.!?]\\s", options: .regularExpression) == nil else { return text }
+        let body = String(text.dropLast())
+        guard body.split(whereSeparator: { $0.isWhitespace }).count <= maxWords else { return text }
+        return body
     }
 }

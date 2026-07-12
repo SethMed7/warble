@@ -18,8 +18,10 @@ multi-shortcut + mouse bindings (put push-to-talk on a thumb button), the dictat
 read-back proofreading loop (⌃R as a dictation lands reads it back with the follow-along —
 the loop only a bidirectional voice app can close), and the same suite consolidation, extended:
 the auto-send and read-back secure-field claims are now unit-tested, not just documented. And
-0.6 begins — "context, locally": the capture half of context awareness, opt-in, bounded, and
-inspectable, off by default.*
+0.6 begins — "context, locally": context awareness, opt-in, bounded, and inspectable, off by
+default — the capture half (what was read is always visible) and the apply half (the captured
+category shapes per-app tone: casual in chat, code-aware in terminals, formal in mail — with
+context off, output is provably byte-identical to before).*
 
 - **The welcome tour — sequential permission cards (0.4 begins).** First launch now opens a card
   flow instead of the static welcome page: welcome → **Microphone** → **Accessibility** → done,
@@ -320,8 +322,27 @@ inspectable, off by default.*
   nothing read" with no setup (the load-bearing negative), ON captures the bounded sliver with the
   exact 200-word/12-word caps, a simulated secure field captures nothing, and off stays off across
   processes. The gates, category heuristics, caps, and record schema are unit-tested
-  (ContextAwarenessTests, 16 tests). What context awareness *does* with the sliver (per-app tone)
-  and showing the note in the dashboard are the milestone's next steps.
+  (ContextAwarenessTests). What context awareness *does* with the sliver is the next bullet
+  (per-app tone); surfacing the note in the dashboard is the milestone's remaining step.
+- **Per-app tone — the apply half (0.6 continues).** The captured category now shapes the output,
+  deterministically first: dictate a short command into a **terminal or editor** and the ASR's
+  trailing period is dropped ("git status." → "git status"; identifier casing and technical
+  tokens are never touched — no sentence-case forcing, and "main.py" is not a sentence boundary);
+  a short **chat** message loses its stiff trailing period too (contractions pass through, `!`
+  and `?` always stay, longer or multi-sentence messages keep their punctuation); **mail and
+  documents** keep today's full punctuation, and an app warble can't place changes nothing. The
+  rules live in the canonical cleaner (`core/clean.ts`) and its Swift twin, additive and gated on
+  category — with **context awareness off (the default) output is byte-identical to before**,
+  proven by a golden no-change regression check (a fixed input set through every cleanup level
+  against pre-change goldens). At **Medium/High** the category also rides the polish prompt as
+  exactly one destination-hint line — still bounded by the same words-changed safety guard, and
+  byte-identical prompts when no category was captured; at **None/Light** the LLM stays out of it
+  entirely (None remains a pure passthrough, tone rules included). Your dictionary and snippets
+  always win: they run after the tone pass, so a learned casing or a snippet's own punctuation is
+  never undone. Headless proof: a new `--clean-in-context <category> "text"` seam, the tone rules
+  unit-tested twin-for-twin (clean.test.ts + BasicCleanerTests), the prompt hint + None-gate
+  unit-tested, and a `context-apply` regression check covering the goldens, every category, and
+  the dictionary/snippets precedence end to end.
 
 ## 0.2.0 — 2026-07-10 · the rename release
 

@@ -147,6 +147,34 @@ final class ContextAwarenessTests: XCTestCase {
         XCTAssertFalse(json.contains("w200"))
     }
 
+    // MARK: the apply half (ROADMAP 0.6) — the polish prompt's category hint + the verbatim gate
+    // (The deterministic tone rules themselves live in BasicCleanerTests, twin-for-twin with
+    // clean.test.ts; the end-to-end leg order is regression.sh's context-apply check.)
+
+    func testPromptWithoutACategoryIsByteIdenticalToTheBase() {
+        // The golden no-change at the prompt level: with context off (category nil) — or an app
+        // warble can't place (`other`) — the polish path is untouched, byte for byte.
+        XCTAssertEqual(LLMPolish.prompt(LLMPolish.systemPrompt, category: nil), LLMPolish.systemPrompt)
+        XCTAssertEqual(LLMPolish.prompt(LLMPolish.systemPromptHigh, category: .other), LLMPolish.systemPromptHigh)
+    }
+
+    func testPromptGainsExactlyOneHintLinePerCategory() {
+        for category in [AppCategory.mail, .chat, .editor, .document] {
+            let p = LLMPolish.prompt(LLMPolish.systemPrompt, category: category)
+            XCTAssertTrue(p.hasPrefix(LLMPolish.systemPrompt), "the hint is additive — the base prompt is untouched")
+            let added = p.dropFirst(LLMPolish.systemPrompt.count)
+            XCTAssertTrue(added.hasPrefix("\nDestination: \(category.rawValue)"),
+                          "one line naming the destination (got \"\(added)\")")
+            XCTAssertEqual(added.filter { $0 == "\n" }.count, 1, "exactly one added line")
+        }
+    }
+
+    func testNoneLevelStaysVerbatimEvenWithACategory() {
+        // The verbatim law (product.md §4.4): at level None nothing is shaped — tone rules included.
+        XCTAssertEqual(Cleaners.cleaner(at: .none, for: "on my way.", category: .chat).clean("on my way."),
+                       "on my way.")
+    }
+
     // MARK: DictationEvent — the record rides the history line; old lines still decode
 
     func testDictationEventRoundTripsTheContextRecord() throws {

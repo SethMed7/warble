@@ -140,3 +140,68 @@ describe("tidy", () => {
     expect(cleaned("um uh hmm")).toBe("");
   });
 });
+
+describe("category tone", () => {
+  // The apply half of context awareness (0.6): rules are additive and gated on
+  // category — no category means the pre-0.6 output, byte for byte.
+  test("no category is byte-identical to the pre-category cleaner", () => {
+    expect(cleaned("git status.")).toBe("git status.");
+    expect(cleaned("on my way.")).toBe("on my way.");
+  });
+
+  test("editor: strips the trailing period on a short command", () => {
+    expect(cleaned("git status.", "editor")).toBe("git status");
+  });
+
+  test("editor: technical dots are not sentence boundaries", () => {
+    expect(cleaned("run main.py.", "editor")).toBe("run main.py");
+  });
+
+  test("editor: preserves identifier casing — no sentence-case forcing", () => {
+    expect(cleaned("npm install leftPad.", "editor")).toBe("npm install leftPad");
+    expect(cleaned("git push origin main", "editor")).toBe("git push origin main");
+  });
+
+  test("editor: prose over the short-command cap keeps its period", () => {
+    expect(cleaned("this function returns the number of retries we allow.", "editor"))
+      .toBe("this function returns the number of retries we allow.");
+  });
+
+  test("editor: multi-sentence and expressive endings stay", () => {
+    expect(cleaned("ship it today. run the tests.", "editor")).toBe("ship it today. run the tests.");
+    expect(cleaned("did it build?", "editor")).toBe("did it build?");
+    expect(cleaned("wait...", "editor")).toBe("wait...");
+  });
+
+  test("chat: strips the trailing period on a short message", () => {
+    expect(cleaned("on my way.", "chat")).toBe("on my way");
+  });
+
+  test("chat: contractions pass through untouched", () => {
+    expect(cleaned("can't wait, it's gonna be great.", "chat")).toBe("can't wait, it's gonna be great");
+  });
+
+  test("chat: ! and ? carry intent and stay", () => {
+    expect(cleaned("on my way!", "chat")).toBe("on my way!");
+    expect(cleaned("you free at nine?", "chat")).toBe("you free at nine?");
+  });
+
+  test("chat: a message over the cap keeps its period", () => {
+    expect(cleaned("I think we should probably just meet at the cafe next to the station.", "chat"))
+      .toBe("I think we should probably just meet at the cafe next to the station.");
+  });
+
+  test("chat: multi-sentence messages keep the final period", () => {
+    expect(cleaned("be there soon. save me a seat.", "chat")).toBe("be there soon. save me a seat.");
+  });
+
+  test("mail and document keep full punctuation (current behavior)", () => {
+    expect(cleaned("on my way.", "mail")).toBe("on my way.");
+    expect(cleaned("on my way.", "document")).toBe("on my way.");
+    expect(cleaned("git status.", "other")).toBe("git status.");
+  });
+
+  test("tone runs after the shared passes", () => {
+    expect(cleaned("um git status.", "editor")).toBe("git status");
+  });
+});

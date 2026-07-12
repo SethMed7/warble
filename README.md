@@ -99,8 +99,13 @@ How much tidying happens is yours to pick, under **menu → Dictate → Cleanup*
 verbatim, **Light** (the default) deterministically trims fillers and stumbles, **Medium** adds
 on-device LLM punctuation-and-filler polish, and **High** gives that LLM fuller formatting latitude —
 both AI levels are guarded, so output that changes your words is discarded for the deterministic
-result. Whatever the level, each history item also keeps the **raw transcript**: open it in the
-dashboard and click *"what you actually said"* to see — or restore — your verbatim words.
+result. With **context awareness** on (off by default — see [Privacy](#privacy)), cleanup also
+shapes tone per app: a short command dictated into a terminal or a short chat message drops the
+ASR's trailing period while mail and documents keep full punctuation — deterministic rules at
+Light, plus a one-line destination hint to the polish model at Medium/High, and never a change to
+your casing or contractions. Whatever the level, each history item also keeps the **raw
+transcript**: open it in the dashboard and click *"what you actually said"* to see — or restore —
+your verbatim words.
 
 Say a trigger phrase and warble types the text you saved instead — **Snippets**, managed under
 the dashboard's **Snippets** section: add "sign off" → your email signature, "my address" → the
@@ -304,7 +309,9 @@ context at the moment a dictation starts: the frontmost app's identity (which pe
 capture), a category derived locally from a small built-in list (mail / chat / editor / document —
 or other, when warble can't tell), and at most ~200 words of text near your cursor — via the same
 focused-field Accessibility read
-that powers learn-from-edits. Never screenshots, never other windows or apps, and never a secure
+that powers learn-from-edits. That locally derived category is what shapes the per-app tone in
+cleanup (casual in chat, code-aware in terminals — see the Cleanup paragraph above); nothing else
+consumes it. Never screenshots, never other windows or apps, and never a secure
 (password) field: when one is focused, nothing is captured at all. The captured text lives in
 memory for that one dictation and is never written to disk; History keeps only a compact,
 inspectable note of what was read — app, category, word count, and a preview capped at twelve
@@ -353,6 +360,8 @@ sh scripts/install.sh                    # build, sign, install to /Applications
 .build/debug/warble --version
 .build/debug/warble --speak "hello"         # read-aloud pipeline
 .build/debug/warble --clean "um so the the report"   # deterministic cleanup
+.build/debug/warble --clean-in-context editor "git status."  # …shaped by an app category (context awareness's
+                                            #   apply half): mail|chat|editor|document|other
 .build/debug/warble --cleanup none "um so the the report"  # cleanup at a level: none|light|medium|high
 .build/debug/warble --cleanup-level                  # print the saved cleanup level (set: --cleanup-level high)
 .build/debug/warble --polish "um so like the the report"  # full chain (on-device LLM if installed)

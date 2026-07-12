@@ -682,7 +682,10 @@ public final class DictateController: NSObject {
             case .text(let raw):
                 DispatchQueue.global(qos: .utility).async { // LLM / bun cleaner may block
                     let spell = SpellOut.process(raw) // resolve any spoken spelling first
-                    let cleaner = Cleaners.best(for: spell.text) // the chosen cleanup level; off main
+                    // The chosen cleanup level, shaped by the captured category when context
+                    // awareness is on (ROADMAP 0.6's apply half) — ctx.context is nil with the
+                    // toggle off (the default), so nil = byte-identical to today; off main.
+                    let cleaner = Cleaners.best(for: spell.text, category: ctx.context?.category)
                     // cleanup, then your dictionary, then any snippet triggers, then "press enter"
                     // auto-send (ROADMAP 0.5) — in that order, always, regardless of cleanup level:
                     // a snippet or the auto-send phrase is explicit user intent, not AI rewriting,

@@ -18,7 +18,10 @@ struct PassthroughCleaner: Cleaner {
 /// dictation saves a process spawn. core/clean.ts stays the canonical, acceptance-tested source;
 /// the twins are kept rule-identical.
 struct BasicSwiftCleaner: Cleaner {
-    func clean(_ raw: String) -> String { BasicCleaner.cleaned(raw) }
+    /// The captured app category (context awareness's apply half, ROADMAP 0.6) — nil (the
+    /// default, and always the case with the toggle off) is byte-identical to the pre-0.6 pass.
+    var category: AppCategory? = nil
+    func clean(_ raw: String) -> String { BasicCleaner.cleaned(raw, category: category) }
 }
 
 /// How much rewriting stands between the raw transcript and the paste (ROADMAP 0.3). The default
@@ -63,25 +66,34 @@ enum Cleaners {
     }
 
     /// The cleaner for the persisted level, tuned to `raw` — use this on the live paste path.
+    /// `category` is context awareness's captured app category (ROADMAP 0.6, opt-in): nil — the
+    /// default, and always the case with the toggle off — is byte-identical to today.
     /// NOTE: the LLM levels probe the network/disk, so call OFF the main thread.
-    static func best(for raw: String) -> Cleaner { cleaner(at: level, for: raw) }
+    static func best(for raw: String, category: AppCategory? = nil) -> Cleaner {
+        cleaner(at: level, for: raw, category: category)
+    }
 
     /// The cleaner for a level. Medium skips the LLM when `raw` is already clean (saving the
     /// polish latency on dictations that don't need it); High always runs it — fuller latitude is
     /// the point of picking High. Both stay guarded (LLMPolish.accept) and fall back to the
     /// deterministic cleaner on any failure; without an installed model they ARE the deterministic
-    /// cleaner. Pass `raw: nil` to skip the worth-running probe.
-    static func cleaner(at level: CleanupLevel, for raw: String?) -> Cleaner {
-        let base: Cleaner = BasicSwiftCleaner()
+    /// cleaner. Pass `raw: nil` to skip the worth-running probe. A captured `category` shapes the
+    /// deterministic pass (BasicCleaner's tone rules) and becomes one hint line in the polish
+    /// prompt (LLMPolish.prompt) — None stays a pure passthrough regardless: verbatim is verbatim
+    /// (product.md §4.4).
+    static func cleaner(at level: CleanupLevel, for raw: String?, category: AppCategory? = nil) -> Cleaner {
+        let base: Cleaner = BasicSwiftCleaner(category: category)
         switch level {
         case .none:  return PassthroughCleaner()
         case .light: return base
         case .medium:
             guard llmAvailable, raw.map(LLMPolish.worthRunning) ?? true else { return base }
-            return llmCleaner(prompt: LLMPolish.systemPrompt, fallback: base) ?? base
+            return llmCleaner(prompt: LLMPolish.prompt(LLMPolish.systemPrompt, category: category),
+                              fallback: base) ?? base
         case .high:
             guard llmAvailable else { return base }
-            return llmCleaner(prompt: LLMPolish.systemPromptHigh, fallback: base) ?? base
+            return llmCleaner(prompt: LLMPolish.prompt(LLMPolish.systemPromptHigh, category: category),
+                              fallback: base) ?? base
         }
     }
 

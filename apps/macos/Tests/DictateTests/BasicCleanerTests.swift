@@ -146,4 +146,73 @@ final class BasicCleanerTests: XCTestCase {
         XCTAssertEqual(clean(""), "")
         XCTAssertEqual(clean("um uh hmm"), "")
     }
+
+    // MARK: category tone
+    // The apply half of context awareness (0.6): rules are additive and gated on category —
+    // no category means the pre-0.6 output, byte for byte.
+
+    private func clean(_ s: String, _ category: AppCategory) -> String {
+        BasicCleaner.cleaned(s, category: category)
+    }
+
+    func testNoCategoryIsByteIdenticalToThePreCategoryCleaner() {
+        XCTAssertEqual(clean("git status."), "git status.")
+        XCTAssertEqual(clean("on my way."), "on my way.")
+    }
+
+    func testEditorStripsTheTrailingPeriodOnAShortCommand() {
+        XCTAssertEqual(clean("git status.", .editor), "git status")
+    }
+
+    func testEditorTechnicalDotsAreNotSentenceBoundaries() {
+        XCTAssertEqual(clean("run main.py.", .editor), "run main.py")
+    }
+
+    func testEditorPreservesIdentifierCasingNoSentenceCaseForcing() {
+        XCTAssertEqual(clean("npm install leftPad.", .editor), "npm install leftPad")
+        XCTAssertEqual(clean("git push origin main", .editor), "git push origin main")
+    }
+
+    func testEditorProseOverTheShortCommandCapKeepsItsPeriod() {
+        XCTAssertEqual(clean("this function returns the number of retries we allow.", .editor),
+                       "this function returns the number of retries we allow.")
+    }
+
+    func testEditorMultiSentenceAndExpressiveEndingsStay() {
+        XCTAssertEqual(clean("ship it today. run the tests.", .editor), "ship it today. run the tests.")
+        XCTAssertEqual(clean("did it build?", .editor), "did it build?")
+        XCTAssertEqual(clean("wait...", .editor), "wait...")
+    }
+
+    func testChatStripsTheTrailingPeriodOnAShortMessage() {
+        XCTAssertEqual(clean("on my way.", .chat), "on my way")
+    }
+
+    func testChatContractionsPassThroughUntouched() {
+        XCTAssertEqual(clean("can't wait, it's gonna be great.", .chat), "can't wait, it's gonna be great")
+    }
+
+    func testChatBangAndQuestionCarryIntentAndStay() {
+        XCTAssertEqual(clean("on my way!", .chat), "on my way!")
+        XCTAssertEqual(clean("you free at nine?", .chat), "you free at nine?")
+    }
+
+    func testChatAMessageOverTheCapKeepsItsPeriod() {
+        XCTAssertEqual(clean("I think we should probably just meet at the cafe next to the station.", .chat),
+                       "I think we should probably just meet at the cafe next to the station.")
+    }
+
+    func testChatMultiSentenceMessagesKeepTheFinalPeriod() {
+        XCTAssertEqual(clean("be there soon. save me a seat.", .chat), "be there soon. save me a seat.")
+    }
+
+    func testMailAndDocumentKeepFullPunctuationCurrentBehavior() {
+        XCTAssertEqual(clean("on my way.", .mail), "on my way.")
+        XCTAssertEqual(clean("on my way.", .document), "on my way.")
+        XCTAssertEqual(clean("git status.", .other), "git status.")
+    }
+
+    func testToneRunsAfterTheSharedPasses() {
+        XCTAssertEqual(clean("um git status.", .editor), "git status")
+    }
 }

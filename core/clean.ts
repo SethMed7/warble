@@ -143,7 +143,29 @@ function collapseDuplicates(tokens: string[]): string[] {
   return out;
 }
 
-export function cleaned(raw: string): string {
+// (f) Category tone (ROADMAP 0.6 — the apply half of local-only context
+// awareness). When the caller knows where the dictation is headed (the locally
+// derived app category — captured only when the user opted in), the output is
+// shaped by small additive rules gated on that category; no category means the
+// pre-0.6 output, byte for byte. The one deterministic transform: editors/
+// terminals and chat apps drop the ASR's trailing period on a short one-liner
+// (a period is an artifact on "git status" and reads stiff in chat); mail and
+// documents keep today's full punctuation. Casing and contractions are never
+// touched anywhere — the words stay the user's (product.md §4.4).
+const SHORT_COMMAND_WORDS = 6; // editor/terminal: commands are terse
+const SHORT_MESSAGE_WORDS = 12; // chat: messages run a little longer
+
+function stripShortTrailingPeriod(text: string, maxWords: number): string {
+  if (!text.endsWith(".") || text.endsWith("..")) return text; // one plain final period only
+  // A sentence boundary inside means prose — keep the period. Technical dots
+  // ("main.py", "v2.0") are not followed by whitespace, so they don't count.
+  if (/[.!?]\s/.test(text)) return text;
+  const body = text.slice(0, -1);
+  if (body.split(/\s+/).filter((t) => t.length > 0).length > maxWords) return text;
+  return body;
+}
+
+export function cleaned(raw: string, category?: string): string {
   // NFC first: Swift's == is canonical-equivalent, JS's === is code-unit — without a shared
   // normal form, mixed NFC/NFD duplicates would collapse in one twin and not the other.
   const trimmed = raw.normalize("NFC").trim();
@@ -159,6 +181,9 @@ export function cleaned(raw: string): string {
   let out = tokens.join(" ").replace(/\s+([.,!?;:])/g, "$1").trim();
   // Acceptance outputs stay lowercase: only capitalize when the raw text did.
   if (startedUpper && out !== "") out = out.charAt(0).toUpperCase() + out.slice(1);
+  // (f) category tone — additive, gated on category (see above).
+  if (category === "editor") out = stripShortTrailingPeriod(out, SHORT_COMMAND_WORDS);
+  else if (category === "chat") out = stripShortTrailingPeriod(out, SHORT_MESSAGE_WORDS);
   return out;
 }
 

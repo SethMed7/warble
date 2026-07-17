@@ -13,7 +13,7 @@ AIStore.migrateLegacyHome()
 let args = CommandLine.arguments
 
 if args.contains("--version") {
-    print("warble \((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.2.0")"); exit(0)
+    print("warble \((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.7.0")"); exit(0)
 }
 if args.contains("--errors") { // the cause-naming taxonomy of both flows, asserted by regression.sh
     DictateCLI.printErrors(); SpeakCLI.printErrors(); exit(0)

@@ -5,6 +5,12 @@ is what a user actually gets.
 
 ## Unreleased
 
+## 0.7.0 — 2026-07-17 · the dogfood hardening release
+
+- **Accessibility paste recovery.** Enabling Accessibility now takes effect after relaunch without
+  Warble repeatedly summoning the macOS permission dialog on every dictation. When trust is absent,
+  the transcript remains safely on the clipboard and the existing in-app guidance owns recovery.
+
 *The 0.3 reliability core — "never lose a word": dictations survive crashes and failed pastes,
 failures name their cause, long sessions cap cleanly instead of truncating silently, cleanup is a
 level you choose (verbatim-leaning by default, raw transcript always kept), every performance

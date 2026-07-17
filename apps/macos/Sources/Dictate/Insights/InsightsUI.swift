@@ -81,7 +81,7 @@ struct InsightsRootView: View {
 
     /// The build the user is running — same read as `--version`; the fallback matches main.swift.
     private static let version =
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.2.0"
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.7.0"
 
     /// The fixed sidebar: brand header, the section rows, and a version footer. The toolbar's
     /// safe-area inset already clears the titlebar; the small top padding is just breathing room.

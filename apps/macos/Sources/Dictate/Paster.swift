@@ -3,7 +3,9 @@ import Carbon.HIToolbox
 
 /// Types cleaned text into the focused app by briefly borrowing the
 /// clipboard: save it, set the text, synthesize ⌘V, restore. Posting key
-/// events needs the Accessibility permission — we prompt once.
+/// events needs the Accessibility permission. Onboarding and the menu own
+/// permission guidance; delivery only checks the current trust state so a
+/// stale/denied process cannot summon the macOS prompt after every dictation.
 enum Paster {
     /// Returns false when Accessibility is denied; the text is left on the
     /// clipboard (unrestored) so the user can paste it themselves.
@@ -14,8 +16,7 @@ enum Paster {
         // command are preserved.
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let pb = NSPasteboard.general
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        guard AXIsProcessTrustedWithOptions(options) else {
+        guard AXIsProcessTrusted() else {
             pb.clearContents()
             pb.setString(clean, forType: .string)
             return false
